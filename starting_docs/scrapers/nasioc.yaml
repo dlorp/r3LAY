@@ -1,0 +1,20 @@
+# NASIOC Forum Scraper Configuration
+# For extracting thread content from nasioc.com
+
+url_pattern: "https://forums.nasioc.com/forums/showthread.php*"
+
+selectors:
+  title: "h1.threadtitle"
+  author: ".username"
+  date: ".date"
+  content: ".postcontent"
+  replies: ".postcontainer"
+
+transform:
+  content: strip_html
+  date: parse_date
+
+metadata:
+  forum: "NASIOC"
+  category: "Subaru"
+  description: "North American Subaru Impreza Owners Club"

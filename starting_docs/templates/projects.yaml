@@ -1,0 +1,66 @@
+# Projects Registry Template
+# Theme: projects
+# Types: creative, research, hobby, other
+
+theme: projects
+type: hobby
+name: ""
+status: active
+
+# Project overview
+description: ""
+goals: []
+scope: ""
+
+# Timeline
+timeline:
+  started: null
+  target_completion: null
+  completed: null
+  milestones: []
+    # - name: ""
+    #   target_date: null
+    #   completed: null
+
+# Resources
+resources:
+  budget: null
+  spent: null
+  materials: []
+  tools: []
+  references: []
+
+# Tasks
+tasks:
+  todo: []
+  in_progress: []
+  completed: []
+
+# Collaborators
+collaborators: []
+  # - name: ""
+  #   role: ""
+  #   contact: ""
+
+# Progress tracking
+progress:
+  percent_complete: 0
+  last_update: null
+  blockers: []
+
+# Decisions log
+decisions: []
+  # - date: null
+  #   decision: ""
+  #   rationale: ""
+  #   alternatives: []
+
+# Known issues
+known_issues: []
+
+# Activity log
+maintenance_log: []
+
+# Timestamps
+created: null
+updated: null

@@ -1,0 +1,67 @@
+# Code Registry Template
+# Theme: code
+# Types: application, library, tool, script, service, other
+
+theme: code
+type: application
+name: ""
+status: active
+
+# Repository
+repo:
+  url: ""
+  branch: ""
+  provider: ""  # github, gitlab, bitbucket
+
+# Tech stack
+stack:
+  language: ""
+  framework: ""
+  runtime: ""
+  version: ""
+
+# Dependencies
+dependencies:
+  production: []
+  development: []
+
+# Build
+build:
+  command: ""
+  output: ""
+  docker: false
+
+# Deployment
+deployment:
+  environment: ""  # local, staging, production
+  url: ""
+  provider: ""  # vercel, aws, self-hosted
+  last_deployed: null
+
+# APIs used
+apis: []
+  # - name: ""
+  #   url: ""
+  #   auth_type: ""
+
+# Testing
+testing:
+  framework: ""
+  coverage: null
+  ci_url: ""
+
+# Documentation
+documentation:
+  readme: true
+  api_docs: ""
+  changelog: true
+
+# Known issues
+known_issues: []
+
+# Development log
+maintenance_log: []
+
+# Timestamps
+created: null
+updated: null

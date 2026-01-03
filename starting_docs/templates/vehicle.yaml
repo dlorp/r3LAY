@@ -1,0 +1,88 @@
+# Vehicle Registry Template
+# Theme: vehicle
+# Types: car, motorcycle, boat, atv, tractor, other
+
+theme: vehicle
+type: car
+name: ""
+status: active
+
+# Vehicle identification
+make: ""
+model: ""
+variant: ""
+year: null
+vin: ""
+
+# Engine/powertrain
+engine:
+  code: ""
+  displacement: ""
+  fuel_type: ""
+  transmission: ""
+
+# Current state
+odometer:
+  value: 0
+  unit: miles
+  updated: null
+
+# Fluids
+fluids:
+  engine_oil:
+    type: ""
+    brand: ""
+    filter: ""
+    capacity: ""
+    last_changed: null
+  coolant:
+    type: ""
+    last_changed: null
+  brake_fluid:
+    type: ""
+    last_changed: null
+  transmission_fluid:
+    type: ""
+    last_changed: null
+
+# Tires
+tires:
+  current:
+    brand: ""
+    model: ""
+    size: ""
+    installed: null
+    tread_depth: null
+
+# Brakes
+brakes:
+  front:
+    type: ""
+    last_replaced: null
+  rear:
+    type: ""
+    last_replaced: null
+
+# Battery
+battery:
+  brand: ""
+  type: ""
+  installed: null
+
+# Maintenance schedule
+maintenance_schedule:
+  oil_change_interval: 5000
+  timing_belt_interval: 60000
+  coolant_interval: 30000
+  brake_fluid_interval: 24000
+  transmission_interval: 60000
+
+# Known issues (append-only)
+known_issues: []
+
+# Maintenance log (append-only)
+maintenance_log: []
+
+# Timestamps
+created: null
+updated: null
