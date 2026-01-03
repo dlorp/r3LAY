@@ -8,8 +8,65 @@
 
 | Date | Session | Status |
 |------|---------|--------|
+| 2026-01-02 16:00 | Phase 2: Model Discovery | Complete |
 | 2026-01-02 14:30 | Phase 1: Bootable TUI Shell | Complete |
 | 2026-01-02 | Initial Scaffold | Complete |
+
+---
+
+## Session: 2026-01-02 16:00 - Phase 2: Model Discovery
+
+### Summary
+Implemented model discovery system with unified scanning across HuggingFace cache, GGUF folder, and Ollama API. Used parallel agents (@backend-llm-rag, @tui-frontend-engineer) for implementation.
+
+### Files Created
+- `r3lay/core/models.py` - ModelScanner, ModelInfo, enums (ModelSource, ModelFormat, Backend)
+- `plans/2026-01-02_phase2-model-discovery.md` - Detailed implementation plan
+
+### Files Modified
+- `r3lay/core/__init__.py` - Added scanner to R3LayState, exported model classes
+- `r3lay/config.py` - Added path configs (hf_cache_path, gguf_folder, ollama_endpoint)
+- `r3lay/ui/widgets/model_panel.py` - Wired real ModelScanner with @work decorator
+
+### Features Working
+- [x] HuggingFace cache scanning (parses models--* directories directly)
+- [x] GGUF folder scanning with auto-create (~/.r3lay/models/)
+- [x] Ollama API scanning with graceful timeout
+- [x] Format detection (GGUF magic bytes, safetensors)
+- [x] Backend auto-selection (MLX for Apple Silicon, LLAMA_CPP for GGUF)
+- [x] ModelPanel displays models with format badges
+- [x] Model selection shows details (backend, format, size)
+- [x] Load button present but disabled (Phase 3)
+
+### Test Results
+```
+Found 5 models in TUI:
+  Qwen/Qwen2.5-Coder-14B-Instruct-GGUF
+  unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF
+  unsloth/gpt-oss-20b-GGUF
+  unsloth/Qwen3-4B-GGUF
+  unsloth/Qwen3-VL-4B-Instruct-GGUF
+```
+
+### Issues Fixed During Implementation
+- CSS layout: Used proper heights instead of docking for reliable panel display
+- OptionList API: Use `Option(prompt, id=...)` not keyword args
+- Removed unused @work decorator for simpler async flow
+
+### Architectural Decisions
+- **Parse HF directories directly** instead of subprocess to huggingface-cli (more reliable)
+- **Pydantic for ModelInfo** instead of dataclass (validation, computed properties)
+- **Silent skip** for unavailable sources (Ollama down, missing folders)
+- **@work decorator** for background scanning (no UI freeze)
+
+### Next Steps
+- [ ] Implement model loading (InferenceBackend interface)
+- [ ] Enable Load button functionality
+- [ ] Memory management for model hot-swap
+- [ ] Model unloading on quit
+
+### Breaking Changes
+N/A — new feature.
 
 ---
 

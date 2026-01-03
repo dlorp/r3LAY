@@ -15,7 +15,7 @@
 /* Control tabs */
 #control-tabs {
     width: 100%;
-    height: 60%;
+    height: 1fr;
 }
 
 /* Tab styling */
@@ -25,6 +25,12 @@ TabbedContent > ContentSwitcher {
 
 TabPane {
     padding: 0;
+    height: 100%;
+}
+
+/* Ensure panels fill their containers */
+ModelPanel, IndexPanel, AxiomPanel, SessionPanel, SettingsPanel {
+    height: 100%;
 }
 
 /* Header customization */
