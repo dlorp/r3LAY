@@ -1,0 +1,81 @@
+/* r3LAY TUI Stylesheet - EVA-inspired amber/orange theme */
+
+/* Main layout */
+#main-layout {
+    width: 100%;
+    height: 100%;
+}
+
+/* Right column */
+#right-column {
+    width: 40%;
+    height: 100%;
+}
+
+/* Control tabs */
+#control-tabs {
+    width: 100%;
+    height: 60%;
+}
+
+/* Tab styling */
+TabbedContent > ContentSwitcher {
+    height: 1fr;
+}
+
+TabPane {
+    padding: 0;
+}
+
+/* Header customization */
+Header {
+    background: #331100;
+}
+
+/* Footer */
+Footer {
+    background: #1a1a1a;
+}
+
+FooterKey > .footer-key--key {
+    background: #663300;
+}
+
+/* Init screen */
+#init-container {
+    width: 60;
+    height: auto;
+    margin: 2 4;
+    padding: 1 2;
+    border: solid #FF6600;
+}
+
+#init-title {
+    text-align: center;
+    text-style: bold;
+    margin-bottom: 1;
+    color: #FFCC00;
+}
+
+#theme-list {
+    height: 12;
+    margin: 1 0;
+}
+
+#type-list {
+    height: 8;
+    margin: 1 0;
+}
+
+#name-input {
+    margin: 1 0;
+}
+
+.hidden {
+    display: none;
+}
+
+#init-button {
+    margin-top: 1;
+    width: 100%;
+}

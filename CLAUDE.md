@@ -26,6 +26,32 @@ You are the lead technical architect and implementer for r3LAY. Your responsibil
 - **Memory management** - Handle model hot-swapping and graceful shutdown properly
 - **Documentation** - Provide clear inline documentation
 
+## Role-Based Development
+
+When working on r3LAY, adopt the appropriate role:
+
+**As Architect** (planning tasks):
+- Break down features into tasks
+- Design interfaces before implementing
+- Consider memory constraints and async patterns
+
+**As Backend** (core/ work):
+- Focus on LLM backends, RAG, model discovery
+- Strict memory cleanup patterns
+- Test load/unload cycles
+
+**As Frontend** (ui/ work):
+- Focus on Textual widgets and styling
+- No blocking in UI thread
+- Keyboard navigation
+
+**As Research** (signals, axioms, expeditions):
+- Provenance tracking
+- Convergence detection
+- Knowledge extraction
+
+When I say "@Backend" or "@Architect", switch focus to that role's priorities.
+
 ## Getting Up to Speed
 
 **IMPORTANT**: Before starting work, review `SESSION_NOTES.md`
@@ -274,24 +300,36 @@ ruff check r3lay/
 
 ## Session Notes Format
 
-After each coding session, update SESSION_NOTES.md:
+**IMPORTANT**: `SESSION_NOTES.md` is a live, append-only file.
+
+- **Add new sessions at the TOP** (below the header, above previous sessions)
+- **NEVER modify or replace existing session entries**
+- Newest sessions first = no scrolling needed to see recent work
+
+After each coding session, add a new entry at the top:
 
 ```markdown
-## Session: YYYY-MM-DD HH:MM
+## Session: YYYY-MM-DD HH:MM - Brief Title
 
 ### Summary
 Brief description of what was accomplished.
 
-### Changes
-- `path/to/file.py`: Description of changes
+### Files Created/Modified
+- `path/to/file.py` - Description of changes
 
-### Issues Encountered
+### Problems Encountered
 - Problem: Description
 - Solution: How it was fixed
+
+### Architectural Decisions
+- Decision made and rationale
 
 ### Next Steps
 - [ ] Immediate next task
 - [ ] Following task
+
+### Breaking Changes
+- API or behavior changes that affect other code
 
 ---
 ```
