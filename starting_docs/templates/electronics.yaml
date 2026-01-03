@@ -1,0 +1,74 @@
+# Electronics Registry Template
+# Theme: electronics
+# Types: mod, build, component, repair, other
+
+theme: electronics
+type: mod
+name: ""
+status: active
+
+# Base unit (if modification)
+base_unit:
+  manufacturer: ""
+  model: ""
+  purchased: null
+  cost: null
+
+# Modifications performed
+mods_completed: []
+  # - name: ""
+  #   date: null
+  #   parts: []
+  #   notes: ""
+
+# Modifications planned
+mods_planned: []
+  # - name: ""
+  #   priority: medium
+  #   parts_needed: []
+  #   estimated_cost: null
+
+# Parts inventory
+parts:
+  sourced: []
+    # - name: ""
+    #   source: ""
+    #   quantity: 1
+    #   cost: null
+  needed: []
+
+# Tools required
+tools: []
+
+# Specifications
+specs:
+  power: ""
+  voltage: ""
+  dimensions: ""
+  weight: ""
+
+# Pinouts/connections
+pinouts: {}
+
+# Testing
+testing:
+  method: ""
+  results: ""
+  last_tested: null
+
+# Cost tracking
+costs:
+  base_unit: null
+  parts_total: null
+  tools: null
+  total: null
+
+# Known issues
+known_issues: []
+
+# Build log
+maintenance_log: []
+
+# Timestamps
+created: null
+updated: null

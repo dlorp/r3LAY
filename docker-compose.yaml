@@ -1,0 +1,46 @@
+services:
+  r3lay:
+    build: .
+    volumes:
+      - ${PROJECT_PATH:-.}:/project
+      - ${HF_CACHE_PATH:-~/.cache/huggingface}:/root/.cache/huggingface:ro
+    environment:
+      - R3LAY_MODELS__OLLAMA__ENDPOINT=http://host.docker.internal:11434
+      - R3LAY_MODELS__HUGGINGFACE__CACHE_PATH=/root/.cache/huggingface
+      - R3LAY_SEARXNG__ENDPOINT=http://searxng:8080
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    stdin_open: true
+    tty: true
+    depends_on:
+      - searxng
+    profiles:
+      - default
+
+  r3lay-standalone:
+    build: .
+    volumes:
+      - ${PROJECT_PATH:-.}:/project
+      - ${HF_CACHE_PATH:-~/.cache/huggingface}:/root/.cache/huggingface:ro
+    environment:
+      - R3LAY_MODELS__OLLAMA__ENDPOINT=http://host.docker.internal:11434
+      - R3LAY_MODELS__HUGGINGFACE__CACHE_PATH=/root/.cache/huggingface
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    stdin_open: true
+    tty: true
+
+  searxng:
+    image: searxng/searxng:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - SEARXNG_SECRET=r3lay-secret-key
+    volumes:
+      - searxng-data:/etc/searxng
+    profiles:
+      - default
+      - search
+
+volumes:
+  searxng-data:

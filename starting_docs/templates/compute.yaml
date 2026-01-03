@@ -1,0 +1,88 @@
+# Compute Registry Template
+# Theme: compute
+# Types: server, workstation, nas, vm, router, switch, ap, other
+
+theme: compute
+type: server
+name: ""
+status: active
+
+# Hardware
+hardware:
+  manufacturer: ""
+  model: ""
+  serial: ""
+  form_factor: ""
+  cpu:
+    model: ""
+    cores: null
+    threads: null
+  memory:
+    total: ""
+    type: ""
+    slots_used: null
+    slots_total: null
+  storage: []
+    # - device: /dev/sda
+    #   type: ssd
+    #   capacity: 1TB
+    #   model: ""
+
+# Network
+network:
+  hostname: ""
+  domain: ""
+  interfaces: []
+    # - name: eth0
+    #   mac: ""
+    #   ip: ""
+    #   gateway: ""
+  dns: []
+  vlans: []
+
+# Operating system
+os:
+  name: ""
+  version: ""
+  kernel: ""
+  installed: null
+
+# Services
+services: []
+  # - name: docker
+  #   port: null
+  #   status: running
+
+# Virtualization (if applicable)
+virtualization:
+  hypervisor: ""
+  guests: []
+
+# Remote access
+access:
+  ssh_port: 22
+  ssh_key: ""
+  management_url: ""
+
+# Backups
+backups:
+  schedule: ""
+  destination: ""
+  last_backup: null
+  retention: ""
+
+# Monitoring
+monitoring:
+  enabled: false
+  url: ""
+  alerts: []
+
+# Known issues
+known_issues: []
+
+# Maintenance log
+maintenance_log: []
+
+# Timestamps
+created: null
+updated: null

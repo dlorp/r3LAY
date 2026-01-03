@@ -1,0 +1,74 @@
+# Home Registry Template
+# Theme: home
+# Types: property, hvac, plumbing, electrical, appliance, other
+
+theme: home
+type: property
+name: ""
+status: active
+
+# Property info (if applicable)
+property:
+  address: ""
+  type: ""  # house, apartment, condo
+  year_built: null
+  square_feet: null
+  lot_size: ""
+
+# System info (for specific systems)
+system:
+  manufacturer: ""
+  model: ""
+  serial: ""
+  installed: null
+  capacity: ""
+
+# Warranty
+warranty:
+  provider: ""
+  expires: null
+  coverage: ""
+  policy_number: ""
+  contact: ""
+
+# Service schedule
+service_schedule:
+  frequency: ""
+  last_service: null
+  next_service: null
+  provider: ""
+
+# Consumables
+consumables: []
+  # - name: ""
+  #   model: ""
+  #   last_replaced: null
+  #   replacement_interval: ""
+
+# Utility info
+utilities:
+  electric:
+    provider: ""
+    account: ""
+  gas:
+    provider: ""
+    account: ""
+  water:
+    provider: ""
+    account: ""
+
+# Emergency contacts
+emergency_contacts: []
+  # - service: ""
+  #   name: ""
+  #   phone: ""
+
+# Known issues
+known_issues: []
+
+# Maintenance log
+maintenance_log: []
+
+# Timestamps
+created: null
+updated: null

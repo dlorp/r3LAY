@@ -1,0 +1,20 @@
+# RS25 Forum Scraper Configuration
+# For extracting thread content from rs25.com
+
+url_pattern: "https://rs25.com/threads/*"
+
+selectors:
+  title: "h1.p-title-value"
+  author: ".message-attribution-user a"
+  date: "time.u-dt"
+  content: ".message-body .bbWrapper"
+  replies: ".message-content"
+
+transform:
+  content: strip_html
+  date: parse_date
+
+metadata:
+  forum: "RS25"
+  category: "Subaru"
+  description: "RS25 Impreza Community Forum"
