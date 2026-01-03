@@ -2,7 +2,7 @@
 
 **TUI Research Assistant** with local LLM integration, hybrid RAG, and deep research capabilities.
 
-**Version:** 0.2.0 | **Status:** Phase 1 Complete (TUI Shell)
+**Version:** 0.3.0 | **Status:** Phase 2 Complete (Model Discovery)
 
 ```
 ┌─────────────────────────────────┬─────────────────────────────────┐
@@ -18,12 +18,24 @@
 | Phase | Description | Status |
 |-------|-------------|--------|
 | 1 | Bootable TUI Shell | Complete |
-| 2 | Model Scanning & Loading | Planned |
-| 3 | Hybrid RAG Index | Planned |
-| 4 | Web Search (SearXNG) | Planned |
-| 5 | Deep Research Expeditions | Planned |
+| 2 | Model Discovery | Complete |
+| 3 | Model Loading & Inference | Planned |
+| 4 | Hybrid RAG Index | Planned |
+| 5 | Web Search (SearXNG) | Planned |
+| 6 | Deep Research Expeditions | Planned |
 
-### Phase 1 Features (Current)
+### Phase 2 Features (Current)
+
+- **Model Discovery** - Unified scanning across multiple sources:
+  - HuggingFace cache (safetensors, GGUF)
+  - GGUF drop folder (`~/.r3lay/models/`)
+  - Ollama API (`localhost:11434`)
+- **Format Detection** - GGUF magic bytes, safetensors identification
+- **Backend Auto-Selection** - MLX (Apple Silicon) → vLLM (CUDA) → llama.cpp
+- **Models Panel** - Scan button, model list, selection details
+- **Load Button** - Present but disabled (Phase 3)
+
+### Phase 1 Features
 
 - Bento layout: Response pane (60%) | Input + Tabs (40%)
 - 5 tabs: Models, Index, Axioms, Sessions, Settings
@@ -44,14 +56,21 @@ python -m r3lay.app
 r3lay /path/to/project
 ```
 
+## Model Sources
+
+| Source | Path | Format |
+|--------|------|--------|
+| HuggingFace cache | `~/.cache/huggingface/hub/` | safetensors, GGUF |
+| GGUF drop folder | `~/.r3lay/models/` | .gguf files |
+| Ollama | `http://localhost:11434` | via API |
+
 ## Planned Features
 
-- **Local LLMs** - Ollama, llama.cpp, HuggingFace cache, MLX
+- **Model Loading** - Hot swap models without restart (Phase 3)
 - **Hybrid RAG** - Vector + BM25 with RRF fusion (CGRAG-inspired)
-- **Deep Research** - Multi-cycle expeditions with convergence detection
+- **Deep Research** - Multi cycle expeditions with convergence detection
 - **Provenance** - Full source tracking for all knowledge
 - **Axioms** - Validated knowledge accumulation
-- **Themes** - Vehicle, Compute, Code, Electronics, Home, Projects
 
 ## Commands
 
@@ -81,10 +100,11 @@ r3lay /path/to/project
 
 - Python 3.11+
 - Textual >= 0.47.0
+- httpx (for Ollama API)
 
 ### Optional (for future phases)
 
-- Ollama or llama.cpp server
+- Ollama server
 - ChromaDB
 - SearXNG
 
@@ -94,39 +114,35 @@ r3lay /path/to/project
 r3lay/
 ├── __init__.py
 ├── app.py              # Main Textual app
-├── config.py           # Pydantic settings
+├── config.py           # Pydantic settings + paths
 ├── core/
-│   └── __init__.py     # R3LayState (stub)
+│   ├── __init__.py     # R3LayState + exports
+│   └── models.py       # ModelScanner, ModelInfo, enums
 └── ui/
-    ├── widgets/        # Response, Input, 5 Panels
+    ├── widgets/
+    │   ├── model_panel.py   # Model discovery UI
+    │   ├── response_pane.py
+    │   ├── input_pane.py
+    │   └── ...              # Other panels
     └── styles/
         └── app.tcss    # EVA amber theme
 ```
 
 ## Configuration
 
-Create `r3lay.yaml` in your project (Phase 2+):
+Default paths (configurable in `config.py`):
 
-```yaml
-models:
-  ollama:
-    endpoint: "http://localhost:11434"
-  huggingface:
-    cache_path: "/path/to/cache"
-
-searxng:
-  endpoint: "http://localhost:8080"
-
-index:
-  use_hybrid_search: true
-  chunk_size: 512
+```python
+hf_cache_path = "~/.cache/huggingface/hub/"  # or custom path
+gguf_folder = "~/.r3lay/models/"
+ollama_endpoint = "http://localhost:11434"
 ```
 
 ## Documentation
 
 - [CLAUDE.md](CLAUDE.md) - Development instructions
 - [SESSION_NOTES.md](SESSION_NOTES.md) - Development log
-- [ARCHITECTURE.md](ARCHITECTURE.md) - Full architecture docs
+- [plans/](plans/) - Implementation plans
 
 ## License
 

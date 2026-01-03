@@ -1,4 +1,4 @@
-"""r3LAY Configuration - Minimal Pydantic config for Phase 1."""
+"""r3LAY Configuration."""
 
 from pathlib import Path
 
@@ -10,6 +10,11 @@ class AppConfig(BaseModel):
 
     project_path: Path = Path.cwd()
     theme: str = "default"
+
+    # Model discovery paths
+    hf_cache_path: Path | None = Path("/Users/dperez/Documents/LLM/llm-models/hub")
+    gguf_folder: Path = Path("~/.r3lay/models/").expanduser()
+    ollama_endpoint: str = "http://localhost:11434"
 
     @classmethod
     def load(cls, path: Path) -> "AppConfig":
