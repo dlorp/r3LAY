@@ -322,6 +322,15 @@ def scan_huggingface_cache(
             fmt = detect_format(item)
             size_bytes = _calculate_directory_size(snapshot_path)
 
+            # For GGUF models, find the actual .gguf file path
+            model_path: Path = snapshot_path
+            if fmt == ModelFormat.GGUF:
+                gguf_files = list(snapshot_path.glob("*.gguf"))
+                if gguf_files:
+                    # Use the first .gguf file found (usually only one)
+                    model_path = gguf_files[0]
+                    size_bytes = model_path.stat().st_size
+
             # Get last accessed time from refs/main if available
             last_accessed: datetime | None = None
             refs_main = item / "refs" / "main"
@@ -339,7 +348,7 @@ def scan_huggingface_cache(
                 ModelInfo(
                     name=repo_id,
                     source=ModelSource.HUGGINGFACE,
-                    path=snapshot_path,
+                    path=model_path,
                     format=fmt,
                     size_bytes=size_bytes,
                     backend=backend,
@@ -374,7 +383,90 @@ def _calculate_directory_size(directory: Path) -> int:
 
 
 # =============================================================================
-# Phase 2.4 - GGUF Folder Scanner
+# Phase 2.4 - MLX Direct Folder Scanner
+# =============================================================================
+
+
+def scan_mlx_folder(
+    folder_path: Path | None = None,
+) -> list[ModelInfo]:
+    """Scan MLX folder for direct model downloads (not HF cache format).
+
+    Looks for directories containing safetensors files and config.json.
+    This handles models downloaded via mlx-lm or manually cloned repos.
+
+    Args:
+        folder_path: Path to MLX models folder.
+                    Default: /Users/dperez/Documents/LLM/mlx-community
+
+    Returns:
+        List of ModelInfo for discovered MLX models.
+    """
+    if folder_path is None:
+        folder_path = Path("/Users/dperez/Documents/LLM/mlx-community")
+
+    if not folder_path.exists():
+        return []
+
+    models: list[ModelInfo] = []
+
+    try:
+        for item in folder_path.iterdir():
+            if not item.is_dir():
+                continue
+
+            # Skip hidden directories
+            if item.name.startswith("."):
+                continue
+
+            # Check for safetensors files (MLX model indicator)
+            safetensors_files = list(item.glob("*.safetensors"))
+            if not safetensors_files:
+                continue
+
+            # Check for config.json (required for mlx-lm)
+            config_file = item / "config.json"
+            if not config_file.exists():
+                continue
+
+            # Model name is the directory name
+            model_name = f"mlx-community/{item.name}"
+
+            # Calculate total size
+            size_bytes = _calculate_directory_size(item)
+
+            # Get last accessed time
+            last_accessed: datetime | None = None
+            try:
+                stat = item.stat()
+                last_accessed = datetime.fromtimestamp(stat.st_atime)
+            except OSError:
+                pass
+
+            models.append(
+                ModelInfo(
+                    name=model_name,
+                    source=ModelSource.HUGGINGFACE,  # Treat as HF source for sorting
+                    path=item,  # MLX uses directory path
+                    format=ModelFormat.SAFETENSORS,
+                    size_bytes=size_bytes,
+                    backend=Backend.MLX,  # Force MLX backend
+                    last_accessed=last_accessed,
+                    metadata={
+                        "mlx_direct": True,
+                        "safetensors_count": len(safetensors_files),
+                    },
+                )
+            )
+
+    except (OSError, PermissionError):
+        pass
+
+    return models
+
+
+# =============================================================================
+# Phase 2.5 - GGUF Folder Scanner
 # =============================================================================
 
 
@@ -538,6 +630,7 @@ class ModelScanner:
     def __init__(
         self,
         hf_cache_path: Path | None = None,
+        mlx_folder: Path | None = None,
         gguf_folder: Path | None = None,
         ollama_endpoint: str = "http://localhost:11434",
     ):
@@ -546,12 +639,15 @@ class ModelScanner:
         Args:
             hf_cache_path: HuggingFace cache path.
                           Default: /Users/dperez/Documents/LLM/llm-models/hub
+            mlx_folder: MLX models folder (direct downloads).
+                       Default: /Users/dperez/Documents/LLM/mlx-community
             gguf_folder: GGUF drop folder path.
                         Default: ~/.r3lay/models/
             ollama_endpoint: Ollama API endpoint.
                             Default: http://localhost:11434
         """
         self.hf_cache_path = hf_cache_path
+        self.mlx_folder = mlx_folder
         self.gguf_folder = gguf_folder
         self.ollama_endpoint = ollama_endpoint
         self._models: list[ModelInfo] = []
@@ -559,8 +655,8 @@ class ModelScanner:
     async def scan_all(self) -> list[ModelInfo]:
         """Scan all sources for available models.
 
-        Scans HuggingFace cache, GGUF folder, and Ollama API.
-        Results are sorted by source: HuggingFace first, then Ollama, then GGUF files.
+        Scans HuggingFace cache, MLX folder, GGUF folder, and Ollama API.
+        Results are sorted by source: HuggingFace/MLX first, then Ollama, then GGUF files.
         Within each source, models are sorted by name.
 
         Returns:
@@ -571,6 +667,10 @@ class ModelScanner:
         # Scan HuggingFace cache (sync)
         hf_models = scan_huggingface_cache(self.hf_cache_path)
         self._models.extend(hf_models)
+
+        # Scan MLX direct folder (sync)
+        mlx_models = scan_mlx_folder(self.mlx_folder)
+        self._models.extend(mlx_models)
 
         # Scan Ollama (async)
         ollama_models = await scan_ollama(self.ollama_endpoint)
