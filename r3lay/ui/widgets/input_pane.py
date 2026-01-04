@@ -1,4 +1,4 @@
-"""Input pane - user input area."""
+"""Input pane - user input area with chat integration."""
 
 from __future__ import annotations
 
@@ -13,7 +13,14 @@ if TYPE_CHECKING:
 
 
 class InputPane(Vertical):
-    """User input pane with multi-line text area."""
+    """User input pane with multi-line text area.
+
+    Features:
+    - Multi-turn conversation history
+    - Streaming LLM responses
+    - Escape key to cancel generation
+    - Command handling (/, /clear, /help, etc.)
+    """
 
     DEFAULT_CSS = """
     InputPane {
@@ -47,10 +54,14 @@ class InputPane(Vertical):
 
     BORDER_TITLE = "Input"
 
+    BINDINGS = [("escape", "cancel", "Cancel generation")]
+
     def __init__(self, state: "R3LayState", **kwargs):
         super().__init__(**kwargs)
         self.state = state
         self._processing = False
+        self._conversation: list[dict[str, str]] = []
+        self._cancel_requested = False
 
     def compose(self) -> ComposeResult:
         yield TextArea(id="input-area")
@@ -79,6 +90,20 @@ class InputPane(Vertical):
         self.query_one("#send-button", Button).disabled = processing
         self.set_status("Processing..." if processing else "Ready")
 
+    def clear_conversation(self) -> None:
+        """Clear conversation history."""
+        self._conversation.clear()
+
+    def cancel_generation(self) -> None:
+        """Cancel ongoing generation."""
+        self._cancel_requested = True
+
+    def action_cancel(self) -> None:
+        """Handle Escape key to cancel generation."""
+        if self._processing:
+            self.cancel_generation()
+            self.set_status("Cancelling...")
+
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "send-button":
             await self.submit()
@@ -105,6 +130,7 @@ class InputPane(Vertical):
                 await self._handle_chat(value, response_pane)
         finally:
             self.set_processing(False)
+            self._cancel_requested = False
             self.focus_input()
 
     async def _handle_command(self, command: str, response_pane) -> None:
@@ -122,23 +148,67 @@ class InputPane(Vertical):
                 "- `/axiom <statement>` - Add axiom (not implemented)\n"
                 "- `/axioms [tags]` - List axioms (not implemented)\n"
                 "- `/update <key> <value>` - Update registry (not implemented)\n"
-                "- `/clear` - Clear chat\n"
+                "- `/clear` - Clear chat and conversation history\n"
             )
         elif cmd == "clear":
             response_pane.clear()
-            response_pane.add_system("Chat cleared.")
+            self.clear_conversation()
+            response_pane.add_system("Chat and conversation history cleared.")
         else:
             response_pane.add_system(f"Command `/{cmd}` not implemented yet.")
 
     async def _handle_chat(self, message: str, response_pane) -> None:
-        if not self.state.current_model:
+        """Handle chat messages with LLM backend.
+
+        Uses multi-turn conversation history for context.
+        Supports streaming responses and cancellation via Escape key.
+        """
+        # Check if backend is loaded
+        if not hasattr(self.state, "current_backend") or not self.state.current_backend:
             response_pane.add_error(
-                "No model loaded. Select a model from the **Models** tab."
+                "No model loaded. Select a model from the **Models** tab and click **Load**."
             )
             return
 
-        # Phase 1: No actual LLM integration
-        response_pane.add_error("LLM integration not implemented yet.")
+        # Add user message to conversation history
+        self._conversation.append({"role": "user", "content": message})
+
+        # Start streaming block
+        block = response_pane.start_streaming()
+        response_text = ""
+
+        try:
+            async for token in self.state.current_backend.generate_stream(
+                self._conversation,
+                max_tokens=1024,
+                temperature=0.7,
+            ):
+                if self._cancel_requested:
+                    block.append("\n\n*[Generation cancelled]*")
+                    break
+                block.append(token)
+                response_text += token
+
+        except Exception as e:
+            block.finish()
+            response_pane.add_error(f"Generation error: {e}")
+            # Remove the user message from history on error
+            if self._conversation and self._conversation[-1]["role"] == "user":
+                self._conversation.pop()
+            return
+
+        finally:
+            block.finish()
+
+        # Add assistant response to history (only if we got a response)
+        if response_text and not self._cancel_requested:
+            self._conversation.append({"role": "assistant", "content": response_text})
+        elif self._cancel_requested and response_text:
+            # Add partial response to history with cancellation note
+            self._conversation.append({
+                "role": "assistant",
+                "content": response_text + "\n\n*[Generation cancelled]*"
+            })
 
 
 __all__ = ["InputPane"]

@@ -1,6 +1,16 @@
 """r3LAY - TUI Research Assistant - Phase 1 Shell."""
 
+import asyncio
+import logging
+import signal
 from pathlib import Path
+
+# Configure logging to file for debugging
+logging.basicConfig(
+    filename="/tmp/r3lay.log",
+    level=logging.DEBUG,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -114,9 +124,36 @@ class R3LayApp(App):
         self.state = R3LayState(self.project_path)
         await self.push_screen(MainScreen(self.state))
 
+        # Register signal handlers for graceful shutdown
+        loop = asyncio.get_event_loop()
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            loop.add_signal_handler(
+                sig,
+                lambda: asyncio.create_task(self._graceful_shutdown()),
+            )
+
+    async def _graceful_shutdown(self) -> None:
+        """Clean up backends before exit."""
+        # Check if state has a loaded backend (Phase 3+)
+        if hasattr(self, "state") and self.state is not None:
+            # Future: unload model when backend loading is implemented
+            if hasattr(self.state, "current_backend") and self.state.current_backend:
+                try:
+                    await asyncio.wait_for(
+                        self.state.unload_model(),
+                        timeout=5.0,  # Don't hang on cleanup
+                    )
+                except Exception:
+                    pass  # Best effort cleanup
+        self.exit()
+
+    async def action_quit(self) -> None:
+        """Override quit to ensure cleanup."""
+        await self._graceful_shutdown()
+
     def action_toggle_dark(self) -> None:
         """Toggle dark mode."""
-        self.dark = not self.dark
+        self.theme = "textual-light" if self.theme == "textual-dark" else "textual-dark"
 
 
 def main():

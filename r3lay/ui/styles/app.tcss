@@ -33,18 +33,28 @@ ModelPanel, IndexPanel, AxiomPanel, SessionPanel, SettingsPanel {
     height: 100%;
 }
 
-/* Header customization */
+/* Header customization - uses theme colors */
 Header {
-    background: #331100;
+    background: $primary-darken-3;
+    color: $text-muted;
 }
 
-/* Footer */
+Header > HeaderTitle {
+    color: white;
+}
+
+Header > HeaderIcon {
+    color: white;
+}
+
+/* Footer - uses theme colors */
 Footer {
-    background: #1a1a1a;
+    background: $surface;
 }
 
 FooterKey > .footer-key--key {
-    background: #663300;
+    background: $primary;
+    color: $text;
 }
 
 /* Init screen */
