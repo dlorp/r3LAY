@@ -7,19 +7,20 @@ from typing import TYPE_CHECKING
 from rich.markdown import Markdown
 from rich.syntax import Syntax
 from textual.app import ComposeResult
-from textual.containers import ScrollableContainer
+from textual.containers import ScrollableContainer, Vertical
 from textual.widgets import Static
 
 if TYPE_CHECKING:
     from ...core import R3LayState
 
 
-class ResponseBlock(Static):
-    """A single response block."""
+class ResponseBlock(Vertical):
+    """A single response block - container for header + content."""
 
     DEFAULT_CSS = """
     ResponseBlock {
         width: 100%;
+        height: auto;
         padding: 1 2;
         margin: 0 0 1 0;
     }
@@ -67,7 +68,7 @@ class ResponseBlock(Static):
         labels = {
             "user": "> You",
             "assistant": "< r3LAY",
-            "system": "* System",
+            "system": "* r3LAY",
             "code": "# Code",
             "error": "! Error",
         }
@@ -81,7 +82,7 @@ class ResponseBlock(Static):
             yield Static(self.content)
 
 
-class StreamingBlock(Static):
+class StreamingBlock(Vertical):
     """A streaming response block that updates incrementally.
 
     Used for displaying LLM responses as they are generated token by token.
@@ -98,6 +99,7 @@ class StreamingBlock(Static):
     DEFAULT_CSS = """
     StreamingBlock {
         width: 100%;
+        height: auto;
         padding: 1 2;
         margin: 0 0 1 0;
         background: $surface-darken-1;
@@ -196,13 +198,55 @@ class ResponsePane(ScrollableContainer):
         self.state = state
         self._blocks: list[ResponseBlock] = []
         self._streaming_blocks: list[StreamingBlock] = []
+        self._welcome_block: ResponseBlock | None = None
 
     async def on_mount(self) -> None:
-        """Show welcome message on mount."""
-        self.add_system(
-            "Welcome to **r3LAY** - TUI Research Assistant\n\n"
-            "Type `/help` for commands or select a model from the **Models** tab."
-        )
+        """Show dynamic welcome message on mount."""
+        # Guard: only create welcome block once
+        if self._welcome_block is not None:
+            return
+
+        from ...core.welcome import get_welcome_message
+
+        welcome_text = get_welcome_message(self.state)
+        self._welcome_block = ResponseBlock("system", welcome_text)
+        self._welcome_block.id = "welcome-block"
+        self._blocks.append(self._welcome_block)
+        self.mount(self._welcome_block)
+
+    def refresh_welcome(self) -> None:
+        """Refresh the welcome message with current state."""
+        from ...core.welcome import get_welcome_message
+
+        # Generate new welcome text
+        welcome_text = get_welcome_message(self.state)
+
+        # Remove ALL existing welcome blocks (by ID and reference)
+        to_remove = []
+        for child in self.children:
+            if getattr(child, "id", None) == "welcome-block":
+                to_remove.append(child)
+        for child in to_remove:
+            try:
+                child.remove()
+            except Exception:
+                pass
+
+        # Also clean up _blocks list
+        if self._welcome_block in self._blocks:
+            self._blocks.remove(self._welcome_block)
+
+        # Create new welcome block
+        self._welcome_block = ResponseBlock("system", welcome_text)
+        self._welcome_block.id = "welcome-block"
+        self._blocks.insert(0, self._welcome_block)
+
+        # Mount at the beginning
+        children = list(self.children)
+        if children:
+            self.mount(self._welcome_block, before=children[0])
+        else:
+            self.mount(self._welcome_block)
 
     def add_user(self, content: str) -> None:
         self._add_block("user", content)

@@ -640,28 +640,6 @@ ruff check r3lay/
 
 ---
 
-## Vibecoding Tips
-
-### 1. Start with the TUI Shell
-Get the layout working before adding functionality. Textual's CSS-like styling makes iteration fast.
-
-### 2. Mock LLM Responses
-Before wiring up real models, use mock responses to test the chat flow and UI updates.
-
-### 3. Use `/` Commands for Testing
-The command system (`/search`, `/index`, `/axiom`) lets you test individual components in isolation.
-
-### 4. Keep SESSION_NOTES.md Updated
-After each coding session, document what you did. Future you (or future Claude) will thank you.
-
-### 5. Docker Early, Docker Often
-Test in Docker regularly to catch path/permission issues before they compound.
-
-### 6. Embrace the Theme
-The EVA-inspired amber/orange color scheme isn't just aesthetic — it creates visual hierarchy. Use $primary for actions, $warning for status, $error for problems.
-
----
-
 ## Success Criteria
 
 ### Phase 1 Complete When:

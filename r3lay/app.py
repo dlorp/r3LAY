@@ -37,6 +37,7 @@ class MainScreen(Screen):
     BINDINGS = [
         Binding("ctrl+n", "new_session", "New"),
         Binding("ctrl+q", "quit", "Quit"),
+        Binding("ctrl+r", "reindex", "Reindex", show=True),
         Binding("ctrl+1", "tab_models", "Models", show=False),
         Binding("ctrl+2", "tab_index", "Index", show=False),
         Binding("ctrl+3", "tab_axioms", "Axioms", show=False),
@@ -99,6 +100,11 @@ class MainScreen(Screen):
 
     def action_tab_settings(self) -> None:
         self.query_one("#control-tabs", TabbedContent).active = "tab-settings"
+
+    def action_reindex(self) -> None:
+        """Switch to Index tab (user can click Reindex button)."""
+        tabs = self.query_one("#control-tabs", TabbedContent)
+        tabs.active = "tab-index"
 
 
 class R3LayApp(App):

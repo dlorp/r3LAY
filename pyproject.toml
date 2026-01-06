@@ -1,15 +1,27 @@
 [project]
 name = "r3lay"
-version = "0.2.0"
-description = "TUI research assistant with local LLM, hybrid RAG, and deep research capabilities"
+version = "0.5.0"
+description = "r³LAY: Retrospective Recursive Research, Linked Archive Yield — A TUI research assistant bridging official documentation with real world community knowledge"
 readme = "README.md"
 requires-python = ">=3.11"
+license = {text = "MIT"}
+keywords = ["llm", "research", "tui", "rag", "knowledge-management", "local-llm", "mlx"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
     "textual>=0.47.0",
     "httpx>=0.27.0",
     "ruamel.yaml>=0.18.0",
-    "chromadb>=0.4.0",
-    "sentence-transformers>=2.2.0",
     "rank-bm25>=0.2.2",
     "rich>=13.0.0",
     "pydantic>=2.0.0",
@@ -26,6 +38,12 @@ dev = [
 rerank = [
     "torch>=2.0.0",
     "transformers>=4.35.0",
+]
+# Vector search - disabled by default due to Textual fd conflicts
+# Can be enabled via subprocess isolation in future
+vector = [
+    "chromadb>=0.4.0",
+    "sentence-transformers>=2.2.0",
 ]
 
 [project.scripts]

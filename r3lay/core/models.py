@@ -6,10 +6,12 @@ Scans three sources for available models:
 3. Ollama API - running Ollama models
 
 Phase 2 implementation based on plans/2026-01-02_phase2-model-discovery.md
+Phase C: Added capability detection (text, vision, embedding)
 """
 
 from __future__ import annotations
 
+import json
 import platform
 from datetime import datetime
 from enum import Enum
@@ -18,6 +20,20 @@ from typing import Any
 
 import httpx
 from pydantic import BaseModel, Field, computed_field
+
+
+# =============================================================================
+# Model Capability Types
+# =============================================================================
+
+
+class ModelCapability(str, Enum):
+    """Model capability types."""
+
+    TEXT = "text"  # Standard text generation (chat, completion)
+    VISION = "vision"  # Vision-language model (image understanding)
+    TEXT_EMBEDDING = "text_embedding"  # Text embedding model
+    VISION_EMBEDDING = "vision_embedding"  # Vision embedding model (CLIP-style)
 
 
 # =============================================================================
@@ -66,6 +82,7 @@ class ModelInfo(BaseModel):
         format: Model file format (GGUF, safetensors, etc.)
         size_bytes: Total size in bytes (None if unknown)
         backend: Recommended inference backend
+        capabilities: Set of model capabilities (text, vision, embedding)
         last_accessed: When the model was last accessed (if available)
         metadata: Additional source-specific information
     """
@@ -76,6 +93,7 @@ class ModelInfo(BaseModel):
     format: ModelFormat | None = None
     size_bytes: int | None = None
     backend: Backend
+    capabilities: set[ModelCapability] = Field(default_factory=lambda: {ModelCapability.TEXT})
     last_accessed: datetime | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -114,6 +132,40 @@ class ModelInfo(BaseModel):
                 return f"{size:.1f} {unit}"
             size /= 1024
         return f"{size:.1f} PB"
+
+    @property
+    def is_text_model(self) -> bool:
+        """Check if this is a text generation model."""
+        return ModelCapability.TEXT in self.capabilities
+
+    @property
+    def is_vision_model(self) -> bool:
+        """Check if this is a vision-language model."""
+        return ModelCapability.VISION in self.capabilities
+
+    @property
+    def is_text_embedder(self) -> bool:
+        """Check if this is a text embedding model."""
+        return ModelCapability.TEXT_EMBEDDING in self.capabilities
+
+    @property
+    def is_vision_embedder(self) -> bool:
+        """Check if this is a vision embedding model."""
+        return ModelCapability.VISION_EMBEDDING in self.capabilities
+
+    @property
+    def capabilities_display(self) -> str:
+        """Human-readable capabilities string."""
+        caps = []
+        if ModelCapability.TEXT in self.capabilities:
+            caps.append("text")
+        if ModelCapability.VISION in self.capabilities:
+            caps.append("vision")
+        if ModelCapability.TEXT_EMBEDDING in self.capabilities:
+            caps.append("embed")
+        if ModelCapability.VISION_EMBEDDING in self.capabilities:
+            caps.append("v-embed")
+        return ", ".join(caps) if caps else "unknown"
 
 
 # =============================================================================
@@ -206,11 +258,13 @@ def _scan_directory_for_format(directory: Path) -> ModelFormat | None:
 def select_backend(
     fmt: ModelFormat | None,
     source: ModelSource,
+    capabilities: set[ModelCapability] | None = None,
 ) -> Backend:
     """Select the best inference backend for a model.
 
     Selection priority:
     - Ollama source -> OLLAMA backend
+    - Embedding models -> MLX (they use sentence-transformers/mlx-embeddings anyway)
     - GGUF format -> LLAMA_CPP (universal)
     - Safetensors on Apple Silicon -> MLX
     - Safetensors with CUDA -> VLLM
@@ -219,6 +273,7 @@ def select_backend(
     Args:
         fmt: Model file format
         source: Model source
+        capabilities: Model capabilities (used for special handling of embeddings)
 
     Returns:
         Recommended Backend for this model
@@ -226,6 +281,13 @@ def select_backend(
     # Ollama models use Ollama backend
     if source == ModelSource.OLLAMA:
         return Backend.OLLAMA
+
+    # Embedding models always use MLX (they have their own runtime)
+    if capabilities:
+        if ModelCapability.TEXT_EMBEDDING in capabilities:
+            return Backend.MLX
+        if ModelCapability.VISION_EMBEDDING in capabilities:
+            return Backend.MLX
 
     # GGUF always uses llama.cpp (most compatible)
     if fmt == ModelFormat.GGUF:
@@ -256,6 +318,194 @@ def _has_cuda() -> bool:
         return torch.cuda.is_available()
     except ImportError:
         return False
+
+
+# =============================================================================
+# Phase C - Capability Detection
+# =============================================================================
+
+
+def detect_capabilities(model_path: Path) -> set[ModelCapability]:
+    """Infer model capabilities from config.json architecture.
+
+    Analyzes the model's config.json to detect:
+    - Vision-language models (VL, VLM, LLaVA, etc.)
+    - Embedding models (BERT, RoBERTa, sentence-transformers, etc.)
+    - Standard text LLMs (default)
+
+    Args:
+        model_path: Path to model directory (must contain config.json)
+
+    Returns:
+        Set of detected ModelCapability values. Defaults to {TEXT} if detection fails.
+    """
+    capabilities: set[ModelCapability] = set()
+
+    # Find config.json - could be in model_path directly or in a subdirectory
+    config_path = model_path / "config.json"
+    if not config_path.exists():
+        # Try looking in snapshots for HF cache structure
+        snapshots = model_path / "snapshots"
+        if snapshots.exists():
+            for snapshot in snapshots.iterdir():
+                if snapshot.is_dir():
+                    candidate = snapshot / "config.json"
+                    if candidate.exists():
+                        config_path = candidate
+                        break
+
+    if not config_path.exists():
+        return {ModelCapability.TEXT}  # Default assumption
+
+    try:
+        config = json.loads(config_path.read_text())
+
+        # Extract architecture info
+        architectures = config.get("architectures", [])
+        architectures_str = str(architectures).lower()
+        model_type = config.get("model_type", "").lower()
+        model_name = config.get("_name_or_path", "").lower()
+
+        # Combine all text for pattern matching
+        all_text = f"{architectures_str} {model_type} {model_name}"
+
+        # Vision-language models (VLM, VL, LLaVA, etc.)
+        vision_patterns = [
+            "qwen2_vl",
+            "qwen2vl",
+            "llava",
+            "vision",
+            "vlm",
+            "vl_",
+            "_vl",
+            "paligemma",
+            "idefics",
+            "fuyu",
+            "cogvlm",
+            "internvl",
+            "blip",
+            "flamingo",
+        ]
+        if any(p in all_text for p in vision_patterns):
+            capabilities.add(ModelCapability.VISION)
+            capabilities.add(ModelCapability.TEXT)
+            return capabilities
+
+        # Text embedding models
+        embedding_patterns = [
+            "bert",
+            "roberta",
+            "xlm",
+            "minilm",
+            "sentence",
+            "e5",
+            "bge",
+            "gte",
+            "nomic",
+            "instructor",
+            "embeddings",
+            "encoder",
+        ]
+        if any(p in all_text for p in embedding_patterns):
+            capabilities.add(ModelCapability.TEXT_EMBEDDING)
+            # Check for vision embedding (CLIP-style)
+            clip_patterns = ["clip", "siglip", "vision_encoder"]
+            if any(p in all_text for p in clip_patterns):
+                capabilities.add(ModelCapability.VISION_EMBEDDING)
+            return capabilities
+
+        # CLIP-style vision encoders
+        clip_patterns = ["clip", "siglip", "eva", "dinov2"]
+        if any(p in all_text for p in clip_patterns):
+            capabilities.add(ModelCapability.VISION_EMBEDDING)
+            if "text" in all_text:
+                capabilities.add(ModelCapability.TEXT_EMBEDDING)
+            return capabilities
+
+        # Standard LLMs
+        llm_patterns = [
+            "llama",
+            "qwen",
+            "qwen2",
+            "mistral",
+            "phi",
+            "gemma",
+            "gpt",
+            "falcon",
+            "starcoder",
+            "codellama",
+            "deepseek",
+            "yi",
+            "mixtral",
+            "command",
+            "orca",
+            "dolphin",
+            "vicuna",
+            "openchat",
+        ]
+        if any(p in all_text for p in llm_patterns):
+            capabilities.add(ModelCapability.TEXT)
+            return capabilities
+
+        # Default to text if nothing matched
+        capabilities.add(ModelCapability.TEXT)
+
+    except (json.JSONDecodeError, OSError, KeyError):
+        capabilities.add(ModelCapability.TEXT)
+
+    return capabilities if capabilities else {ModelCapability.TEXT}
+
+
+def detect_capabilities_from_name(name: str) -> set[ModelCapability]:
+    """Infer capabilities from model name when config.json is unavailable.
+
+    Used for Ollama models and GGUF files without config.json.
+
+    Args:
+        name: Model name/identifier
+
+    Returns:
+        Set of detected ModelCapability values.
+    """
+    name_lower = name.lower()
+    capabilities: set[ModelCapability] = set()
+
+    # Vision patterns in name
+    vision_patterns = [
+        "-vl-",
+        "_vl_",
+        "-vl",
+        "_vl",
+        "vision",
+        "vlm",
+        "llava",
+        "cogvlm",
+        "qwen-vl",
+        "qwen2-vl",
+    ]
+    if any(p in name_lower for p in vision_patterns):
+        capabilities.add(ModelCapability.VISION)
+        capabilities.add(ModelCapability.TEXT)
+        return capabilities
+
+    # Embedding patterns in name
+    embedding_patterns = [
+        "embed",
+        "e5-",
+        "bge-",
+        "gte-",
+        "minilm",
+        "bert",
+        "sentence",
+        "nomic-embed",
+    ]
+    if any(p in name_lower for p in embedding_patterns):
+        capabilities.add(ModelCapability.TEXT_EMBEDDING)
+        return capabilities
+
+    # Default to text
+    capabilities.add(ModelCapability.TEXT)
+    return capabilities
 
 
 # =============================================================================
@@ -341,8 +591,11 @@ def scan_huggingface_cache(
                 except OSError:
                     pass
 
-            # Select backend based on format
-            backend = select_backend(fmt, ModelSource.HUGGINGFACE)
+            # Detect capabilities from config.json (do this first for backend selection)
+            capabilities = detect_capabilities(snapshot_path)
+
+            # Select backend based on format and capabilities
+            backend = select_backend(fmt, ModelSource.HUGGINGFACE, capabilities)
 
             models.append(
                 ModelInfo(
@@ -352,6 +605,7 @@ def scan_huggingface_cache(
                     format=fmt,
                     size_bytes=size_bytes,
                     backend=backend,
+                    capabilities=capabilities,
                     last_accessed=last_accessed,
                     metadata={
                         "cache_dir": str(item),
@@ -368,14 +622,22 @@ def scan_huggingface_cache(
 
 
 def _calculate_directory_size(directory: Path) -> int:
-    """Calculate total size of all files in a directory."""
+    """Calculate total size of all files in a directory.
+
+    Follows symlinks to get actual file sizes (important for HuggingFace cache
+    where model files are symlinked to blobs/).
+    """
     total = 0
     try:
         for item in directory.rglob("*"):
-            if item.is_file():
+            if item.is_file() or item.is_symlink():
                 try:
-                    total += item.stat().st_size
-                except OSError:
+                    # Use resolve() to follow symlinks, then stat the resolved path
+                    resolved = item.resolve()
+                    if resolved.exists() and resolved.is_file():
+                        total += resolved.stat().st_size
+                except (OSError, RuntimeError):
+                    # RuntimeError can occur with circular symlinks
                     pass
     except (OSError, PermissionError):
         pass
@@ -443,6 +705,9 @@ def scan_mlx_folder(
             except OSError:
                 pass
 
+            # Detect capabilities from config.json
+            capabilities = detect_capabilities(item)
+
             models.append(
                 ModelInfo(
                     name=model_name,
@@ -451,6 +716,7 @@ def scan_mlx_folder(
                     format=ModelFormat.SAFETENSORS,
                     size_bytes=size_bytes,
                     backend=Backend.MLX,  # Force MLX backend
+                    capabilities=capabilities,
                     last_accessed=last_accessed,
                     metadata={
                         "mlx_direct": True,
@@ -522,6 +788,9 @@ def scan_gguf_folder(
             except OSError:
                 pass
 
+            # Detect capabilities from name (no config.json for standalone GGUF)
+            capabilities = detect_capabilities_from_name(model_name)
+
             models.append(
                 ModelInfo(
                     name=model_name,
@@ -530,6 +799,7 @@ def scan_gguf_folder(
                     format=ModelFormat.GGUF,
                     size_bytes=size_bytes,
                     backend=Backend.LLAMA_CPP,
+                    capabilities=capabilities,
                     last_accessed=last_accessed,
                     metadata={"filename": item.name},
                 )
@@ -585,6 +855,9 @@ async def scan_ollama(
                     except (ValueError, TypeError):
                         pass
 
+                # Detect capabilities from name (Ollama doesn't expose config.json)
+                capabilities = detect_capabilities_from_name(name)
+
                 models.append(
                     ModelInfo(
                         name=name,
@@ -593,6 +866,7 @@ async def scan_ollama(
                         format=ModelFormat.OLLAMA,
                         size_bytes=size,
                         backend=Backend.OLLAMA,
+                        capabilities=capabilities,
                         last_accessed=last_accessed,
                         metadata={
                             "digest": model.get("digest"),
@@ -725,6 +999,33 @@ class ModelScanner:
         """
         return self._models
 
+    def get_by_capability(self, capability: ModelCapability) -> list[ModelInfo]:
+        """Get all models with a specific capability.
+
+        Args:
+            capability: ModelCapability to filter by
+
+        Returns:
+            List of ModelInfo with that capability
+        """
+        return [m for m in self._models if capability in m.capabilities]
+
+    def get_text_models(self) -> list[ModelInfo]:
+        """Get all text generation models."""
+        return self.get_by_capability(ModelCapability.TEXT)
+
+    def get_vision_models(self) -> list[ModelInfo]:
+        """Get all vision-language models."""
+        return self.get_by_capability(ModelCapability.VISION)
+
+    def get_text_embedders(self) -> list[ModelInfo]:
+        """Get all text embedding models."""
+        return self.get_by_capability(ModelCapability.TEXT_EMBEDDING)
+
+    def get_vision_embedders(self) -> list[ModelInfo]:
+        """Get all vision embedding models."""
+        return self.get_by_capability(ModelCapability.VISION_EMBEDDING)
+
     def clear_cache(self) -> None:
         """Clear the cached model list."""
         self._models = []
@@ -739,12 +1040,16 @@ __all__ = [
     "ModelSource",
     "ModelFormat",
     "Backend",
+    "ModelCapability",
     # Data model
     "ModelInfo",
     # Functions
     "detect_format",
     "select_backend",
+    "detect_capabilities",
+    "detect_capabilities_from_name",
     "scan_huggingface_cache",
+    "scan_mlx_folder",
     "scan_gguf_folder",
     "scan_ollama",
     # Class

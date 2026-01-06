@@ -1,346 +1,253 @@
-# r3LAY
+# r³LAY
 
-**TUI Research Assistant** with local LLM integration, hybrid RAG, and deep research capabilities.
+**Retrospective Recursive Research, Linked Archive Yield**
 
-**Version:** 0.3.0 | **Status:** Phase 3 Complete (LLM Backends)
+> A TUI AI research assistant that bridges official documentation with real world community knowledge.
 
-```
-┌─────────────────────────────────┬─────────────────────────────────┐
-│                                 │  Input                          │
-│   Responses / Code              ├─────────────────────────────────┤
-│                                 │  [Models][Index][Axioms]        │
-│                                 │  [Sessions][Settings]           │
-└─────────────────────────────────┴─────────────────────────────────┘
-```
+[![Version](https://img.shields.io/badge/version-0.5.0-blue.svg)](https://github.com/yourusername/r3lay)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-green.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+---
+
+## Philosophy
+
+Official documentation tells you the spec. Community knowledge tells you what actually works.
+
+**r³LAY bridges the gap:**
+
+| Source Type | What It Provides | Example |
+|-------------|------------------|---------|
+| **Official** | Specifications, procedures | "Torque to 72 ft-lbs" |
+| **Community** | Real world experience | "Use 65 ft-lbs on aluminum heads" |
+| **r³LAY** | Synthesized, provenance tracked axioms | "72 ft-lbs (FSM), 65 ft-lbs for aluminum (NASIOC consensus)" |
+
+The system doesn't just accumulate facts it **revises earlier conclusions** when new evidence demands it. That's the "Retrospective" in r³LAY.
+
+### Target Domains
+
+Built with a **garage hobbyist / tinkerer lens**:
+
+- **Automotive** — Parts interchange, proven fixes, real torque specs
+- **Electronics** — Component substitutions, actual vs rated specs
+- **Software** — Workarounds, undocumented behavior, what actually works
+- **Home/DIY** — Tool recommendations, technique variations
+
+---
 
 ## Features
 
-### LLM Backends (Phase 3)
-
-- **MLX Backend** for Apple Silicon with subprocess-isolated inference
-- **Model hot-swapping** without application restart
-- **Token streaming** to UI with async/await pattern
-- **Automatic model discovery** from multiple sources
-- **Escape key cancellation** for generation requests
-- **Multi-turn conversation** with history management
-- **Graceful shutdown** with proper memory cleanup
-
-### Model Discovery (Phase 2)
-
-- **Unified model scanning** across multiple sources:
-  - HuggingFace cache (safetensors, GGUF formats)
-  - MLX folder (direct downloads)
-  - GGUF drop folder (`~/.r3lay/models/`)
-  - Ollama API (`localhost:11434`)
-- **Format detection** via GGUF magic bytes and safetensors identification
-- **Backend auto-selection**: MLX (Apple Silicon) → vLLM (CUDA) → llama.cpp (fallback)
-
-### TUI Shell (Phase 1)
-
-- Bento layout: Response pane (60%) | Input + Tabs (40%)
-- 5 tabs: Models, Index, Axioms, Sessions, Settings
-- Keybindings: Ctrl+Q quit, Ctrl+N new session, Ctrl+D dark mode
-- Commands: `/help`, `/clear`
-- EVA-inspired amber/orange terminal theme
+- **Local LLM Inference** — MLX (Apple Silicon), vLLM (NVIDIA), llama.cpp (universal)
+- **Hybrid RAG** — BM25 + vector search with source attribution
+- **Deep Research (R³)** — Multi cycle expeditions with convergence detection
+- **Retrospective Revision** — Automatically detects and resolves contradictions
+- **Provenance Tracking** — Every fact linked to its source via Signals
+- **Axiom Management** — Validated knowledge with confidence scores and state lifecycle
+- **Terminal-Native UI** — Built with Textual, keyboard-driven workflow
 
 ---
 
-## Architecture
+## Quick Start
 
-### Subprocess Isolation for MLX
-
-r3LAY uses **subprocess isolation** for MLX inference to ensure terminal compatibility with Textual:
-
-```
-┌─────────────────────┐         ┌─────────────────────┐
-│   Main Process      │  JSON   │   Worker Process    │
-│   (Textual TUI)     │  stdin  │   (MLX Inference)   │
-│                     │ ──────→ │                     │
-│   ModelPanel ───────┼─────────│   mlx_worker.py     │
-│   ResponsePane ←────┼─────────│   - Loads model     │
-│                     │ ←────── │   - Generates tokens│
-└─────────────────────┘  stdout └─────────────────────┘
-```
-
-**Why subprocess isolation?**
-
-| Aspect | Thread | Subprocess |
-|--------|--------|------------|
-| File descriptors | Shared | Separate |
-| Terminal state (ioctl) | Shared | Separate |
-| stdout/stderr | Same objects | Different processes |
-| Memory | Same process | Isolated |
-| Mouse tracking conflicts | Yes | Cannot affect parent |
-
-The MLX library (via Rich/tqdm) enables SGR mouse tracking, which conflicts with Textual's terminal handling. Running MLX in a subprocess with `TERM=dumb` and redirected stdout/stderr guarantees complete terminal isolation.
-
-### JSON-Line IPC Protocol
-
-Communication between main process and worker uses JSON lines over stdin/stdout:
-
-```python
-# Commands (main → worker via stdin)
-{"cmd": "load", "path": "/path/to/model"}
-{"cmd": "generate", "messages": [...], "max_tokens": 512, "temperature": 0.7}
-{"cmd": "stop"}
-{"cmd": "unload"}
-
-# Responses (worker → main via stdout)
-{"type": "loaded", "success": true}
-{"type": "token", "text": "generated text"}
-{"type": "done"}
-{"type": "error", "message": "error message"}
-```
-
----
-
-## Supported Backends
-
-| Backend | Platform | Status | Library |
-|---------|----------|--------|---------|
-| **MLX** | Apple Silicon | ✅ Tested | `mlx-lm` |
-| **llama.cpp** | Universal (GGUF) | ✅ Tested | `llama-cpp-python` |
-| **Ollama** | Any (via API) | ✅ Tested | `httpx` |
-| **vLLM** | NVIDIA GPUs | Planned | `vllm` |
-
-### Backend Auto-Detection
-
-```python
-if platform.system() == "Darwin" and platform.machine() == "arm64":
-    return "mlx"
-elif torch.cuda.is_available():
-    return "vllm"
-else:
-    return "llama_cpp"
-```
-
----
-
-## Model Sources
-
-| Source | Path | Format | Status |
-|--------|------|--------|--------|
-| HuggingFace cache | `~/.cache/huggingface/hub/` | safetensors | ✅ Supported |
-| MLX folder | Custom path (configurable) | safetensors | ✅ Supported |
-| GGUF drop folder | `~/.r3lay/models/` | .gguf | ✅ Supported |
-| Ollama | `http://localhost:11434` | via API | ✅ Supported |
-
----
-
-## Development Roadmap
-
-| Phase | Description | Status |
-|-------|-------------|--------|
-| 1 | Bootable TUI Shell | Complete |
-| 2 | Model Discovery | Complete |
-| 3 | Model Loading & Inference | Complete |
-| 4 | Hybrid RAG Index | Planned |
-| 5 | Web Search (SearXNG) | Planned |
-| 6 | Deep Research Expeditions | Planned |
-
----
-
-## Requirements
-
-### System Requirements
-
-- **Python 3.11+**
-- **macOS** with Apple Silicon (for MLX backend)
-- **8GB+ unified memory** recommended (16GB+ for 7B models)
-
-### Python Dependencies
-
-Core:
-- `textual>=0.47.0` - Terminal UI framework
-- `pydantic>=2.0` - Configuration and data models
-- `httpx` - Async HTTP client
-
-MLX Backend (Apple Silicon):
-- `mlx>=0.20.0` - Apple ML framework
-- `mlx-lm>=0.20.0` - MLX language model utilities
-- `transformers` - Tokenizer support
-
-Optional (future phases):
-- `chromadb` - Vector database for RAG
-- `rank-bm25` - BM25 search
-- `sentence-transformers` - Embeddings
-
----
-
-## Installation
-
-### From Source
+### Installation
 
 ```bash
-# Clone repository
-git clone https://github.com/yourusername/r3LAY.git
-cd r3LAY
-
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate
-
-# Install in development mode
+# Clone and install
+git clone https://github.com/dlorp/r3LAY.git
+cd r3lay
 pip install -e .
 
-# Install MLX dependencies (Apple Silicon only)
-pip install mlx mlx-lm transformers
+# For Apple Silicon (MLX support)
+pip install mlx mlx-lm
+
+# For NVIDIA (vLLM support)
+pip install vllm
 ```
 
-### Quick Install
+### First Run
 
 ```bash
-pip install -e ".[mlx]"  # With MLX support
-pip install -e ".[dev]"  # With development tools
+# Point at any project folder
+r3lay ~/Documents/my-project
+
+# Or run without arguments for current directory
+r3lay
 ```
+
+The TUI will launch. Select a model from the Models panel (Tab+M) and start chatting.
 
 ---
 
 ## Usage
 
-### Starting the Application
+### Chat Mode
 
-```bash
-# Run with module
-python -m r3lay.app
+Just type your question and press Enter. r³LAY will:
 
-# Or with entry point
-r3lay
-
-# With specific project directory
-r3lay /path/to/project
-```
-
-### Loading a Model
-
-1. Press `Ctrl+1` or click the **Models** tab
-2. Click **Scan Models** to discover available models
-3. Select a model from the list
-4. Click **Load** to load the model into memory
-
-### Chat Interaction
-
-1. Type your message in the input area (top-right)
-2. Press `Enter` to send
-3. Tokens stream to the response pane in real-time
-4. Press `Escape` to cancel generation
+1. Search your indexed documents (if available)
+2. Include relevant context in the LLM prompt
+3. Stream the response with source citations
 
 ### Commands
 
-| Command | Description | Status |
-|---------|-------------|--------|
-| `/help` | Show all commands | Working |
-| `/clear` | Clear chat and history | Working |
-| `/search <query>` | Web search via SearXNG | Planned |
-| `/index <query>` | Search knowledge base | Planned |
-| `/research <query>` | Deep research expedition | Planned |
-| `/axiom <statement>` | Add validated knowledge | Planned |
-| `/axioms` | List axioms | Planned |
+| Command | Description |
+|---------|-------------|
+| `/help` | Show available commands |
+| `/index <path>` | Index files for RAG search |
+| `/search <query>` | Search indexed documents |
+| `/research <query>` | Start deep research expedition |
+| `/axiom <statement>` | Create a new axiom |
+| `/axioms` | List all axioms |
+| `/axioms --disputed` | Show axioms needing resolution |
+| `/cite <id>` | Show provenance chain for axiom |
+| `/clear` | Start new session |
 
-### Keybindings
+### Deep Research (R³)
 
-| Key | Action | Status |
-|-----|--------|--------|
-| `Ctrl+Q` | Quit (graceful shutdown) | Working |
-| `Ctrl+N` | New session | Working |
-| `Ctrl+D` | Toggle dark mode | Working |
-| `Ctrl+1-5` | Switch tabs | Working |
-| `Escape` | Cancel generation | Working |
-| `Ctrl+S` | Save session | Planned |
-| `Ctrl+R` | Reindex | Planned |
-| `Ctrl+E` | Start research | Planned |
+```bash
+/research EJ25 head gasket failure patterns
+```
+
+R³LAY will:
+1. Generate search queries
+2. Search web (via SearXNG) and local index
+3. Extract axioms from findings
+4. Detect contradictions with existing knowledge
+5. Run resolution cycles when disputes arise
+6. Synthesize a final report with provenance
+
+---
+
+## Keybindings
+
+| Key | Action |
+|-----|--------|
+| `Tab` | Cycle focus between panes |
+| `Ctrl+M` | Focus Models panel |
+| `Ctrl+I` | Focus Index panel |
+| `Ctrl+A` | Focus Axioms panel |
+| `Ctrl+R` | Start research mode |
+| `Ctrl+L` | Clear response pane |
+| `Ctrl+Q` | Quit (graceful model unload) |
+| `Escape` | Cancel current operation |
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────┬─────────────────────────────────┐
+│                                 │  User Input                     │
+│   Response Pane                 │  Multi line TextArea            │
+│   (Markdown rendering)          ├─────────────────────────────────┤
+│                                 │  Tabbed Panels                  │
+│   60% width                     │  [Models][Index][Axioms]        │
+│                                 │  [Sessions][Settings]           │
+└─────────────────────────────────┴─────────────────────────────────┘
+```
+
+### Core Components
+
+- **LLM Backends** — Pluggable adapters for MLX, vLLM, llama.cpp, Ollama
+- **Hybrid Index** — BM25 + vector search with RRF fusion
+- **Signals** — Provenance tracking for all knowledge sources
+- **Axioms** — Validated knowledge with state lifecycle
+- **Research Orchestrator** — Multi cycle expedition with retrospective revision
+
+### Knowledge Flow
+
+```
+Signal (source) → Transmission (excerpt) → Citation → Axiom (validated fact)
+```
+
+### Axiom States
+
+```
+PENDING → VALIDATED
+    ↓         ↓
+REJECTED   DISPUTED → SUPERSEDED
+               ↓
+           INVALIDATED
+```
 
 ---
 
 ## Configuration
 
-Default paths (configurable in `config.py`):
+Configuration is stored in `~/.r3lay/config.yaml`:
 
-```python
-hf_cache_path = "~/.cache/huggingface/hub/"  # HuggingFace models
-gguf_folder = "~/.r3lay/models/"              # GGUF drop folder
-ollama_endpoint = "http://localhost:11434"    # Ollama API
+```yaml
+# LLM settings
+default_backend: mlx
+max_tokens: 2048
+temperature: 0.7
+
+# Model paths
+hf_cache: ~/Documents/LLM
+gguf_folder: ~/.r3lay/models
+ollama_endpoint: http://localhost:11434
+
+# Research settings
+searxng_endpoint: http://localhost:8888
+max_research_cycles: 10
+convergence_threshold: 0.3
 ```
 
 ---
 
-## Project Structure
+## Requirements
 
-```
-r3lay/
-├── __init__.py
-├── app.py                  # Main Textual application
-├── config.py               # Pydantic settings + paths
-├── core/
-│   ├── __init__.py         # R3LayState + exports
-│   ├── models.py           # ModelScanner, ModelInfo, enums
-│   └── backends/
-│       ├── __init__.py     # Factory, exceptions, lazy imports
-│       ├── base.py         # Abstract InferenceBackend
-│       ├── mlx.py          # MLX subprocess backend
-│       ├── mlx_worker.py   # MLX subprocess worker
-│       ├── llama_cpp.py    # llama-cpp-python backend
-│       └── ollama.py       # Ollama HTTP backend
-└── ui/
-    ├── widgets/
-    │   ├── response_pane.py  # Streaming response display
-    │   ├── input_pane.py     # Input + commands + chat
-    │   ├── model_panel.py    # Model discovery + loading
-    │   └── ...               # Other panels
-    └── styles/
-        └── app.tcss          # EVA amber theme
+- Python 3.11+
+- 16GB+ RAM recommended (for 7B models)
+- For Apple Silicon: MLX compatible Mac
+- For NVIDIA: CUDA 12.0+ with 8GB+ VRAM
+
+---
+
+## Development
+
+```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest tests/ -v
+
+# Type checking
+mypy r3lay/
+
+# Linting
+ruff check r3lay/
 ```
 
 ---
 
-## Memory Management
+## Roadmap
 
-### MLX Cleanup Pattern
+- [x] Phase 1-4: TUI shell, model discovery, LLM backends, hybrid index
+- [ ] Phase 5: Model routing (text ↔ vision switching)
+- [ ] Phase 6: Signals & Axioms system
+- [ ] Phase 7: Deep research with retrospective revision
+- [ ] Phase 8: Docker deployment, documentation
 
-```python
-import mlx.core as mx
-
-del model, tokenizer
-gc.collect()
-mx.metal.clear_cache()
-mx.eval(mx.zeros(1))  # Force sync
-mx.metal.clear_cache()
-```
-
-### Model Hot-Swapping
-
-Models can be loaded and unloaded while the application runs:
-
-1. **Unload current model** - Frees GPU/Metal memory
-2. **Load new model** - Subprocess spawns with new model
-3. **No restart required** - TUI remains responsive throughout
-
----
-
-## Planned Features
-
-- **Hybrid RAG** - Vector + BM25 search with RRF fusion (CGRAG-inspired)
-- **Deep Research** - Multi-cycle expeditions with convergence detection
-- **Provenance Tracking** - Full source tracking for all knowledge
-- **Axioms** - Validated knowledge accumulation
-- **SearXNG Integration** - Web search with local instance
-
----
-
-## Documentation
-
-- [CLAUDE.md](CLAUDE.md) - Development instructions and architecture
-- [SESSION_NOTES.md](SESSION_NOTES.md) - Development log (reverse chronological)
-- [plans/](plans/) - Implementation plans and designs
-
----
-
-## Contributing
-
-This is a personal research project. Contributions welcome via issues and PRs.
+See `plans/` for detailed implementation roadmaps.
 
 ---
 
 ## License
 
-MIT
+MIT License — see [LICENSE](LICENSE) for details.
+
+---
+
+## Acknowledgments
+
+Built with:
+- [Textual](https://textual.textualize.io/) — TUI framework
+- [MLX](https://github.com/ml-explore/mlx) — Apple Silicon ML
+- [llama.cpp](https://github.com/ggerganov/llama.cpp) — Universal LLM inference
+- [SearXNG](https://searxng.org/) — Meta search engine
+
+---
+
+*r³LAY The manual says one thing, but the forums know the truth.*
