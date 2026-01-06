@@ -1,5 +1,5 @@
 # RS25 Forum Scraper Configuration
-# For extracting thread content from rs25.com
+# For extracting Impreza specific Automotive thread content from rs25.com
 
 url_pattern: "https://rs25.com/threads/*"
 

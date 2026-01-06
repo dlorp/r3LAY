@@ -1,5 +1,5 @@
 # NASIOC Forum Scraper Configuration
-# For extracting thread content from nasioc.com
+# For extracting Impreza specific Automotive thread content from nasioc.com
 
 url_pattern: "https://forums.nasioc.com/forums/showthread.php*"
 
