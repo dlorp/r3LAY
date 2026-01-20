@@ -1,0 +1,90 @@
+# r3LAY Docker Image with NVIDIA GPU Support
+# For deployments with NVIDIA GPUs using llama.cpp with CUDA
+#
+# Build: docker build -f Dockerfile.nvidia -t r3lay-nvidia .
+# Run:   docker run --gpus all -it r3lay-nvidia /project
+
+# =============================================================================
+# Build Stage: Compile llama-cpp-python with CUDA support
+# =============================================================================
+FROM nvidia/cuda:12.1-devel-ubuntu22.04 AS builder
+
+ENV PYTHONUNBUFFERED=1
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install Python 3.11 and build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 \
+    python3.11-venv \
+    python3.11-dev \
+    python3-pip \
+    git \
+    curl \
+    cmake \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set Python 3.11 as default
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 \
+    && update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1 \
+    && ln -sf /usr/bin/pip3 /usr/bin/pip
+
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY pyproject.toml README.md ./
+
+# Install r3lay base dependencies
+RUN pip install --no-cache-dir .
+
+# Build llama-cpp-python with CUDA support
+# CMAKE_ARGS enables CUDA backend for ggml
+ENV CMAKE_ARGS="-DGGML_CUDA=on"
+ENV FORCE_CMAKE=1
+RUN pip install --no-cache-dir llama-cpp-python --force-reinstall
+
+# =============================================================================
+# Runtime Stage: Minimal image with CUDA runtime
+# =============================================================================
+FROM nvidia/cuda:12.1-runtime-ubuntu22.04
+
+ENV PYTHONUNBUFFERED=1
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install Python 3.11 runtime
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 \
+    python3-pip \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/python3.11 /usr/bin/python \
+    && ln -sf /usr/bin/python3.11 /usr/bin/python3
+
+# Copy Python packages from builder
+COPY --from=builder /usr/local/lib/python3.11/dist-packages /usr/local/lib/python3.11/dist-packages
+COPY --from=builder /usr/lib/python3/dist-packages /usr/lib/python3/dist-packages
+
+WORKDIR /app
+
+# Copy application code
+COPY r3lay/ ./r3lay/
+
+# Create mount points
+RUN mkdir -p /project /root/.r3lay/models /root/.cache/huggingface
+
+# NVIDIA runtime requirements
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD python -c "import r3lay" || exit 1
+
+# Default environment variables
+ENV HF_HOME=/root/.cache/huggingface
+ENV R3LAY_GGUF_FOLDER=/root/.r3lay/models
+
+WORKDIR /project
+
+ENTRYPOINT ["python", "-m", "r3lay.app"]
+CMD ["/project"]

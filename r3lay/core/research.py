@@ -1327,54 +1327,70 @@ The following contradictions require manual review:
         return ""
 
     async def _save(self, expedition: Expedition) -> Path:
-        """Save expedition results to disk."""
-        exp_path = self.research_path / f"expedition_{expedition.id}"
-        exp_path.mkdir(exist_ok=True)
+        """Save expedition results to disk.
 
-        # Save metadata
-        metadata = {
-            "id": expedition.id,
-            "query": expedition.query,
-            "status": expedition.status.value,
-            "created_at": expedition.created_at,
-            "completed_at": expedition.completed_at,
-            "cycles": [
-                {
-                    "cycle": c.cycle,
-                    "cycle_type": c.cycle_type,
-                    "queries": c.queries,
-                    "sources_found": c.sources_found,
-                    "axioms_generated": c.axioms_generated,
-                    "contradictions_found": c.contradictions_found,
-                    "duration_seconds": c.duration_seconds,
-                }
-                for c in expedition.cycles
-            ],
-            "axiom_ids": expedition.axiom_ids,
-            "signal_ids": expedition.signal_ids,
-            "contradictions": [
-                {
-                    "id": c.id,
-                    "new_statement": c.new_statement,
-                    "existing_axiom_id": c.existing_axiom_id,
-                    "existing_statement": c.existing_statement,
-                    "category": c.category,
-                    "detected_in_cycle": c.detected_in_cycle,
-                    "resolution_status": c.resolution_status,
-                    "resolution_outcome": c.resolution_outcome,
-                }
-                for c in expedition.contradictions
-            ],
-        }
+        Uses atomic writes via temp files to prevent corruption.
 
-        with open(exp_path / "expedition.yaml", "w") as f:
-            self.yaml.dump(metadata, f)
+        Raises:
+            IOError: If files cannot be written
+        """
+        try:
+            exp_path = self.research_path / f"expedition_{expedition.id}"
+            exp_path.mkdir(exist_ok=True)
 
-        # Save report
-        if expedition.final_report:
-            (exp_path / "report.md").write_text(expedition.final_report)
+            # Save metadata
+            metadata = {
+                "id": expedition.id,
+                "query": expedition.query,
+                "status": expedition.status.value,
+                "created_at": expedition.created_at,
+                "completed_at": expedition.completed_at,
+                "cycles": [
+                    {
+                        "cycle": c.cycle,
+                        "cycle_type": c.cycle_type,
+                        "queries": c.queries,
+                        "sources_found": c.sources_found,
+                        "axioms_generated": c.axioms_generated,
+                        "contradictions_found": c.contradictions_found,
+                        "duration_seconds": c.duration_seconds,
+                    }
+                    for c in expedition.cycles
+                ],
+                "axiom_ids": expedition.axiom_ids,
+                "signal_ids": expedition.signal_ids,
+                "contradictions": [
+                    {
+                        "id": c.id,
+                        "new_statement": c.new_statement,
+                        "existing_axiom_id": c.existing_axiom_id,
+                        "existing_statement": c.existing_statement,
+                        "category": c.category,
+                        "detected_in_cycle": c.detected_in_cycle,
+                        "resolution_status": c.resolution_status,
+                        "resolution_outcome": c.resolution_outcome,
+                    }
+                    for c in expedition.contradictions
+                ],
+            }
 
-        return exp_path
+            # Atomic write for metadata
+            temp_metadata = exp_path / "expedition.yaml.tmp"
+            with open(temp_metadata, "w") as f:
+                self.yaml.dump(metadata, f)
+            temp_metadata.replace(exp_path / "expedition.yaml")
+
+            # Atomic write for report
+            if expedition.final_report:
+                temp_report = exp_path / "report.md.tmp"
+                temp_report.write_text(expedition.final_report)
+                temp_report.replace(exp_path / "report.md")
+
+            return exp_path
+
+        except OSError as e:
+            logger.error(f"Failed to save expedition {expedition.id}: {e}")
+            raise IOError(f"Failed to save expedition: {e}") from e
 
     def cancel(self) -> None:
         """Cancel the current expedition."""

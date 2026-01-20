@@ -440,11 +440,22 @@ Use these when presenting information:
 
         Returns:
             Path to the saved session file
+
+        Raises:
+            IOError: If file cannot be written
         """
-        sessions_dir.mkdir(parents=True, exist_ok=True)
-        session_file = sessions_dir / f"{self.id}.json"
-        session_file.write_text(json.dumps(self.to_dict(), indent=2))
-        return session_file
+        try:
+            sessions_dir.mkdir(parents=True, exist_ok=True)
+            session_file = sessions_dir / f"{self.id}.json"
+
+            # Write to temp file first for atomic save
+            temp_file = session_file.with_suffix(".json.tmp")
+            temp_file.write_text(json.dumps(self.to_dict(), indent=2))
+            temp_file.replace(session_file)
+
+            return session_file
+        except OSError as e:
+            raise IOError(f"Failed to save session to {sessions_dir}: {e}") from e
 
     @classmethod
     def load(cls, session_file: Path) -> "Session":
@@ -455,9 +466,23 @@ Use these when presenting information:
 
         Returns:
             Loaded Session instance
+
+        Raises:
+            FileNotFoundError: If session file doesn't exist
+            ValueError: If JSON is malformed or missing required fields
+            IOError: If file cannot be read
         """
-        data = json.loads(session_file.read_text())
-        return cls.from_dict(data)
+        try:
+            data = json.loads(session_file.read_text())
+            return cls.from_dict(data)
+        except FileNotFoundError:
+            raise
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid session file format: {e}") from e
+        except KeyError as e:
+            raise ValueError(f"Session file missing required field: {e}") from e
+        except OSError as e:
+            raise IOError(f"Failed to read session file: {e}") from e
 
 
 __all__ = [

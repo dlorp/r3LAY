@@ -1,13 +1,22 @@
 """r3LAY Configuration.
 
 Includes:
-- AppConfig: Main application settings
+- AppConfig: Main application settings with environment variable support
 - ModelRoles: Configured model assignments per role (text, vision, embedding)
+
+Environment Variables:
+    R3LAY_PROJECT_PATH: Project directory path
+    R3LAY_HF_CACHE_PATH: HuggingFace model cache directory
+    R3LAY_MLX_FOLDER: MLX models directory
+    R3LAY_GGUF_FOLDER: GGUF models directory
+    R3LAY_OLLAMA_ENDPOINT: Ollama API endpoint URL
+    R3LAY_SEARXNG_ENDPOINT: SearXNG API endpoint URL
 """
 
 from pathlib import Path
 
 from pydantic import BaseModel, Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class ModelRoles(BaseModel):
@@ -52,22 +61,39 @@ class ModelRoles(BaseModel):
         return self.vision_embedder is not None
 
 
-class AppConfig(BaseModel):
-    """Application configuration."""
+class AppConfig(BaseSettings):
+    """Application configuration with environment variable support.
 
-    project_path: Path = Path.cwd()
+    Configuration is loaded from environment variables with R3LAY_ prefix.
+    For example, R3LAY_OLLAMA_ENDPOINT sets ollama_endpoint.
+
+    Precedence (highest to lowest):
+        1. Environment variables (R3LAY_*)
+        2. Config file (.r3lay/config.yaml)
+        3. Default values
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix="R3LAY_",
+        arbitrary_types_allowed=True,
+        extra="ignore",
+        protected_namespaces=(),  # Allow model_roles field name
+    )
+
+    project_path: Path = Field(default_factory=Path.cwd)
     theme: str = "default"
 
-    # Model discovery paths
-    hf_cache_path: Path | None = Path("/Users/dperez/Documents/LLM/llm-models/hub")
-    mlx_folder: Path | None = Path("/Users/dperez/Documents/LLM/mlx-community")
-    gguf_folder: Path = Path("~/.r3lay/models/").expanduser()
+    # Model discovery paths - None means auto-detect
+    hf_cache_path: Path | None = None
+    mlx_folder: Path | None = None
+    gguf_folder: Path = Field(default_factory=lambda: Path("~/.r3lay/models/").expanduser())
     ollama_endpoint: str = "http://localhost:11434"
+
+    # SearXNG for web search (Phase 7)
+    searxng_endpoint: str = "http://localhost:8080"
 
     # Model role assignments (Phase C)
     model_roles: ModelRoles = Field(default_factory=ModelRoles)
-
-    model_config = {"arbitrary_types_allowed": True}
 
     @classmethod
     def load(cls, path: Path) -> "AppConfig":
