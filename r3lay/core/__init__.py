@@ -6,7 +6,7 @@ import importlib.util
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from .models import (
     Backend,
@@ -52,6 +52,7 @@ from .project_context import (
 if TYPE_CHECKING:
     from .backends import InferenceBackend
     from .embeddings import EmbeddingBackend
+    from .config import ModelRoles
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +125,9 @@ class R3LayState:
     # Smart router (Phase B)
     router: SmartRouter | None = field(default=None, repr=False)
     router_config: RouterConfig | None = field(default=None, repr=False)
+
+    # Model role configuration (Phase 5.5)
+    model_roles: "ModelRoles | None" = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if isinstance(self.project_path, str):
@@ -215,6 +219,51 @@ class R3LayState:
                 if self.router_config is not None:
                     self.router_config.text_model = model_info.name
                 logger.info(f"Router updated with text model: {model_info.name}")
+
+    async def switch_model(self, model_type: Literal["text", "vision"]) -> bool:
+        """Switch to the configured model for the given type.
+
+        Looks up the model name from model_roles config, finds the ModelInfo
+        in available_models, and loads it (unloading current model first).
+
+        Args:
+            model_type: "text" or "vision"
+
+        Returns:
+            True if switch succeeded, False if model unavailable or not configured
+        """
+        if self.model_roles is None:
+            logger.warning("No model roles configured for switch")
+            return False
+
+        # Get target model name from config
+        target_model_name = (
+            self.model_roles.vision_model if model_type == "vision"
+            else self.model_roles.text_model
+        )
+
+        if not target_model_name:
+            logger.warning(f"No {model_type} model configured in roles")
+            return False
+
+        # Find ModelInfo in available_models
+        model_info = next(
+            (m for m in self.available_models if m.name == target_model_name),
+            None
+        )
+
+        if model_info is None:
+            logger.warning(f"Model not found in available_models: {target_model_name}")
+            return False
+
+        # Load the model (this handles unload of current model)
+        try:
+            await self.load_model(model_info)
+            logger.info(f"Switched to {model_type} model: {target_model_name}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to switch to {model_type} model: {e}")
+            return False
 
     async def unload_model(self) -> None:
         """Unload the current model and free memory."""

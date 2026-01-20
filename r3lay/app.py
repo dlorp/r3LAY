@@ -11,6 +11,7 @@ logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
+logger = logging.getLogger(__name__)
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -128,6 +129,8 @@ class R3LayApp(App):
     async def on_mount(self) -> None:
         """Called when app is mounted."""
         self.state = R3LayState(self.project_path)
+        # Wire config model roles to state for model switching (Phase 5.5)
+        self.state.model_roles = self.config.model_roles
         await self.push_screen(MainScreen(self.state))
 
         # Register signal handlers for graceful shutdown
@@ -138,19 +141,63 @@ class R3LayApp(App):
                 lambda: asyncio.create_task(self._graceful_shutdown()),
             )
 
+        # Auto-init embedders if configured (non-blocking)
+        asyncio.create_task(self._auto_init_embedders())
+
+    async def _auto_init_embedders(self) -> None:
+        """Auto-initialize configured embedders after UI renders.
+
+        Checks config.model_roles for configured embedders and initializes
+        them in the background. Non-blocking to avoid delaying startup.
+        """
+        try:
+            roles = self.config.model_roles
+
+            # Init text embedder if configured
+            if roles.has_text_embedder():
+                embedder = await self.state.init_embedder()
+                if embedder:
+                    logger.info(f"Auto-loaded text embedder: {roles.text_embedder}")
+
+            # Init vision embedder if configured
+            if roles.has_vision_embedder():
+                vision = await self.state.init_vision_embedder(
+                    model_name=roles.vision_embedder
+                )
+                if vision:
+                    logger.info(f"Auto-loaded vision embedder: {roles.vision_embedder}")
+
+        except Exception as e:
+            logger.warning(f"Failed to auto-init embedders: {e}")
+
     async def _graceful_shutdown(self) -> None:
-        """Clean up backends before exit."""
-        # Check if state has a loaded backend (Phase 3+)
+        """Clean up backends and embedders before exit."""
         if hasattr(self, "state") and self.state is not None:
-            # Future: unload model when backend loading is implemented
-            if hasattr(self.state, "current_backend") and self.state.current_backend:
-                try:
+            try:
+                # Unload LLM backend
+                if hasattr(self.state, "current_backend") and self.state.current_backend:
                     await asyncio.wait_for(
                         self.state.unload_model(),
-                        timeout=5.0,  # Don't hang on cleanup
+                        timeout=5.0,
                     )
-                except Exception:
-                    pass  # Best effort cleanup
+
+                # Unload text embedder
+                if self.state.text_embedder is not None:
+                    await asyncio.wait_for(
+                        self.state.unload_embedder(),
+                        timeout=5.0,
+                    )
+
+                # Unload vision embedder
+                if self.state.vision_embedder is not None:
+                    await asyncio.wait_for(
+                        self.state.unload_vision_embedder(),
+                        timeout=5.0,
+                    )
+
+            except Exception:
+                pass
+
         self.exit()
 
     async def action_quit(self) -> None:

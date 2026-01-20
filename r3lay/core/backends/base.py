@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import asyncio
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, AsyncGenerator
-
-if TYPE_CHECKING:
-    from pathlib import Path
+from pathlib import Path
+from typing import AsyncGenerator
 
 
 class InferenceBackend(ABC):
@@ -66,6 +64,7 @@ class InferenceBackend(ABC):
         messages: list[dict[str, str]],
         max_tokens: int = 512,
         temperature: float = 0.7,
+        images: list[Path] | None = None,
     ) -> AsyncGenerator[str, None]:
         """Stream token generation.
 
@@ -73,6 +72,7 @@ class InferenceBackend(ABC):
             messages: List of {"role": "user"|"assistant"|"system", "content": str}
             max_tokens: Maximum tokens to generate
             temperature: Sampling temperature (0.0 = deterministic)
+            images: Optional list of image paths for vision models
 
         Yields:
             String chunks (may be partial tokens for some backends)

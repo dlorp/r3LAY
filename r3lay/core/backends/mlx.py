@@ -68,15 +68,17 @@ class MLXBackend(InferenceBackend):
         await backend.unload()
     """
 
-    def __init__(self, model_path: Path, model_name: str) -> None:
+    def __init__(self, model_path: Path, model_name: str, is_vision: bool = False) -> None:
         """Initialize the MLX backend.
 
         Args:
             model_path: Path to the model directory containing safetensors files
             model_name: Human-readable name for the model
+            is_vision: Whether this is a vision-language model (VLM)
         """
         self._path = model_path
         self._name = model_name
+        self._is_vision = is_vision
         self._process: asyncio.subprocess.Process | None = None
 
     @property
@@ -110,6 +112,11 @@ class MLXBackend(InferenceBackend):
                 "mlx-lm is required for MLX backend. "
                 "Install with: pip install mlx-lm"
             )
+        if self._is_vision and importlib.util.find_spec("mlx_vlm") is None:
+            raise DependencyError(
+                "mlx-vlm is required for vision models. "
+                "Install with: pip install mlx-vlm"
+            )
 
         try:
             logger.info(f"Loading MLX model in subprocess: {self._name} from {self._path}")
@@ -122,8 +129,12 @@ class MLXBackend(InferenceBackend):
                 stderr=asyncio.subprocess.DEVNULL,
             )
 
-            # Send load command
-            await self._send_command({"cmd": "load", "path": str(self._path)})
+            # Send load command with vision flag
+            await self._send_command({
+                "cmd": "load",
+                "path": str(self._path),
+                "is_vision": self._is_vision,
+            })
 
             # Wait for load response with timeout
             start_time = time.monotonic()
@@ -270,6 +281,7 @@ class MLXBackend(InferenceBackend):
         messages: list[dict[str, str]],
         max_tokens: int = 512,
         temperature: float = 0.7,
+        images: list[Path] | None = None,
     ) -> AsyncGenerator[str, None]:
         """Stream token generation from the subprocess.
 
@@ -277,6 +289,7 @@ class MLXBackend(InferenceBackend):
             messages: List of {"role": "user"|"assistant"|"system", "content": str}
             max_tokens: Maximum tokens to generate
             temperature: Sampling temperature (0.0 = deterministic)
+            images: Optional list of image paths for vision models (mlx-vlm)
 
         Yields:
             String tokens one at a time
@@ -292,13 +305,23 @@ class MLXBackend(InferenceBackend):
 
         logger.debug(f"Generating with {len(messages)} messages")
 
-        # Send generate command
-        await self._send_command({
+        if images:
+            logger.info(f"Vision request with {len(images)} images")
+
+        # Build generate command
+        cmd: dict = {
             "cmd": "generate",
             "messages": messages,
             "max_tokens": max_tokens,
             "temperature": temperature,
-        })
+        }
+
+        # Include image paths if provided (for future VLM support)
+        if images:
+            cmd["images"] = [str(p) for p in images]
+
+        # Send generate command
+        await self._send_command(cmd)
 
         try:
             while True:

@@ -10,18 +10,21 @@ Features:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
+from textual.events import Paste
 from textual.widgets import Button, Static, TextArea
 
 if TYPE_CHECKING:
     from ...core import R3LayState
     from ...core.index import RetrievalResult
     from ...core.project_context import ProjectContext
+    from ...core.router import RoutingDecision
     from ...core.sources import SourceType
 
 logger = logging.getLogger(__name__)
@@ -146,7 +149,19 @@ class InputPane(Vertical):
         self._processing = processing
         self.query_one("#input-area", TextArea).disabled = processing
         self.query_one("#send-button", Button).disabled = processing
-        self.set_status("Processing..." if processing else "Ready")
+        if processing:
+            self.set_status("Processing...")
+        else:
+            # Preserve attachment indicator when not processing
+            self._update_attachment_status()
+
+    def _update_attachment_status(self) -> None:
+        """Update status to show attachment count or Ready."""
+        if self._attachments:
+            count = len(self._attachments)
+            self.set_status(f"{count} attachment{'s' if count > 1 else ''}")
+        else:
+            self.set_status("Ready")
 
     def clear_conversation(self) -> None:
         """Clear conversation history from session."""
@@ -170,6 +185,299 @@ class InputPane(Vertical):
         if event.button.id == "send-button":
             await self.submit()
 
+    def _check_clipboard_for_image(self) -> Path | None:
+        """Check system clipboard for image data and save to temp file.
+
+        Tries multiple approaches for macOS compatibility:
+        1. Direct NSPasteboard access via PyObjC (most reliable for browser images)
+        2. PIL ImageGrab.grabclipboard() as fallback
+
+        Returns:
+            Path to saved temp image file, or None if no image in clipboard.
+        """
+        import platform
+        import tempfile
+        import time
+
+        # Try macOS-native approach first (better browser support)
+        if platform.system() == "Darwin":
+            result = self._check_clipboard_macos_native()
+            if result is not None:
+                return result
+
+        # Fall back to PIL ImageGrab
+        return self._check_clipboard_pil()
+
+    def _check_clipboard_macos_native(self) -> Path | None:
+        """Check clipboard using macOS native NSPasteboard via PyObjC.
+
+        This method is more reliable for browser-copied images because it
+        directly accesses the pasteboard without AppleScript conversion.
+
+        Returns:
+            Path to saved temp image file, or None if no image in clipboard.
+        """
+        import tempfile
+        import time
+
+        try:
+            from AppKit import NSPasteboard, NSPasteboardTypePNG, NSPasteboardTypeTIFF
+            from Foundation import NSData
+
+            pb = NSPasteboard.generalPasteboard()
+
+            # Log all available types for debugging
+            available_types = pb.types()
+            logger.debug(f"Clipboard types available: {list(available_types) if available_types else 'None'}")
+
+            # Image types to try, in order of preference
+            # Browsers often provide multiple formats
+            image_types = [
+                NSPasteboardTypePNG,      # public.png - preferred
+                NSPasteboardTypeTIFF,     # public.tiff - common fallback
+                "public.jpeg",            # JPEG format
+                "com.compuserve.gif",     # GIF format
+                "org.webmproject.webp",   # WebP format
+            ]
+
+            for img_type in image_types:
+                data = pb.dataForType_(img_type)
+                if data is not None:
+                    logger.debug(f"Found clipboard image data as type: {img_type}, size: {data.length()} bytes")
+
+                    # Determine file extension
+                    ext_map = {
+                        NSPasteboardTypePNG: ".png",
+                        NSPasteboardTypeTIFF: ".tiff",
+                        "public.jpeg": ".jpg",
+                        "com.compuserve.gif": ".gif",
+                        "org.webmproject.webp": ".webp",
+                    }
+                    ext = ext_map.get(img_type, ".png")
+
+                    # Save to temp file
+                    temp_dir = Path(tempfile.gettempdir()) / "r3lay_clipboard"
+                    temp_dir.mkdir(exist_ok=True)
+
+                    timestamp = int(time.time() * 1000)
+                    temp_path = temp_dir / f"clipboard_{timestamp}{ext}"
+
+                    # Write the raw image data
+                    with open(temp_path, "wb") as f:
+                        f.write(bytes(data))
+
+                    logger.info(f"Saved clipboard image via NSPasteboard to {temp_path}")
+                    return temp_path
+
+            # Check for file URLs (dragged files)
+            file_url_type = "public.file-url"
+            if file_url_type in (available_types or []):
+                url_string = pb.stringForType_(file_url_type)
+                if url_string:
+                    logger.debug(f"Clipboard contains file URL: {url_string}")
+                    # Handle file:// URLs
+                    if url_string.startswith("file://"):
+                        path = Path(url_string[7:])  # Remove file:// prefix
+                        if path.exists() and path.suffix.lower() in {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.tiff'}:
+                            logger.info(f"Found image file in clipboard: {path}")
+                            return path
+
+            logger.debug("No image data found in clipboard via NSPasteboard")
+            return None
+
+        except ImportError as e:
+            logger.debug(f"PyObjC not available for native clipboard access: {e}")
+            return None
+        except Exception as e:
+            logger.warning(f"NSPasteboard clipboard check failed: {e}")
+            return None
+
+    def _check_clipboard_pil(self) -> Path | None:
+        """Check clipboard using PIL ImageGrab (fallback method).
+
+        Note: On macOS, this uses AppleScript internally and may miss some
+        browser-copied images due to format conversion issues.
+
+        Returns:
+            Path to saved temp image file, or None if no image in clipboard.
+        """
+        import tempfile
+        import time
+
+        try:
+            from PIL import ImageGrab
+
+            # Try to grab image from clipboard
+            image = ImageGrab.grabclipboard()
+
+            logger.debug(f"PIL grabclipboard() returned: {type(image).__name__ if image else 'None'}")
+
+            if image is None:
+                return None
+
+            # Check if it's actually an image (not a file list on some systems)
+            if not hasattr(image, 'save'):
+                # On macOS, grabclipboard can return file paths as a list
+                if isinstance(image, list) and len(image) > 0:
+                    logger.debug(f"PIL returned file list: {image}")
+                    # It's a list of file paths
+                    path = Path(image[0])
+                    if path.exists() and path.suffix.lower() in {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'}:
+                        logger.info(f"Found image file from PIL clipboard: {path}")
+                        return path
+                logger.debug(f"PIL returned non-image type: {type(image)}")
+                return None
+
+            # Save to temp file with timestamp
+            temp_dir = Path(tempfile.gettempdir()) / "r3lay_clipboard"
+            temp_dir.mkdir(exist_ok=True)
+
+            timestamp = int(time.time() * 1000)
+            temp_path = temp_dir / f"clipboard_{timestamp}.png"
+
+            image.save(temp_path, "PNG")
+            logger.info(f"Saved clipboard image via PIL to {temp_path}")
+            return temp_path
+
+        except ImportError:
+            logger.debug("PIL not available for clipboard image grab")
+            return None
+        except Exception as e:
+            logger.warning(f"PIL clipboard image grab failed: {e}")
+            return None
+
+    async def on_paste(self, event: Paste) -> None:
+        """Handle paste events for clipboard images and file paths.
+
+        Checks for actual image data in clipboard first (screenshots, browser copies),
+        then checks for single file path pastes, then falls back to multi-line handling.
+        """
+        from ...core.router import IMAGE_EXTENSIONS
+
+        paste_text_preview = repr(event.text[:100] if event.text else '')
+        logger.debug(f"on_paste called with text: {paste_text_preview}")
+
+        # ALWAYS check for clipboard image first (browser copies put both image AND url in clipboard)
+        clipboard_image = self._check_clipboard_for_image()
+        if clipboard_image is not None:
+            logger.info(f"Clipboard image detected and attached: {clipboard_image}")
+            if clipboard_image not in self._attachments:
+                self._attachments.append(clipboard_image)
+                self._update_attachment_status()
+                self.notify("Attached clipboard image", severity="information")
+            event.stop()
+            return
+
+        # No clipboard image found - log this for debugging
+        logger.debug(f"No clipboard image detected, falling back to text paste handling")
+
+        # No clipboard image - check if pasted text is a file path
+        text = event.text.strip()
+        if not text:
+            logger.debug("Empty paste text, ignoring")
+            return
+
+        # SINGLE LINE CHECK: Detect single file path paste (most common case)
+        # This handles Finder drag-drop or pasting a copied path
+        if '\n' not in text:
+            # Clean up potential quotes or file:// prefix
+            clean_path = text.replace("file://", "").strip("'\"")
+            logger.debug(f"Single line paste, checking path: {repr(clean_path)}")
+
+            try:
+                path = Path(clean_path).expanduser()
+                if path.exists() and path.is_file():
+                    logger.debug(f"Path exists as file: {path}, suffix: {path.suffix.lower()}")
+                    if path.suffix.lower() in IMAGE_EXTENSIONS:
+                        # It's an image file - attach it!
+                        if path not in self._attachments:
+                            self._attachments.append(path)
+                            self._update_attachment_status()
+                            self.notify(f"Attached: {path.name}", severity="information")
+                            logger.info(f"Attached image from paste: {path}")
+                        else:
+                            logger.debug(f"Image already attached: {path}")
+                        event.stop()
+                        return
+                    else:
+                        # File exists but not an image - let it paste as text
+                        logger.debug(f"File is not an image (suffix: {path.suffix}), allowing paste as text")
+                else:
+                    logger.debug(f"Path does not exist or is not a file: {path}")
+            except Exception as e:
+                # Not a valid path - let normal paste continue
+                logger.debug(f"Path parsing failed: {e}")
+
+            # Single line that isn't an image file - let default paste handle it
+            logger.debug("Single line is not an image path, allowing default paste")
+            return  # Don't stop event - let TextArea handle the paste
+
+        # MULTI-LINE: Handle multiple lines (multiple files dropped or multi-line text)
+        logger.debug("Multi-line paste detected")
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+
+        attached_count = 0
+        non_file_lines = []
+
+        for line in lines:
+            # Clean up potential file:// prefix or quotes
+            clean_path = line.replace("file://", "").strip("'\"")
+
+            try:
+                path = Path(clean_path).expanduser()
+                if path.exists() and path.is_file():
+                    if path.suffix.lower() in IMAGE_EXTENSIONS:
+                        if path not in self._attachments:
+                            self._attachments.append(path)
+                            attached_count += 1
+                    else:
+                        # File exists but not an image - treat as text
+                        non_file_lines.append(line)
+                else:
+                    # Not a valid file path - treat as text
+                    non_file_lines.append(line)
+            except Exception:
+                # Path parsing failed - treat as text
+                non_file_lines.append(line)
+
+        if attached_count > 0:
+            # Update status and notify
+            self._update_attachment_status()
+            self.notify(f"Attached {attached_count} image(s)", severity="information")
+            logger.info(f"Attached {attached_count} image(s) from multi-line paste")
+
+        if non_file_lines:
+            # Allow non-file text to be pasted into TextArea
+            # Insert the non-file text into the input area
+            text_area = self.query_one("#input-area", TextArea)
+            text_area.insert("\n".join(non_file_lines))
+            logger.debug(f"Inserted {len(non_file_lines)} non-file lines as text")
+
+        # Prevent default paste behavior since we handled it
+        event.stop()
+
+    def _looks_like_path(self, text: str) -> bool:
+        """Check if text looks like a file path rather than a command.
+
+        File paths typically start with /Users, /home, /tmp, /var, etc.
+        Commands are short words like /help, /attach, /clear.
+        """
+        if not text.startswith("/"):
+            return False
+
+        # Common path prefixes that indicate a file path, not a command
+        path_prefixes = (
+            "/Users/", "/home/", "/tmp/", "/var/", "/etc/",
+            "/opt/", "/usr/", "/Library/", "/Applications/",
+            "/Volumes/", "/private/", "/System/"
+        )
+
+        # Also check for tilde expansion
+        if text.startswith("~/"):
+            return True
+
+        return text.startswith(path_prefixes)
+
     async def submit(self) -> None:
         if self._processing:
             return
@@ -186,7 +494,8 @@ class InputPane(Vertical):
             response_pane = screen.query_one("ResponsePane")
             response_pane.add_user(value)
 
-            if value.startswith("/"):
+            # Check if this is a command (e.g., /help, /attach) vs a file path (e.g., /Users/...)
+            if value.startswith("/") and not self._looks_like_path(value):
                 await self._handle_command(value, response_pane)
             else:
                 await self._handle_chat(value, response_pane)
@@ -205,11 +514,17 @@ class InputPane(Vertical):
         if cmd == "help":
             response_pane.add_assistant(
                 "## Commands\n\n"
+                "**Chat & Session**\n"
                 "- `/help` - Show this help\n"
                 "- `/status` - Show system status\n"
-                "- `/index <query>` - Search knowledge base\n"
                 "- `/clear` - Clear chat and conversation history\n"
-                "- `/session` - Show session info\n"
+                "- `/session` - Show session info\n\n"
+                "**Attachments**\n"
+                "- `/attach <path>` - Attach image file(s) to next message\n"
+                "- `/attachments` - List current attachments\n"
+                "- `/detach` - Clear all attachments\n\n"
+                "**Search & Research**\n"
+                "- `/index <query>` - Search knowledge base\n"
                 "- `/search <query>` - Web search (not implemented)\n"
                 "- `/research <query>` - Deep research expedition (not implemented)\n"
             )
@@ -226,6 +541,15 @@ class InputPane(Vertical):
             self._show_session_info(response_pane)
         elif cmd == "status":
             self._show_status(response_pane)
+        elif cmd == "attach":
+            if not args:
+                response_pane.add_system("Usage: `/attach <path>` - attach image file(s)")
+                return
+            self._handle_attach(args, response_pane)
+        elif cmd == "attachments":
+            self._show_attachments(response_pane)
+        elif cmd == "detach":
+            self._clear_attachments(response_pane)
         else:
             response_pane.add_system(f"Command `/{cmd}` not implemented yet.")
 
@@ -261,6 +585,84 @@ class InputPane(Vertical):
 
         status_text = get_welcome_message(self.state)
         response_pane.add_system(status_text)
+
+    def _handle_attach(self, path_str: str, response_pane) -> None:
+        """Handle /attach command - attach image file(s).
+
+        Args:
+            path_str: Path to image file (can include wildcards)
+            response_pane: ResponsePane to display results
+        """
+        from ...core.router import IMAGE_EXTENSIONS
+
+        # Expand path (handle ~ and globs)
+        path = Path(path_str).expanduser()
+
+        # Check if it's a glob pattern
+        if "*" in path_str:
+            parent = path.parent
+            pattern = path.name
+            if parent.exists():
+                matches = list(parent.glob(pattern))
+            else:
+                matches = []
+        elif path.exists():
+            matches = [path]
+        else:
+            response_pane.add_system(f"File not found: `{path_str}`")
+            return
+
+        # Filter to only image files
+        image_files = [
+            p for p in matches
+            if p.suffix.lower() in IMAGE_EXTENSIONS and p.is_file()
+        ]
+
+        if not image_files:
+            response_pane.add_system(
+                f"No image files found. Supported: {', '.join(IMAGE_EXTENSIONS)}"
+            )
+            return
+
+        # Add to attachments
+        for img in image_files:
+            if img not in self._attachments:
+                self._attachments.append(img)
+
+        # Update status to show attachment count
+        self._update_attachment_status()
+
+        # Show confirmation
+        names = [p.name for p in image_files]
+        response_pane.add_system(
+            f"Attached {len(image_files)} image(s): {', '.join(names)}\n"
+            f"Total attachments: {len(self._attachments)}"
+        )
+
+    def _show_attachments(self, response_pane) -> None:
+        """Handle /attachments command - list current attachments."""
+        if not self._attachments:
+            response_pane.add_system("No attachments. Use `/attach <path>` to add images.")
+            return
+
+        lines = ["## Current Attachments\n"]
+        for i, path in enumerate(self._attachments, 1):
+            size_kb = path.stat().st_size / 1024
+            lines.append(f"{i}. `{path.name}` ({size_kb:.1f} KB)")
+
+        lines.append(f"\n*Use `/detach` to clear all attachments.*")
+        response_pane.add_system("\n".join(lines))
+
+    def _clear_attachments(self, response_pane) -> None:
+        """Handle /detach command - clear all attachments."""
+        count = len(self._attachments)
+        self._attachments.clear()
+        self._update_attachment_status()
+
+        if count > 0:
+            response_pane.add_system(f"Cleared {count} attachment(s).")
+        else:
+            response_pane.add_system("No attachments to clear.")
 
     async def _handle_index_search(self, query: str, response_pane) -> None:
         """Handle /index command - search the hybrid RAG index.
@@ -325,15 +727,15 @@ class InputPane(Vertical):
         self,
         message: str,
         retrieved_context: list["RetrievalResult"] | None = None,
-    ) -> str | None:
-        """Get routing decision from SmartRouter (informational only).
+    ) -> "RoutingDecision | None":
+        """Get routing decision from SmartRouter.
 
         Args:
             message: User message text
             retrieved_context: Optional RAG results
 
         Returns:
-            Status message describing the routing decision, or None if no router
+            RoutingDecision object describing the routing decision, or None if no router
         """
         if self.state.router is None:
             return None
@@ -354,15 +756,66 @@ class InputPane(Vertical):
                 decision.reason,
             )
 
-            # Return status message
-            if decision.switched:
-                return f"Router: Switch to {decision.model_type} - {decision.reason}"
-            else:
-                return f"Router: {decision.model_type} - {decision.reason}"
+            return decision
 
         except Exception as e:
             logger.warning("Router error: %s", e)
             return None
+
+    async def _execute_model_switch(self, decision: "RoutingDecision") -> bool:
+        """Execute a model switch based on routing decision.
+
+        Args:
+            decision: RoutingDecision indicating target model type
+
+        Returns:
+            True if switch succeeded, False otherwise
+        """
+        self.set_status(f"Switching to {decision.model_type} model...")
+
+        try:
+            # Get configured model name from app config
+            app = self.app
+            if not hasattr(app, "config") or not hasattr(app.config, "model_roles"):
+                logger.warning("App config not available for model switch")
+                return False
+
+            roles = app.config.model_roles
+            target_model_name = (
+                roles.vision_model if decision.model_type == "vision"
+                else roles.text_model
+            )
+
+            if not target_model_name:
+                logger.warning(f"No {decision.model_type} model configured")
+                return False
+
+            # Find ModelInfo in available models
+            model_info = next(
+                (m for m in self.state.available_models
+                 if m.name == target_model_name),
+                None
+            )
+
+            if not model_info:
+                logger.warning(f"Model not found: {target_model_name}")
+                return False
+
+            # Execute switch with timeout (30 seconds)
+            await asyncio.wait_for(
+                self.state.load_model(model_info),
+                timeout=30.0
+            )
+
+            logger.info(f"Switched to {decision.model_type}: {target_model_name}")
+            return True
+
+        except asyncio.TimeoutError:
+            logger.error("Model switch timed out")
+            return False
+        except Exception as e:
+            logger.error(f"Model switch failed: {e}")
+            return False
 
     def _get_project_context(self) -> "ProjectContext | None":
         """Extract project context from the current project path.
@@ -437,12 +890,24 @@ class InputPane(Vertical):
             session = Session(project_path=self.state.project_path)
             self.state.session = session
 
-        # Get routing decision (informational - we don't switch models yet)
-        routing_status = self._get_routing_decision(message)
-        if routing_status:
-            self.set_status(routing_status)
-            # Also show in response pane as a subtle indicator
-            logger.debug(routing_status)
+        # Get routing decision (returns full RoutingDecision now)
+        decision = self._get_routing_decision(message)
+
+        if decision:
+            # Show routing info in status
+            if decision.switched:
+                # Need to switch models before generating
+                switch_success = await self._execute_model_switch(decision)
+                if not switch_success:
+                    # Warn but continue with current model
+                    response_pane.add_system(
+                        f"Could not switch to {decision.model_type} model. "
+                        "Continuing with current model."
+                    )
+            else:
+                # Just informational
+                self.set_status(f"Router: {decision.model_type} - {decision.reason}")
+                logger.debug(f"Router: {decision.model_type} - {decision.reason}")
 
         # Extract project context for citation customization
         project_context = self._get_project_context()
@@ -483,6 +948,7 @@ class InputPane(Vertical):
                 conversation,
                 max_tokens=1024,
                 temperature=0.7,
+                images=self._attachments if self._attachments else None,
             ):
                 if self._cancel_requested:
                     block.append("\n\n*[Generation cancelled]*")

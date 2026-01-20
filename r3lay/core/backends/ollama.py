@@ -9,10 +9,15 @@ Ollama API documentation: https://github.com/ollama/ollama/blob/main/docs/api.md
 
 from __future__ import annotations
 
+import base64
 import json
+import logging
+from pathlib import Path
 from typing import AsyncGenerator
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 from . import GenerationError, ModelLoadError
 from .base import InferenceBackend
@@ -137,15 +142,18 @@ class OllamaBackend(InferenceBackend):
         messages: list[dict[str, str]],
         max_tokens: int = 512,
         temperature: float = 0.7,
+        images: list[Path] | None = None,
     ) -> AsyncGenerator[str, None]:
         """Stream token generation from Ollama.
 
         Uses the /api/chat endpoint with streaming enabled.
+        Supports vision models (like llava) when images are provided.
 
         Args:
             messages: List of {"role": "user"|"assistant"|"system", "content": str}
             max_tokens: Maximum tokens to generate (maps to num_predict)
             temperature: Sampling temperature (0.0 = deterministic)
+            images: Optional list of image paths for vision models (llava, etc.)
 
         Yields:
             String chunks of generated text
@@ -161,9 +169,39 @@ class OllamaBackend(InferenceBackend):
 
         assert self._client is not None  # Type narrowing for mypy
 
+        # Process images for vision models (llava, etc.)
+        # Ollama expects images as base64 encoded strings in the message
+        api_messages = list(messages)  # Shallow copy to avoid modifying original
+
+        if images:
+            logger.info(f"Vision request with {len(images)} images")
+            # Encode images as base64 and attach to the last user message
+            encoded_images: list[str] = []
+            for img_path in images:
+                if img_path.exists():
+                    try:
+                        with open(img_path, "rb") as f:
+                            encoded_images.append(base64.b64encode(f.read()).decode("utf-8"))
+                    except Exception as e:
+                        logger.warning(f"Failed to read image {img_path}: {e}")
+                else:
+                    logger.warning(f"Image not found: {img_path}")
+
+            # Attach images to the last user message (Ollama API format)
+            if encoded_images:
+                # Find the last user message and add images
+                for i in range(len(api_messages) - 1, -1, -1):
+                    if api_messages[i].get("role") == "user":
+                        # Create new message dict with images
+                        api_messages[i] = {
+                            **api_messages[i],
+                            "images": encoded_images,
+                        }
+                        break
+
         payload = {
             "model": self._name,
-            "messages": messages,
+            "messages": api_messages,
             "stream": True,
             "options": {
                 "temperature": temperature,

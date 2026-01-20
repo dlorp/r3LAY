@@ -45,6 +45,10 @@ vector = [
     "chromadb>=0.4.0",
     "sentence-transformers>=2.2.0",
 ]
+# macOS clipboard image support (better browser image paste handling)
+clipboard = [
+    "pyobjc-framework-Cocoa>=10.0; sys_platform == 'darwin'",
+]
 
 [project.scripts]
 r3lay = "r3lay.app:main"

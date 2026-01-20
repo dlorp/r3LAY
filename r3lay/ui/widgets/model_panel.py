@@ -198,12 +198,15 @@ class ModelPanel(Vertical):
 
         Option IDs are formatted as:
         - "role:text" / "role:vision" / etc. -> Role header (assign current selection)
-        - "model:model_name" -> Model selection
+        - "model:role:model_name" -> Model selection (role included for uniqueness)
         - "none:role" -> Clear role assignment
         """
         if option_id.startswith("model:"):
-            model_name = option_id[6:]  # Strip "model:" prefix
-            self._select_model(model_name)
+            # Format is "model:role:model_name" - extract model_name (everything after second colon)
+            parts = option_id.split(":", 2)  # Split into at most 3 parts
+            if len(parts) >= 3:
+                model_name = parts[2]  # model_name is after "model:role:"
+                self._select_model(model_name)
         elif option_id.startswith("none:"):
             role = option_id[5:]  # Strip "none:" prefix
             self._clear_role(role)
@@ -235,10 +238,11 @@ class ModelPanel(Vertical):
                 self._models[model.name] = model
 
             # Group models by capability
+            # VL models go in VISION only, not TEXT (they have both capabilities but are primarily vision)
             from ...core.models import ModelCapability
 
-            text_models = [m for m in models if ModelCapability.TEXT in m.capabilities]
             vision_models = [m for m in models if ModelCapability.VISION in m.capabilities]
+            text_models = [m for m in models if ModelCapability.TEXT in m.capabilities and ModelCapability.VISION not in m.capabilities]
             text_embedders = [m for m in models if ModelCapability.TEXT_EMBEDDING in m.capabilities]
             vision_embedders = [m for m in models if ModelCapability.VISION_EMBEDDING in m.capabilities]
 
@@ -317,11 +321,12 @@ class ModelPanel(Vertical):
         model_list.clear_options()
 
         # Get models by capability from cache
+        # VL models go in VISION only, not TEXT
         from ...core.models import ModelCapability
 
         models = list(self._models.values())
-        text_models = [m for m in models if ModelCapability.TEXT in m.capabilities]
         vision_models = [m for m in models if ModelCapability.VISION in m.capabilities]
+        text_models = [m for m in models if ModelCapability.TEXT in m.capabilities and ModelCapability.VISION not in m.capabilities]
         text_embedders = [m for m in models if ModelCapability.TEXT_EMBEDDING in m.capabilities]
         vision_embedders = [m for m in models if ModelCapability.VISION_EMBEDDING in m.capabilities]
 
@@ -430,7 +435,7 @@ class ModelPanel(Vertical):
                 label = f"  {marker} {display_name} {size_str} {backend_str}"
 
 
-            option_list.add_option(Option(label, id=f"model:{model.name}"))
+            option_list.add_option(Option(label, id=f"model:{role}:{model.name}"))
 
     def _get_model_roles(self) -> "ModelRoles | None":
         """Get current model role assignments from app config."""
@@ -694,6 +699,24 @@ class ModelPanel(Vertical):
             status.update(f"Loaded: {model_info.name}")
             self.app.notify(f"Model loaded: {model_info.name}")
             load_button.label = "Unload"
+
+            # Save model role to config for model switching
+            try:
+                app = self.app
+                if hasattr(app, "config") and hasattr(app.config, "model_roles"):
+                    if self._current_role == "text":
+                        app.config.model_roles.text_model = model_info.name
+                    elif self._current_role == "vision":
+                        app.config.model_roles.vision_model = model_info.name
+                    app.config.save()
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.info(f"Saved {self._current_role} model role: {model_info.name}")
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Failed to save model role: {e}")
+
             load_button.disabled = False
 
             # Refresh welcome message to show loaded model
