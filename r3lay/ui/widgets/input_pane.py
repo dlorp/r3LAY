@@ -22,6 +22,7 @@ from textual.widgets import Button, Static, TextArea
 
 if TYPE_CHECKING:
     from ...core import R3LayState
+    from ...core.axioms import Axiom
     from ...core.index import RetrievalResult
     from ...core.project_context import ProjectContext
     from ...core.router import RoutingDecision
@@ -526,7 +527,12 @@ class InputPane(Vertical):
                 "**Search & Research**\n"
                 "- `/index <query>` - Search knowledge base\n"
                 "- `/search <query>` - Web search (not implemented)\n"
-                "- `/research <query>` - Deep research expedition (not implemented)\n"
+                "- `/research <query>` - Deep research expedition (not implemented)\n\n"
+                "**Knowledge Management**\n"
+                "- `/axiom [category:] <statement>` - Create new axiom\n"
+                "- `/axioms [category] [--disputed]` - List axioms\n"
+                "- `/cite <axiom_id>` - Show provenance chain for axiom\n"
+                "- `/dispute <axiom_id> <reason>` - Mark axiom as disputed\n"
             )
         elif cmd == "clear":
             response_pane.clear()
@@ -550,6 +556,29 @@ class InputPane(Vertical):
             self._show_attachments(response_pane)
         elif cmd == "detach":
             self._clear_attachments(response_pane)
+        elif cmd == "axiom":
+            if not args:
+                response_pane.add_system(
+                    "Usage: `/axiom [category:] <statement>`\n\n"
+                    "Categories: specifications, procedures, compatibility, "
+                    "diagnostics, history, safety\n\n"
+                    "Example: `/axiom spec: EJ25 timing belt interval is 105,000 miles`"
+                )
+                return
+            await self._handle_create_axiom(args, response_pane)
+        elif cmd == "axioms":
+            await self._handle_list_axioms(args, response_pane)
+        elif cmd == "cite":
+            if not args:
+                response_pane.add_system("Usage: `/cite <axiom_id>`")
+                return
+            await self._handle_show_citations(args, response_pane)
+        elif cmd == "dispute":
+            parts_dispute = args.split(maxsplit=1)
+            if len(parts_dispute) < 2:
+                response_pane.add_system("Usage: `/dispute <axiom_id> <reason>`")
+                return
+            await self._handle_dispute_axiom(parts_dispute[0], parts_dispute[1], response_pane)
         else:
             response_pane.add_system(f"Command `/{cmd}` not implemented yet.")
 
@@ -722,6 +751,346 @@ class InputPane(Vertical):
             response_pane.add_error(f"Search error: {e}")
         finally:
             self.set_status("Ready")
+
+    # =========================================================================
+    # Axiom Command Handlers
+    # =========================================================================
+
+    async def _handle_create_axiom(self, args: str, response_pane) -> None:
+        """Handle /axiom command - create a new axiom.
+
+        Parses optional category prefix (e.g., "spec: statement" or "specifications: statement")
+        and checks for potential conflicts before creating.
+
+        Args:
+            args: The axiom statement, optionally prefixed with category
+            response_pane: ResponsePane to display results
+        """
+        from ...core.axioms import AXIOM_CATEGORIES
+
+        # Parse optional category prefix
+        # Supports both full names and shortcuts: "spec:", "specifications:", etc.
+        category_shortcuts = {
+            "spec": "specifications",
+            "proc": "procedures",
+            "compat": "compatibility",
+            "diag": "diagnostics",
+            "hist": "history",
+            "safe": "safety",
+        }
+
+        category = "specifications"  # Default category
+        statement = args
+
+        # Check for category prefix (e.g., "spec: statement" or "specifications: statement")
+        if ":" in args:
+            potential_cat, rest = args.split(":", 1)
+            potential_cat = potential_cat.strip().lower()
+
+            # Check if it's a valid category or shortcut
+            if potential_cat in AXIOM_CATEGORIES:
+                category = potential_cat
+                statement = rest.strip()
+            elif potential_cat in category_shortcuts:
+                category = category_shortcuts[potential_cat]
+                statement = rest.strip()
+
+        if not statement:
+            response_pane.add_system("Error: Axiom statement cannot be empty.")
+            return
+
+        # Initialize axiom manager
+        axiom_mgr = self.state.init_axioms()
+
+        # Check for potential conflicts
+        conflicts = axiom_mgr.find_conflicts(statement, category)
+
+        if conflicts:
+            # Show warning about potential conflicts
+            conflict_lines = ["## Potential Conflicts Found\n"]
+            conflict_lines.append(
+                "The following existing axioms may conflict with your statement:\n"
+            )
+            for ax in conflicts[:5]:  # Show max 5 conflicts
+                status_icon = self._get_axiom_status_icon(ax)
+                conflict_lines.append(
+                    f"- {status_icon} `{ax.id}`: {ax.statement[:80]}..."
+                    if len(ax.statement) > 80 else f"- {status_icon} `{ax.id}`: {ax.statement}"
+                )
+            conflict_lines.append(
+                "\n*Creating axiom anyway. Use `/dispute <axiom_id> <reason>` if needed.*"
+            )
+            response_pane.add_system("\n".join(conflict_lines))
+
+        # Create the axiom
+        try:
+            axiom = axiom_mgr.create(
+                statement=statement,
+                category=category,
+                confidence=0.8,  # Default confidence for user-created axioms
+                auto_validate=False,  # Start as PENDING for review
+            )
+
+            response_pane.add_assistant(
+                f"## Axiom Created\n\n"
+                f"- **ID**: `{axiom.id}`\n"
+                f"- **Category**: {category}\n"
+                f"- **Status**: {axiom.status.value}\n"
+                f"- **Statement**: {statement}\n\n"
+                f"*Use `/axioms` to view all axioms.*"
+            )
+
+        except ValueError as e:
+            response_pane.add_error(f"Failed to create axiom: {e}")
+        except Exception as e:
+            logger.exception("Error creating axiom")
+            response_pane.add_error(f"Error creating axiom: {e}")
+
+    async def _handle_list_axioms(self, args: str, response_pane) -> None:
+        """Handle /axioms command - list axioms with optional filters.
+
+        Supports:
+        - /axioms - List all axioms
+        - /axioms <category> - Filter by category
+        - /axioms --disputed - Show only disputed axioms
+
+        Args:
+            args: Optional category filter or --disputed flag
+            response_pane: ResponsePane to display results
+        """
+        from ...core.axioms import AXIOM_CATEGORIES, AxiomStatus
+
+        # Initialize axiom manager
+        axiom_mgr = self.state.init_axioms()
+
+        # Parse arguments
+        show_disputed_only = "--disputed" in args
+        args_clean = args.replace("--disputed", "").strip()
+
+        category_filter = None
+        if args_clean:
+            # Check if it's a valid category
+            if args_clean.lower() in AXIOM_CATEGORIES:
+                category_filter = args_clean.lower()
+            else:
+                # Check shortcuts
+                category_shortcuts = {
+                    "spec": "specifications",
+                    "proc": "procedures",
+                    "compat": "compatibility",
+                    "diag": "diagnostics",
+                    "hist": "history",
+                    "safe": "safety",
+                }
+                if args_clean.lower() in category_shortcuts:
+                    category_filter = category_shortcuts[args_clean.lower()]
+                else:
+                    response_pane.add_system(
+                        f"Unknown category: `{args_clean}`\n\n"
+                        f"Valid categories: {', '.join(AXIOM_CATEGORIES)}"
+                    )
+                    return
+
+        # Get axioms with filters
+        if show_disputed_only:
+            axioms = axiom_mgr.get_disputed_axioms()
+            title = "Disputed Axioms"
+        elif category_filter:
+            axioms = axiom_mgr.search(category=category_filter, limit=50)
+            title = f"Axioms: {category_filter.title()}"
+        else:
+            axioms = axiom_mgr.search(limit=50)
+            title = "All Axioms"
+
+        if not axioms:
+            if show_disputed_only:
+                response_pane.add_system("No disputed axioms found.")
+            elif category_filter:
+                response_pane.add_system(f"No axioms found in category: {category_filter}")
+            else:
+                response_pane.add_system(
+                    "No axioms yet. Create one with `/axiom <statement>`"
+                )
+            return
+
+        # Format as markdown
+        lines = [f"## {title}\n"]
+
+        # Group by category if not filtering by category
+        if not category_filter:
+            by_category: dict[str, list["Axiom"]] = {}
+            for ax in axioms:
+                by_category.setdefault(ax.category, []).append(ax)
+
+            for cat in AXIOM_CATEGORIES:
+                if cat not in by_category:
+                    continue
+                lines.append(f"### {cat.title()}")
+                for ax in by_category[cat]:
+                    status_icon = self._get_axiom_status_icon(ax)
+                    confidence_pct = int(ax.confidence * 100)
+                    lines.append(
+                        f"- {status_icon} `{ax.id}` ({confidence_pct}%): {ax.statement}"
+                    )
+                lines.append("")
+        else:
+            for ax in axioms:
+                status_icon = self._get_axiom_status_icon(ax)
+                confidence_pct = int(ax.confidence * 100)
+                lines.append(
+                    f"- {status_icon} `{ax.id}` ({confidence_pct}%): {ax.statement}"
+                )
+
+        # Add stats
+        stats = axiom_mgr.get_stats()
+        lines.append(f"\n*Total: {stats['total']} | Active: {stats['active']} | "
+                     f"Disputed: {stats['disputed']} | Pending: {stats['pending']}*")
+
+        response_pane.add_assistant("\n".join(lines))
+
+    async def _handle_show_citations(self, axiom_id: str, response_pane) -> None:
+        """Handle /cite command - show provenance chain for an axiom.
+
+        Args:
+            axiom_id: The axiom ID to show citations for
+            response_pane: ResponsePane to display results
+        """
+        # Initialize managers
+        axiom_mgr = self.state.init_axioms()
+        signals_mgr = self.state.init_signals()
+
+        # Get the axiom
+        axiom = axiom_mgr.get(axiom_id.strip())
+        if not axiom:
+            response_pane.add_system(f"Axiom not found: `{axiom_id}`")
+            return
+
+        lines = [f"## Provenance: {axiom_id}\n"]
+        lines.append(f"**Statement**: {axiom.statement}\n")
+        lines.append(f"**Category**: {axiom.category}")
+        lines.append(f"**Status**: {axiom.status.value}")
+        lines.append(f"**Confidence**: {int(axiom.confidence * 100)}%")
+        lines.append(f"**Created**: {axiom.created_at[:10]}")
+
+        if axiom.validated_at:
+            lines.append(f"**Validated**: {axiom.validated_at[:10]}")
+
+        if axiom.dispute_reason:
+            lines.append(f"\n**Dispute Reason**: {axiom.dispute_reason}")
+
+        if axiom.superseded_by:
+            lines.append(f"**Superseded By**: `{axiom.superseded_by}`")
+
+        if axiom.supersedes:
+            lines.append(f"**Supersedes**: `{axiom.supersedes}`")
+
+        # Show citation chain if there are citation_ids
+        if axiom.citation_ids:
+            lines.append("\n### Source Citations\n")
+            for cit_id in axiom.citation_ids:
+                chain = signals_mgr.get_citation_chain(cit_id)
+                if chain:
+                    citation = chain.get("citation", {})
+                    lines.append(f"**Citation** `{citation.get('id', cit_id)}`:")
+                    lines.append(f"  - Statement: {citation.get('statement', 'N/A')}")
+                    lines.append(f"  - Confidence: {int(citation.get('confidence', 0) * 100)}%")
+
+                    for source in chain.get("sources", []):
+                        signal = source.get("signal", {})
+                        trans = source.get("transmission", {})
+                        lines.append(f"\n  **Source**: [{signal.get('type', 'unknown')}] {signal.get('title', 'Untitled')}")
+                        if signal.get("path"):
+                            lines.append(f"    - Path: `{signal.get('path')}`")
+                        if signal.get("url"):
+                            lines.append(f"    - URL: {signal.get('url')}")
+                        lines.append(f"    - Location: {trans.get('location', 'N/A')}")
+                        if trans.get("excerpt"):
+                            excerpt = trans.get("excerpt", "")[:200]
+                            lines.append(f"    - Excerpt: \"{excerpt}...\"" if len(trans.get("excerpt", "")) > 200 else f"    - Excerpt: \"{excerpt}\"")
+                else:
+                    lines.append(f"- `{cit_id}` (citation data not found)")
+        else:
+            lines.append("\n*No citations linked to this axiom.*")
+
+        # Show tags if present
+        if axiom.tags:
+            lines.append(f"\n**Tags**: {', '.join(axiom.tags)}")
+
+        response_pane.add_assistant("\n".join(lines))
+
+    async def _handle_dispute_axiom(
+        self, axiom_id: str, reason: str, response_pane
+    ) -> None:
+        """Handle /dispute command - mark an axiom as disputed.
+
+        Args:
+            axiom_id: The axiom ID to dispute
+            reason: Explanation of why the axiom is disputed
+            response_pane: ResponsePane to display results
+        """
+        # Initialize axiom manager
+        axiom_mgr = self.state.init_axioms()
+
+        # Get the axiom first
+        axiom = axiom_mgr.get(axiom_id.strip())
+        if not axiom:
+            response_pane.add_system(f"Axiom not found: `{axiom_id}`")
+            return
+
+        # Check if it can be disputed
+        if axiom.status.is_terminal:
+            response_pane.add_system(
+                f"Cannot dispute axiom `{axiom_id}`: "
+                f"Status is already terminal ({axiom.status.value})"
+            )
+            return
+
+        if axiom.is_disputed:
+            response_pane.add_system(
+                f"Axiom `{axiom_id}` is already disputed.\n"
+                f"Current reason: {axiom.dispute_reason}"
+            )
+            return
+
+        # Dispute the axiom
+        updated = axiom_mgr.dispute(axiom_id.strip(), reason.strip())
+
+        if updated:
+            response_pane.add_assistant(
+                f"## Axiom Disputed\n\n"
+                f"- **ID**: `{axiom_id}`\n"
+                f"- **Statement**: {updated.statement}\n"
+                f"- **Status**: {updated.status.value}\n"
+                f"- **Reason**: {reason}\n\n"
+                f"*Use `/axioms --disputed` to see all disputed axioms.*"
+            )
+        else:
+            response_pane.add_error(
+                f"Failed to dispute axiom `{axiom_id}`. "
+                f"It may not be in a state that can be disputed."
+            )
+
+    def _get_axiom_status_icon(self, axiom: "Axiom") -> str:
+        """Get a status icon for an axiom.
+
+        Args:
+            axiom: The axiom to get an icon for
+
+        Returns:
+            A text-based status indicator
+        """
+        from ...core.axioms import AxiomStatus
+
+        icons = {
+            AxiomStatus.VALIDATED: "[OK]",
+            AxiomStatus.RESOLVED: "[OK]",
+            AxiomStatus.PENDING: "[??]",
+            AxiomStatus.DISPUTED: "[!!]",
+            AxiomStatus.SUPERSEDED: "[->]",
+            AxiomStatus.REJECTED: "[XX]",
+            AxiomStatus.INVALIDATED: "[XX]",
+        }
+        return icons.get(axiom.status, "[??]")
 
     def _get_routing_decision(
         self,

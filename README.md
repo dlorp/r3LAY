@@ -4,7 +4,7 @@
 
 > A TUI AI research assistant that bridges official documentation with real world community knowledge.
 
-[![Version](https://img.shields.io/badge/version-0.6.0-blue.svg)](https://github.com/dlorp/r3LAY)
+[![Version](https://img.shields.io/badge/version-0.7.0-blue.svg)](https://github.com/dlorp/r3LAY)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-green.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -248,7 +248,7 @@ ruff check r3lay/
 - [x] Phase 3: LLM backends (MLX, llama.cpp, vLLM)
 - [x] Phase 4: Hybrid RAG index with source attribution
 - [x] Phase 5: Smart model routing (text ↔ vision switching)
-- [ ] Phase 6: Signals & Axioms system
+- [x] Phase 6: Signals & Axioms system
 - [ ] Phase 7: Deep research with retrospective revision
 - [ ] Phase 8: Docker deployment, documentation
 

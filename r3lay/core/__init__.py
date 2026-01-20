@@ -48,6 +48,21 @@ from .project_context import (
     ProjectContext,
     extract_project_context,
 )
+from .signals import (
+    Citation,
+    ConfidenceCalculator,
+    Signal,
+    SignalsManager,
+    SignalType,
+    Transmission,
+    signal_type_from_source_type,
+)
+from .axioms import (
+    AXIOM_CATEGORIES,
+    Axiom,
+    AxiomManager,
+    AxiomStatus,
+)
 
 if TYPE_CHECKING:
     from .backends import InferenceBackend
@@ -128,6 +143,10 @@ class R3LayState:
 
     # Model role configuration (Phase 5.5)
     model_roles: "ModelRoles | None" = field(default=None, repr=False)
+
+    # Signals & Axioms (Phase 6)
+    signals_manager: SignalsManager | None = field(default=None, repr=False)
+    axiom_manager: AxiomManager | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if isinstance(self.project_path, str):
@@ -399,6 +418,32 @@ class R3LayState:
         sessions_dir.mkdir(parents=True, exist_ok=True)
         return sessions_dir
 
+    def init_signals(self) -> SignalsManager:
+        """Lazy-initialize the signals manager for provenance tracking.
+
+        Creates the .signals/ directory in the project path if needed.
+
+        Returns:
+            SignalsManager instance (creates new one if needed).
+        """
+        if self.signals_manager is None:
+            self.signals_manager = SignalsManager(self.project_path)
+            logger.info(f"Initialized signals manager at {self.project_path / '.signals'}")
+        return self.signals_manager
+
+    def init_axioms(self) -> AxiomManager:
+        """Lazy-initialize the axiom manager for validated knowledge.
+
+        Creates the axioms/ directory in the project path if needed.
+
+        Returns:
+            AxiomManager instance (creates new one if needed).
+        """
+        if self.axiom_manager is None:
+            self.axiom_manager = AxiomManager(self.project_path)
+            logger.info(f"Initialized axiom manager at {self.project_path / 'axioms'}")
+        return self.axiom_manager
+
 
 __all__ = [
     # State
@@ -441,4 +486,17 @@ __all__ = [
     "ProjectContext",
     "extract_project_context",
     "AUTOMOTIVE_MAKES",
+    # Signals (Provenance Tracking)
+    "SignalType",
+    "Signal",
+    "Transmission",
+    "Citation",
+    "ConfidenceCalculator",
+    "SignalsManager",
+    "signal_type_from_source_type",
+    # Axioms (Validated Knowledge)
+    "AXIOM_CATEGORIES",
+    "AxiomStatus",
+    "Axiom",
+    "AxiomManager",
 ]
