@@ -28,6 +28,7 @@ The confidence calculator combines:
 from __future__ import annotations
 
 import hashlib
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -38,6 +39,8 @@ from uuid import uuid4
 from ruamel.yaml import YAML
 
 from r3lay.core.sources import SourceType
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -404,50 +407,65 @@ class SignalsManager:
                     self._citations[citation.id] = citation
 
     def _save(self) -> None:
-        """Persist signals data to disk."""
-        # Save signals
-        signals_data = {
-            "signals": [
-                {
-                    "id": s.id,
-                    "type": s.type.value,
-                    "title": s.title,
-                    "path": s.path,
-                    "url": s.url,
-                    "hash": s.hash,
-                    "indexed_at": s.indexed_at,
-                    "metadata": s.metadata,
-                }
-                for s in self._signals.values()
-            ]
-        }
-        with open(self.sources_file, "w") as f:
-            self.yaml.dump(signals_data, f)
+        """Persist signals data to disk.
 
-        # Save citations
-        citations_data = {
-            "citations": [
-                {
-                    "id": c.id,
-                    "statement": c.statement,
-                    "confidence": c.confidence,
-                    "transmissions": [
-                        {
-                            "signal_id": t.signal_id,
-                            "location": t.location,
-                            "excerpt": t.excerpt,
-                            "confidence": t.confidence,
-                        }
-                        for t in c.transmissions
-                    ],
-                    "created_at": c.created_at,
-                    "used_in": c.used_in,
-                }
-                for c in self._citations.values()
-            ]
-        }
-        with open(self.citations_file, "w") as f:
-            self.yaml.dump(citations_data, f)
+        Uses atomic writes via temp files to prevent corruption.
+
+        Raises:
+            IOError: If files cannot be written
+        """
+        try:
+            # Save signals with atomic write
+            signals_data = {
+                "signals": [
+                    {
+                        "id": s.id,
+                        "type": s.type.value,
+                        "title": s.title,
+                        "path": s.path,
+                        "url": s.url,
+                        "hash": s.hash,
+                        "indexed_at": s.indexed_at,
+                        "metadata": s.metadata,
+                    }
+                    for s in self._signals.values()
+                ]
+            }
+            temp_sources = self.sources_file.with_suffix(".yaml.tmp")
+            with open(temp_sources, "w") as f:
+                self.yaml.dump(signals_data, f)
+            temp_sources.replace(self.sources_file)
+
+            # Save citations with atomic write
+            citations_data = {
+                "citations": [
+                    {
+                        "id": c.id,
+                        "statement": c.statement,
+                        "confidence": c.confidence,
+                        "transmissions": [
+                            {
+                                "signal_id": t.signal_id,
+                                "location": t.location,
+                                "excerpt": t.excerpt,
+                                "confidence": t.confidence,
+                            }
+                            for t in c.transmissions
+                        ],
+                        "created_at": c.created_at,
+                        "used_in": c.used_in,
+                    }
+                    for c in self._citations.values()
+                ]
+            }
+            temp_citations = self.citations_file.with_suffix(".yaml.tmp")
+            with open(temp_citations, "w") as f:
+                self.yaml.dump(citations_data, f)
+            temp_citations.replace(self.citations_file)
+
+        except OSError as e:
+            logger.error(f"Failed to save signals data: {e}")
+            raise IOError(f"Failed to save signals data: {e}") from e
 
     # -------------------------------------------------------------------------
     # Signal Management

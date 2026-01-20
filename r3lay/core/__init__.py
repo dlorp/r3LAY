@@ -83,7 +83,7 @@ from .research import (
 if TYPE_CHECKING:
     from .backends import InferenceBackend
     from .embeddings import EmbeddingBackend
-    from .config import ModelRoles
+    from ..config import AppConfig, ModelRoles
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +137,11 @@ class R3LayState:
     - Session history (preserved across model switches)
     - Smart routing between text and vision models
     - Hybrid RAG index
+
+    Args:
+        project_path: Project directory path
+        config: Optional AppConfig for model discovery paths. If None,
+            creates a default config that reads from environment variables.
     """
 
     project_path: Path = field(default_factory=Path.cwd)
@@ -168,22 +173,40 @@ class R3LayState:
     research_orchestrator: ResearchOrchestrator | None = field(default=None, repr=False)
     search_client: SearXNGClient | None = field(default=None, repr=False)
 
+    # App configuration (Phase 8 - env var support)
+    _config: "AppConfig | None" = field(default=None, repr=False)
+
     def __post_init__(self) -> None:
         if isinstance(self.project_path, str):
             self.project_path = Path(self.project_path)
 
-        # Initialize scanner with default paths
+        # Initialize scanner with config paths (from env vars or defaults)
         if self.scanner is None:
+            # Import here to avoid circular import
+            from ..config import AppConfig
+
+            # Use provided config or create default (reads env vars)
+            config = self._config or AppConfig()
+
             self.scanner = ModelScanner(
-                hf_cache_path=Path("/Users/dperez/Documents/LLM/llm-models/hub"),
-                mlx_folder=Path("/Users/dperez/Documents/LLM/mlx-community"),
-                gguf_folder=Path("~/.r3lay/models/").expanduser(),
-                ollama_endpoint="http://localhost:11434",
+                hf_cache_path=config.hf_cache_path,
+                mlx_folder=config.mlx_folder,
+                gguf_folder=config.gguf_folder,
+                ollama_endpoint=config.ollama_endpoint,
             )
+            self._config = config
 
         # Initialize session
         if self.session is None:
             self.session = Session(project_path=self.project_path)
+
+    @property
+    def config(self) -> "AppConfig":
+        """Get the app configuration (creates default if not set)."""
+        if self._config is None:
+            from ..config import AppConfig
+            self._config = AppConfig()
+        return self._config
 
     def init_router(
         self,
@@ -466,7 +489,7 @@ class R3LayState:
 
     def init_research(
         self,
-        searxng_endpoint: str = "http://localhost:8080",
+        searxng_endpoint: str | None = None,
     ) -> ResearchOrchestrator:
         """Lazy-initialize the research orchestrator for deep research expeditions.
 
@@ -474,7 +497,9 @@ class R3LayState:
         Requires: current_backend loaded, signals_manager, axiom_manager.
 
         Args:
-            searxng_endpoint: SearXNG server URL for web search
+            searxng_endpoint: SearXNG server URL for web search. If None,
+                uses the endpoint from config (which reads from R3LAY_SEARXNG_ENDPOINT
+                env var or defaults to http://localhost:8080).
 
         Returns:
             ResearchOrchestrator instance (creates new one if needed).
@@ -492,9 +517,12 @@ class R3LayState:
         self.init_signals()
         self.init_axioms()
 
+        # Use provided endpoint or get from config (reads env var)
+        endpoint = searxng_endpoint or self.config.searxng_endpoint
+
         # Initialize search client
         if self.search_client is None:
-            self.search_client = SearXNGClient(endpoint=searxng_endpoint)
+            self.search_client = SearXNGClient(endpoint=endpoint)
 
         # Initialize orchestrator
         self.research_orchestrator = ResearchOrchestrator(
