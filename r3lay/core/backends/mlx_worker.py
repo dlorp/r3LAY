@@ -10,13 +10,13 @@ Communication happens via JSON lines over stdin/stdout:
 - stderr: redirected to /dev/null
 
 Commands:
-  {"cmd": "load", "path": "/path/to/model"}
-  {"cmd": "generate", "messages": [...], "max_tokens": 512, "temperature": 0.7}
+  {"cmd": "load", "path": "/path/to/model", "is_vision": false}
+  {"cmd": "generate", "messages": [...], "max_tokens": 512, "temperature": 0.7, "images": []}
   {"cmd": "stop"}
   {"cmd": "unload"}
 
 Responses:
-  {"type": "loaded", "success": true}
+  {"type": "loaded", "success": true, "is_vlm": false}
   {"type": "loaded", "success": false, "error": "message"}
   {"type": "token", "text": "..."}
   {"type": "done"}
@@ -24,6 +24,8 @@ Responses:
 
 Usage:
     python -m r3lay.core.backends.mlx_worker
+
+Supports both text models (mlx-lm) and vision models (mlx-vlm).
 """
 
 from __future__ import annotations
@@ -91,10 +93,16 @@ def main() -> None:
     # Set up isolation FIRST
     setup_isolation()
 
+    # Text model state (mlx-lm)
     model = None
     tokenizer = None
     stream_generate = None
     stop_requested = False
+
+    # Vision model state (mlx-vlm)
+    is_vlm = False
+    vlm_generate = None
+    vlm_processor = None
 
     # Read commands from stdin
     for line in sys.stdin:
@@ -112,14 +120,39 @@ def main() -> None:
 
         if cmd_type == "load":
             model_path = cmd.get("path")
-            try:
-                # Import mlx_lm only after isolation is set up
-                from mlx_lm import load
-                from mlx_lm import stream_generate as sg
-                stream_generate = sg
+            is_vision = cmd.get("is_vision", False)  # Hint from backend
 
-                model, tokenizer = load(model_path)
-                send_response({"type": "loaded", "success": True})
+            try:
+                if is_vision:
+                    # Try loading as VLM using mlx-vlm
+                    try:
+                        from mlx_vlm import load as vlm_load
+                        from mlx_vlm import generate as vlm_gen
+
+                        model, vlm_processor = vlm_load(model_path)
+                        vlm_generate = vlm_gen
+                        is_vlm = True
+                        tokenizer = None  # VLMs use processor instead
+                        stream_generate = None
+                        send_response({"type": "loaded", "success": True, "is_vlm": True})
+                    except ImportError:
+                        send_response({
+                            "type": "loaded",
+                            "success": False,
+                            "error": "mlx-vlm not installed for vision models"
+                        })
+                        continue
+                else:
+                    # Load as text model using mlx-lm
+                    from mlx_lm import load
+                    from mlx_lm import stream_generate as sg
+                    stream_generate = sg
+                    is_vlm = False
+                    vlm_generate = None
+                    vlm_processor = None
+
+                    model, tokenizer = load(model_path)
+                    send_response({"type": "loaded", "success": True, "is_vlm": False})
 
             except ImportError as e:
                 send_response({
@@ -135,46 +168,101 @@ def main() -> None:
                 })
 
         elif cmd_type == "generate":
-            if model is None or tokenizer is None:
+            if model is None:
                 send_response({"type": "error", "message": "Model not loaded"})
                 continue
 
             messages = cmd.get("messages", [])
             max_tokens = cmd.get("max_tokens", 512)
             temperature = cmd.get("temperature", 0.7)
+            images = cmd.get("images", [])  # List of image paths for VLMs
             stop_requested = False
 
             try:
-                # Format messages
-                prompt = format_messages(tokenizer, messages)
+                if is_vlm and vlm_generate is not None:
+                    # VLM generation with images
+                    from PIL import Image
 
-                # Build generation kwargs
-                gen_kwargs = {"prompt": prompt, "max_tokens": max_tokens}
+                    # Get the last user message for the prompt
+                    prompt = ""
+                    for msg in reversed(messages):
+                        if msg.get("role") == "user":
+                            prompt = msg.get("content", "")
+                            break
 
-                # Try new mlx-lm API (>= 0.30)
-                try:
-                    from mlx_lm.sample_utils import make_sampler
-                    gen_kwargs["sampler"] = make_sampler(temperature)
-                except ImportError:
-                    gen_kwargs["temp"] = temperature
+                    # Load images
+                    loaded_images = []
+                    for img_path in images:
+                        try:
+                            img = Image.open(img_path)
+                            loaded_images.append(img)
+                        except Exception as e:
+                            send_response({
+                                "type": "error",
+                                "message": f"Failed to load image {img_path}: {e}"
+                            })
+                            continue
 
-                # Stream tokens
-                for response in stream_generate(model, tokenizer, **gen_kwargs):
-                    if stop_requested:
-                        break
-
-                    # Handle different mlx-lm response formats
-                    if hasattr(response, "text"):
-                        text = response.text
-                    elif isinstance(response, tuple) and len(response) >= 1:
-                        text = response[0]
+                    # Generate with VLM (mlx-vlm uses different API)
+                    # Note: mlx-vlm's generate is not streaming, so we send output at once
+                    if loaded_images:
+                        output = vlm_generate(
+                            model,
+                            vlm_processor,
+                            loaded_images[0],  # mlx-vlm takes single image
+                            prompt,
+                            max_tokens=max_tokens,
+                            temp=temperature,
+                        )
+                        send_response({"type": "token", "text": output})
                     else:
-                        text = str(response)
+                        # No images provided, just use the prompt
+                        output = vlm_generate(
+                            model,
+                            vlm_processor,
+                            prompt,
+                            max_tokens=max_tokens,
+                            temp=temperature,
+                        )
+                        send_response({"type": "token", "text": output})
 
-                    if text:
-                        send_response({"type": "token", "text": text})
+                    send_response({"type": "done"})
+                else:
+                    # Text-only generation using mlx-lm
+                    if tokenizer is None:
+                        send_response({"type": "error", "message": "Tokenizer not loaded"})
+                        continue
 
-                send_response({"type": "done"})
+                    # Format messages
+                    prompt = format_messages(tokenizer, messages)
+
+                    # Build generation kwargs
+                    gen_kwargs = {"prompt": prompt, "max_tokens": max_tokens}
+
+                    # Try new mlx-lm API (>= 0.30)
+                    try:
+                        from mlx_lm.sample_utils import make_sampler
+                        gen_kwargs["sampler"] = make_sampler(temperature)
+                    except ImportError:
+                        gen_kwargs["temp"] = temperature
+
+                    # Stream tokens
+                    for response in stream_generate(model, tokenizer, **gen_kwargs):
+                        if stop_requested:
+                            break
+
+                        # Handle different mlx-lm response formats
+                        if hasattr(response, "text"):
+                            text = response.text
+                        elif isinstance(response, tuple) and len(response) >= 1:
+                            text = response[0]
+                        else:
+                            text = str(response)
+
+                        if text:
+                            send_response({"type": "token", "text": text})
+
+                    send_response({"type": "done"})
 
             except Exception as e:
                 send_response({"type": "error", "message": f"Generation error: {e}"})
@@ -187,10 +275,26 @@ def main() -> None:
             if model is not None:
                 try:
                     import mlx.core as mx
+
+                    # Clean up model
                     del model
-                    del tokenizer
+
+                    # Clean up text model resources
+                    if tokenizer is not None:
+                        del tokenizer
+
+                    # Clean up VLM resources
+                    if vlm_processor is not None:
+                        del vlm_processor
+
                     gc.collect()
-                    if hasattr(mx, 'clear_cache'):
+
+                    # Clear Metal cache with force sync
+                    if hasattr(mx.metal, 'clear_cache'):
+                        mx.metal.clear_cache()
+                        mx.eval(mx.zeros(1))  # Force sync
+                        mx.metal.clear_cache()
+                    elif hasattr(mx, 'clear_cache'):
                         mx.clear_cache()
                 except Exception:
                     pass

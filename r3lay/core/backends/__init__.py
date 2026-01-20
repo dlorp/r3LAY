@@ -75,7 +75,7 @@ def create_backend(model_info: "ModelInfo") -> InferenceBackend:
 
         if model_info.path is None:
             raise ModelLoadError(f"MLX backend requires a model path: {model_info.name}")
-        return MLXBackend(model_info.path, model_info.name)
+        return MLXBackend(model_info.path, model_info.name, model_info.is_vision_model)
 
     elif model_info.backend == Backend.LLAMA_CPP:
         from .llama_cpp import LlamaCppBackend
@@ -84,7 +84,14 @@ def create_backend(model_info: "ModelInfo") -> InferenceBackend:
             raise ModelLoadError(
                 f"llama.cpp backend requires a model path: {model_info.name}"
             )
-        return LlamaCppBackend(model_info.path, model_info.name)
+
+        # Check for mmproj path in metadata (for LLaVA-style vision)
+        mmproj_path = None
+        if model_info.metadata.get("mmproj_path"):
+            from pathlib import Path
+            mmproj_path = Path(model_info.metadata["mmproj_path"])
+
+        return LlamaCppBackend(model_info.path, model_info.name, mmproj_path=mmproj_path)
 
     elif model_info.backend == Backend.OLLAMA:
         from .ollama import OllamaBackend

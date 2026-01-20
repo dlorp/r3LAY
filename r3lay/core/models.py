@@ -372,12 +372,14 @@ def detect_capabilities(model_path: Path) -> set[ModelCapability]:
         # Vision-language models (VLM, VL, LLaVA, etc.)
         vision_patterns = [
             "qwen2_vl",
+            "qwen2-vl",  # Hyphen variant
             "qwen2vl",
             "llava",
             "vision",
             "vlm",
             "vl_",
             "_vl",
+            "-vl",  # Hyphen variant (e.g., Model-VL-7B)
             "paligemma",
             "idefics",
             "fuyu",
@@ -482,6 +484,9 @@ def detect_capabilities_from_name(name: str) -> set[ModelCapability]:
         "cogvlm",
         "qwen-vl",
         "qwen2-vl",
+        "joycaption",  # JoyCaption is a vision model
+        "pixtral",
+        "paligemma",
     ]
     if any(p in name_lower for p in vision_patterns):
         capabilities.add(ModelCapability.VISION)
@@ -812,6 +817,116 @@ def scan_gguf_folder(
 
 
 # =============================================================================
+# Phase 5.7 - LLM Models Folder Scanner (with mmproj detection)
+# =============================================================================
+
+
+def scan_llm_models_folder(
+    folder_path: Path | None = None,
+) -> list[ModelInfo]:
+    """Scan llm-models folder for GGUF models with optional mmproj files.
+
+    Looks for subdirectories containing .gguf files and detects
+    mmproj files for vision model support (LLaVA, JoyCaption, etc.).
+
+    Args:
+        folder_path: Path to llm-models folder.
+                    Default: /Users/dperez/Documents/LLM/llm-models
+
+    Returns:
+        List of ModelInfo for discovered models.
+    """
+    if folder_path is None:
+        folder_path = Path("/Users/dperez/Documents/LLM/llm-models")
+
+    if not folder_path.exists():
+        return []
+
+    models: list[ModelInfo] = []
+
+    try:
+        for item in folder_path.iterdir():
+            if not item.is_dir():
+                continue
+
+            # Skip hidden directories and known non-model dirs
+            if item.name.startswith(".") or item.name in ("hub", "ollama-models"):
+                continue
+
+            # Find GGUF files in this directory
+            gguf_files = list(item.glob("*.gguf"))
+            if not gguf_files:
+                continue
+
+            # Separate main model from mmproj file
+            main_model: Path | None = None
+            mmproj_file: Path | None = None
+
+            for gguf in gguf_files:
+                name_lower = gguf.name.lower()
+                if "mmproj" in name_lower or "clip" in name_lower:
+                    mmproj_file = gguf
+                elif main_model is None or gguf.stat().st_size > main_model.stat().st_size:
+                    # Pick the largest non-mmproj file as main model
+                    main_model = gguf
+
+            if not main_model:
+                continue
+
+            # Model name is the directory name
+            model_name = item.name
+
+            # Get file size
+            try:
+                size_bytes = main_model.stat().st_size
+            except OSError:
+                size_bytes = None
+
+            # Get last accessed time
+            last_accessed: datetime | None = None
+            try:
+                stat = main_model.stat()
+                last_accessed = datetime.fromtimestamp(stat.st_atime)
+            except OSError:
+                pass
+
+            # Detect capabilities from name
+            capabilities = detect_capabilities_from_name(model_name)
+
+            # If mmproj present, ensure VISION capability
+            if mmproj_file:
+                capabilities.add(ModelCapability.VISION)
+                capabilities.add(ModelCapability.TEXT)
+
+            # Build metadata
+            metadata: dict[str, Any] = {
+                "filename": main_model.name,
+                "llm_models_dir": True,
+            }
+            if mmproj_file:
+                metadata["mmproj_path"] = str(mmproj_file)
+
+            models.append(
+                ModelInfo(
+                    name=model_name,
+                    source=ModelSource.GGUF_FILE,
+                    path=main_model,
+                    format=ModelFormat.GGUF,
+                    size_bytes=size_bytes,
+                    backend=Backend.LLAMA_CPP,
+                    capabilities=capabilities,
+                    last_accessed=last_accessed,
+                    metadata=metadata,
+                )
+            )
+
+    except (OSError, PermissionError):
+        pass
+
+    return models
+
+
+# =============================================================================
 # Phase 2.5 - Ollama Scanner
 # =============================================================================
 
@@ -906,6 +1021,7 @@ class ModelScanner:
         hf_cache_path: Path | None = None,
         mlx_folder: Path | None = None,
         gguf_folder: Path | None = None,
+        llm_models_folder: Path | None = None,
         ollama_endpoint: str = "http://localhost:11434",
     ):
         """Initialize the model scanner.
@@ -917,19 +1033,23 @@ class ModelScanner:
                        Default: /Users/dperez/Documents/LLM/mlx-community
             gguf_folder: GGUF drop folder path.
                         Default: ~/.r3lay/models/
+            llm_models_folder: LLM models folder (GGUF with mmproj).
+                              Default: /Users/dperez/Documents/LLM/llm-models
             ollama_endpoint: Ollama API endpoint.
                             Default: http://localhost:11434
         """
         self.hf_cache_path = hf_cache_path
         self.mlx_folder = mlx_folder
         self.gguf_folder = gguf_folder
+        self.llm_models_folder = llm_models_folder
         self.ollama_endpoint = ollama_endpoint
         self._models: list[ModelInfo] = []
 
     async def scan_all(self) -> list[ModelInfo]:
         """Scan all sources for available models.
 
-        Scans HuggingFace cache, MLX folder, GGUF folder, and Ollama API.
+        Scans HuggingFace cache, MLX folder, GGUF folder, llm-models folder,
+        and Ollama API.
         Results are sorted by source: HuggingFace/MLX first, then Ollama, then GGUF files.
         Within each source, models are sorted by name.
 
@@ -946,11 +1066,15 @@ class ModelScanner:
         mlx_models = scan_mlx_folder(self.mlx_folder)
         self._models.extend(mlx_models)
 
+        # Scan llm-models folder for GGUF with mmproj (sync)
+        llm_models = scan_llm_models_folder(self.llm_models_folder)
+        self._models.extend(llm_models)
+
         # Scan Ollama (async)
         ollama_models = await scan_ollama(self.ollama_endpoint)
         self._models.extend(ollama_models)
 
-        # Scan GGUF folder (sync)
+        # Scan GGUF drop folder (sync)
         gguf_models = scan_gguf_folder(self.gguf_folder)
         self._models.extend(gguf_models)
 
@@ -1051,6 +1175,7 @@ __all__ = [
     "scan_huggingface_cache",
     "scan_mlx_folder",
     "scan_gguf_folder",
+    "scan_llm_models_folder",
     "scan_ollama",
     # Class
     "ModelScanner",
