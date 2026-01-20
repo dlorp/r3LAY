@@ -249,7 +249,7 @@ ruff check r3lay/
 - [x] Phase 4: Hybrid RAG index with source attribution
 - [x] Phase 5: Smart model routing (text ↔ vision switching)
 - [x] Phase 6: Signals & Axioms system
-- [ ] Phase 7: Deep research with retrospective revision
+- [x] Phase 7: Deep research with retrospective revision (R³ methodology)
 - [ ] Phase 8: Docker deployment, documentation
 
 See `plans/` for detailed implementation roadmaps.

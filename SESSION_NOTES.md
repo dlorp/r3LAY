@@ -8,6 +8,7 @@
 
 | Date | Session | Status |
 |------|---------|--------|
+| 2026-01-19 | Phase 7 Complete: Deep Research (R³ Methodology) | Complete |
 | 2026-01-19 | Phase 6 Complete: Signals & Axioms | Complete |
 | 2026-01-19 | Phase 5 Complete: Model Routing with Automatic Switching | Complete |
 | 2026-01-05 | Phase 4 Complete + UI Polish | Complete |
@@ -34,6 +35,95 @@
 | 2026-01-02 16:00 | Phase 2: Model Discovery | Complete |
 | 2026-01-02 14:30 | Phase 1: Bootable TUI Shell | Complete |
 | 2026-01-02 | Initial Scaffold | Complete |
+
+---
+
+## Session: 2026-01-19 - Phase 7 Complete: Deep Research (R³ Methodology)
+
+### Status: Complete | Engineer: Claude (using agents)
+
+### Executive Summary
+
+Implemented Phase 7 (Deep Research) - the R³ (Retrospective Recursive Research) methodology that is r3LAY's core differentiating feature. This enables multi-cycle autonomous research expeditions with contradiction detection and resolution cycles.
+
+### Files Created
+
+- `/r3lay/core/search.py` (~200 lines):
+  - `SearchResult` dataclass with title, url, snippet, engine, score, metadata
+  - `SearXNGClient` async client for SearXNG metasearch API
+  - `SearchError` exception class
+  - Methods: `search()`, `fetch_page()`, `is_available()`, `close()`
+
+- `/r3lay/core/research.py` (~900 lines):
+  - `ExpeditionStatus` enum: PENDING, SEARCHING, EXTRACTING, VALIDATING, RESOLVING, SYNTHESIZING, CONVERGED, COMPLETED, BLOCKED, FAILED, CANCELLED
+  - `Contradiction` dataclass with resolution tracking
+  - `CycleMetrics`, `ResearchCycle`, `Expedition` dataclasses
+  - `ResearchEvent` for streaming progress to UI
+  - `ConvergenceDetector` - stops when axiom rate < 30% AND no pending disputes
+  - `ContradictionDetector` - uses `axiom_manager.find_conflicts()` for detection
+  - `ResearchOrchestrator` - main orchestrator with async event streaming
+
+### Files Modified
+
+- `/r3lay/core/__init__.py`:
+  - Added search and research imports
+  - Added `research_orchestrator` and `search_client` fields to R3LayState
+  - Added `init_research()` and `close_research()` methods
+  - Updated `__all__` exports
+
+- `/r3lay/ui/widgets/input_pane.py`:
+  - Added `/research <query>` command handler
+  - Added `_handle_research()` method (~120 lines) with event streaming
+  - Updated `/help` to show `/research` as implemented
+
+- `/r3lay/ui/widgets/axiom_panel.py` (bug fixes):
+  - Renamed `refresh()` to `refresh_axioms()` to avoid Widget base class conflict
+  - Changed `id="axiom-list-empty"` to `classes="axiom-list-empty"` (4 locations) to fix DuplicateIds error
+
+### Key Features
+
+1. **R³ Methodology**: Multi-cycle research with retrospective revision
+2. **Contradiction Detection**: Automatic conflict detection with existing axioms
+3. **Resolution Cycles**: Spawns targeted queries when contradictions found
+4. **Convergence Detection**: Stops when axiom generation < 30% AND no disputes
+5. **Event Streaming**: Real-time progress updates to TUI via async generator
+6. **Fallback Modes**: RAG-only when SearXNG unavailable, web-only when index empty
+
+### Research Data Flow
+
+```
+/research query
+       ↓
+Generate Queries (LLM) → Web Search (SearXNG) + RAG Search
+       ↓
+Extract Axioms (LLM) → Check Contradictions (find_conflicts)
+       ↓
+[No conflict] → Create axiom (PENDING)
+[Conflict] → Dispute existing → Spawn resolution cycle
+       ↓
+Convergence Check → Synthesize Report (LLM)
+```
+
+### Resolution Outcomes
+
+- **CONFIRMED**: Original axiom validated, new finding rejected
+- **SUPERSEDED**: New axiom replaces old (old marked SUPERSEDED)
+- **MERGED**: Both synthesized into nuanced axiom
+- **UNRESOLVABLE**: Flagged for manual review
+
+### Problems Encountered
+
+1. **AxiomPanel.refresh() TypeError**: Custom `refresh()` method conflicted with Textual Widget base class signature
+   - Solution: Renamed to `refresh_axioms()`, updated 5 call sites
+
+2. **DuplicateIds Error**: `remove_children()` is async; old widget with same ID still exists when mounting new
+   - Solution: Changed from `id=` to `classes=` for dynamic empty-state widgets
+
+### Next Steps
+
+- [ ] Phase 8.1: Docker deployment configuration
+- [ ] Phase 8.2: Documentation and README finalization
+- [ ] Manual testing of `/research` command with SearXNG
 
 ---
 

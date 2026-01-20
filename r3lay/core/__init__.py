@@ -63,6 +63,22 @@ from .axioms import (
     AxiomManager,
     AxiomStatus,
 )
+from .search import (
+    SearchError,
+    SearchResult,
+    SearXNGClient,
+)
+from .research import (
+    Contradiction,
+    ConvergenceDetector,
+    ContradictionDetector,
+    CycleMetrics,
+    Expedition,
+    ExpeditionStatus,
+    ResearchCycle,
+    ResearchEvent,
+    ResearchOrchestrator,
+)
 
 if TYPE_CHECKING:
     from .backends import InferenceBackend
@@ -147,6 +163,10 @@ class R3LayState:
     # Signals & Axioms (Phase 6)
     signals_manager: SignalsManager | None = field(default=None, repr=False)
     axiom_manager: AxiomManager | None = field(default=None, repr=False)
+
+    # Deep Research (Phase 7)
+    research_orchestrator: ResearchOrchestrator | None = field(default=None, repr=False)
+    search_client: SearXNGClient | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if isinstance(self.project_path, str):
@@ -444,6 +464,58 @@ class R3LayState:
             logger.info(f"Initialized axiom manager at {self.project_path / 'axioms'}")
         return self.axiom_manager
 
+    def init_research(
+        self,
+        searxng_endpoint: str = "http://localhost:8080",
+    ) -> ResearchOrchestrator:
+        """Lazy-initialize the research orchestrator for deep research expeditions.
+
+        Creates the research/ directory in the project path if needed.
+        Requires: current_backend loaded, signals_manager, axiom_manager.
+
+        Args:
+            searxng_endpoint: SearXNG server URL for web search
+
+        Returns:
+            ResearchOrchestrator instance (creates new one if needed).
+
+        Raises:
+            ValueError: If no LLM backend is loaded
+        """
+        if self.research_orchestrator is not None:
+            return self.research_orchestrator
+
+        if self.current_backend is None:
+            raise ValueError("No LLM backend loaded - load a model first")
+
+        # Ensure dependencies are initialized
+        self.init_signals()
+        self.init_axioms()
+
+        # Initialize search client
+        if self.search_client is None:
+            self.search_client = SearXNGClient(endpoint=searxng_endpoint)
+
+        # Initialize orchestrator
+        self.research_orchestrator = ResearchOrchestrator(
+            project_path=self.project_path,
+            backend=self.current_backend,
+            index=self.index,
+            search=self.search_client,
+            signals=self.signals_manager,
+            axioms=self.axiom_manager,
+        )
+        logger.info(f"Initialized research orchestrator at {self.project_path / 'research'}")
+
+        return self.research_orchestrator
+
+    async def close_research(self) -> None:
+        """Close the research orchestrator and search client."""
+        if self.search_client is not None:
+            await self.search_client.close()
+            self.search_client = None
+        self.research_orchestrator = None
+
 
 __all__ = [
     # State
@@ -499,4 +571,18 @@ __all__ = [
     "AxiomStatus",
     "Axiom",
     "AxiomManager",
+    # Search (Web)
+    "SearchResult",
+    "SearXNGClient",
+    "SearchError",
+    # Deep Research (R3)
+    "ExpeditionStatus",
+    "CycleMetrics",
+    "ResearchCycle",
+    "Contradiction",
+    "Expedition",
+    "ResearchEvent",
+    "ConvergenceDetector",
+    "ContradictionDetector",
+    "ResearchOrchestrator",
 ]
