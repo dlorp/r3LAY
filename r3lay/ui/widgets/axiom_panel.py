@@ -170,7 +170,7 @@ class AxiomPanel(Vertical):
         overflow-y: auto;
     }
 
-    #axiom-list-empty {
+    .axiom-list-empty {
         color: $text-muted;
         text-align: center;
         padding: 2;
@@ -234,7 +234,7 @@ class AxiomPanel(Vertical):
             )
 
         yield ScrollableContainer(
-            Static("Use `/axiom <statement>` to add knowledge.", id="axiom-list-empty"),
+            Static("Use `/axiom <statement>` to add knowledge.", classes="axiom-list-empty"),
             id="axiom-list",
         )
 
@@ -245,9 +245,9 @@ class AxiomPanel(Vertical):
 
     async def on_mount(self) -> None:
         """Load axioms on mount."""
-        self.refresh()
+        self.refresh_axioms()
 
-    def refresh(self) -> None:
+    def refresh_axioms(self) -> None:
         """Reload axiom list from manager and update display."""
         axiom_manager = self._get_axiom_manager()
 
@@ -346,7 +346,7 @@ class AxiomPanel(Vertical):
         """Update list to show empty state."""
         axiom_list = self.query_one("#axiom-list", ScrollableContainer)
         axiom_list.remove_children()
-        axiom_list.mount(Static(message, id="axiom-list-empty"))
+        axiom_list.mount(Static(message, classes="axiom-list-empty"))
 
     def _update_list(self, axioms: list) -> None:
         """Update axiom list with items."""
@@ -355,7 +355,7 @@ class AxiomPanel(Vertical):
 
         if not axioms:
             axiom_list.mount(
-                Static("No axioms match filters", id="axiom-list-empty")
+                Static("No axioms match filters", classes="axiom-list-empty")
             )
             return
 
@@ -400,10 +400,10 @@ class AxiomPanel(Vertical):
         """Handle filter changes."""
         if event.select.id == "category-filter":
             self._current_category = event.value
-            self.refresh()
+            self.refresh_axioms()
         elif event.select.id == "status-filter":
             self._current_status = event.value
-            self.refresh()
+            self.refresh_axioms()
 
     def on_click(self, event) -> None:
         """Handle clicks on axiom items."""
@@ -451,7 +451,7 @@ class AxiomPanel(Vertical):
             axiom = axiom_manager.validate(self._selected_axiom_id)
             if axiom:
                 self.app.notify(f"Validated: {axiom.statement[:40]}...")
-                self.refresh()
+                self.refresh_axioms()
         except Exception as e:
             self.app.notify(f"Validation failed: {e}", severity="error")
 
@@ -477,7 +477,7 @@ class AxiomPanel(Vertical):
 
             if axiom:
                 self.app.notify(f"Disputed: {axiom.statement[:40]}...")
-                self.refresh()
+                self.refresh_axioms()
         except Exception as e:
             self.app.notify(f"Dispute failed: {e}", severity="error")
 

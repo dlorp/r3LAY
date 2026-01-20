@@ -527,7 +527,7 @@ class InputPane(Vertical):
                 "**Search & Research**\n"
                 "- `/index <query>` - Search knowledge base\n"
                 "- `/search <query>` - Web search (not implemented)\n"
-                "- `/research <query>` - Deep research expedition (not implemented)\n\n"
+                "- `/research <query>` - Deep research expedition (R3 methodology)\n\n"
                 "**Knowledge Management**\n"
                 "- `/axiom [category:] <statement>` - Create new axiom\n"
                 "- `/axioms [category] [--disputed]` - List axioms\n"
@@ -579,6 +579,20 @@ class InputPane(Vertical):
                 response_pane.add_system("Usage: `/dispute <axiom_id> <reason>`")
                 return
             await self._handle_dispute_axiom(parts_dispute[0], parts_dispute[1], response_pane)
+        elif cmd == "research":
+            if not args:
+                response_pane.add_system(
+                    "Usage: `/research <query>`\n\n"
+                    "Starts a deep research expedition using the R3 methodology:\n"
+                    "- Multi-cycle exploration with convergence detection\n"
+                    "- Contradiction detection and resolution\n"
+                    "- Axiom extraction with provenance tracking\n"
+                    "- Synthesis report generation\n\n"
+                    "Requires: Model loaded, SearXNG available (optional)\n\n"
+                    "Example: `/research EJ25 head gasket failure causes`"
+                )
+                return
+            await self._handle_research(args, response_pane)
         else:
             response_pane.add_system(f"Command `/{cmd}` not implemented yet.")
 
@@ -1069,6 +1083,153 @@ class InputPane(Vertical):
                 f"Failed to dispute axiom `{axiom_id}`. "
                 f"It may not be in a state that can be disputed."
             )
+
+    async def _handle_research(self, query: str, response_pane) -> None:
+        """Handle /research command - run deep research expedition.
+
+        Implements R3 (Retrospective Recursive Research) methodology:
+        - Multi-cycle exploration with query generation
+        - Web (SearXNG) and RAG parallel searches
+        - Axiom extraction with provenance tracking
+        - Contradiction detection and resolution cycles
+        - Convergence detection (never with unresolved disputes)
+        - Report synthesis
+
+        Args:
+            query: Research query/question
+            response_pane: ResponsePane to display results
+        """
+        # Check prerequisites
+        if self.state.current_backend is None:
+            response_pane.add_error(
+                "No model loaded. Load a model first to run research expeditions."
+            )
+            return
+
+        # Initialize orchestrator
+        try:
+            orchestrator = self.state.init_research()
+        except ValueError as e:
+            response_pane.add_error(f"Cannot start research: {e}")
+            return
+
+        # Start streaming block for research output
+        block = response_pane.start_streaming()
+        block.append(f"# Research Expedition\n\n**Query:** {query}\n\n")
+
+        self._cancel_requested = False
+
+        try:
+            self.set_status("Researching...")
+
+            async for event in orchestrator.run(query):
+                # Check for cancellation
+                if self._cancel_requested:
+                    orchestrator.cancel()
+                    block.append("\n\n*[Research cancelled by user]*")
+                    break
+
+                # Handle event types
+                event_type = event.type
+                data = event.data
+
+                if event_type == "started":
+                    block.append(f"Starting expedition `{data.get('expedition_id', '???')}`...\n")
+
+                elif event_type == "cycle_start":
+                    cycle = data.get("cycle", 0)
+                    cycle_type = data.get("type", "exploration")
+                    block.append(f"\n## Cycle {cycle} ({cycle_type})\n")
+
+                elif event_type == "queries_generated":
+                    queries = data.get("queries", [])
+                    if queries:
+                        block.append("**Search queries:**\n")
+                        for q in queries[:5]:
+                            block.append(f"- {q}\n")
+
+                elif event_type == "search_complete":
+                    count = data.get("count", 0)
+                    block.append(f"Found {count} web results\n")
+
+                elif event_type == "rag_search_complete":
+                    count = data.get("count", 0)
+                    block.append(f"Found {count} local index results\n")
+
+                elif event_type == "axiom_extracted":
+                    statement = data.get("statement", "")[:80]
+                    block.append(f"- Extracted: {statement}...\n")
+
+                elif event_type == "axiom_created":
+                    axiom_id = data.get("axiom_id", "")
+                    block.append(f"  Created axiom: `{axiom_id}`\n")
+
+                elif event_type == "contradiction_detected":
+                    block.append(f"\n**[!!] Contradiction detected:**\n")
+                    block.append(f"- Existing: {data.get('existing', '')[:80]}...\n")
+                    block.append(f"- New finding: {data.get('new', '')[:80]}...\n")
+
+                elif event_type == "resolution_start":
+                    block.append(f"\n### Resolution Cycle\n")
+                    block.append(f"Investigating contradiction `{data.get('contradiction_id', '')}`...\n")
+
+                elif event_type == "resolution_complete":
+                    outcome = data.get("outcome", "unknown")
+                    status = data.get("status", "unknown")
+                    block.append(f"**Resolution:** {outcome} ({status})\n")
+
+                elif event_type == "cycle_complete":
+                    axioms = data.get("axioms", 0)
+                    sources = data.get("sources", 0)
+                    contradictions = data.get("contradictions", 0)
+                    duration = data.get("duration", 0)
+                    block.append(
+                        f"\nCycle complete: {axioms} axioms, {sources} sources"
+                    )
+                    if contradictions:
+                        block.append(f", {contradictions} contradictions")
+                    block.append(f" ({duration:.1f}s)\n")
+
+                elif event_type == "converged":
+                    reason = data.get("reason", "")
+                    cycles = data.get("cycles", 0)
+                    block.append(f"\n**Converged** after {cycles} cycles: {reason}\n")
+
+                elif event_type == "synthesizing":
+                    block.append("\n## Synthesizing Report...\n")
+
+                elif event_type == "completed":
+                    report = data.get("report", "")
+                    block.append("\n---\n\n")
+                    block.append(report)
+
+                elif event_type == "blocked":
+                    reason = data.get("reason", "")
+                    pending = data.get("pending_contradictions", 0)
+                    block.append(
+                        f"\n**[!!] Research blocked:** {reason}\n"
+                        f"*{pending} contradiction(s) require manual review.*\n"
+                        f"Use `/axioms --disputed` to see disputed axioms.\n"
+                    )
+
+                elif event_type == "cancelled":
+                    block.append("\n*Research expedition cancelled.*\n")
+
+                elif event_type == "failed":
+                    message = data.get("message", "Unknown error")
+                    block.append(f"\n**Error:** {message}\n")
+
+                elif event_type == "status":
+                    message = data.get("message", "")
+                    block.append(f"*{message}*\n")
+
+        except Exception as e:
+            logger.exception("Research expedition failed")
+            block.append(f"\n**Error:** {e}\n")
+
+        finally:
+            block.finish()
+            self.set_status("Ready")
 
     def _get_axiom_status_icon(self, axiom: "Axiom") -> str:
         """Get a status icon for an axiom.
