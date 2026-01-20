@@ -8,6 +8,7 @@
 
 | Date | Session | Status |
 |------|---------|--------|
+| 2026-01-19 | Phase 6 Complete: Signals & Axioms | Complete |
 | 2026-01-19 | Phase 5 Complete: Model Routing with Automatic Switching | Complete |
 | 2026-01-05 | Phase 4 Complete + UI Polish | Complete |
 | 2026-01-04 | [LOADED] Badge Bug + Embedding Auto-Launch Requirement | Blocked |
@@ -33,6 +34,86 @@
 | 2026-01-02 16:00 | Phase 2: Model Discovery | Complete |
 | 2026-01-02 14:30 | Phase 1: Bootable TUI Shell | Complete |
 | 2026-01-02 | Initial Scaffold | Complete |
+
+---
+
+## Session: 2026-01-19 - Phase 6 Complete: Signals & Axioms
+
+### Status: Complete | Engineer: Claude (using agents)
+
+### Executive Summary
+
+Implemented Phase 6 (Signals & Axioms) - the provenance tracking and validated knowledge systems foundational to R3LAY's retrospective recursive research methodology. Used parallel agents to implement the backend modules, UI, and command handlers efficiently.
+
+### Files Created
+
+- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/signals.py` (~544 lines):
+  - `SignalType` enum: DOCUMENT, CODE, USER, COMMUNITY, WEB, INFERENCE, SESSION
+  - `Signal`, `Transmission`, `Citation` dataclasses
+  - `ConfidenceCalculator` with type-based weights (0.50-0.95)
+  - `SignalsManager` with YAML persistence to `.signals/`
+  - `signal_type_from_source_type()` helper for SourceType mapping
+
+- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/axioms.py` (~500 lines):
+  - `AxiomStatus` enum: PENDING, VALIDATED, REJECTED, DISPUTED, SUPERSEDED, RESOLVED, INVALIDATED
+  - `AXIOM_CATEGORIES`: specifications, procedures, compatibility, diagnostics, history, safety
+  - `Axiom` dataclass with enhanced fields (status, dispute_reason, superseded_by)
+  - `AxiomManager` with dispute workflow, conflict detection, LLM context generation
+
+### Files Modified
+
+- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/__init__.py`:
+  - Added signals and axioms imports
+  - Added `signals_manager` and `axiom_manager` fields to R3LayState
+  - Added `init_signals()` and `init_axioms()` methods
+
+- `/Users/dperez/Documents/Programming/r3LAY/r3lay/ui/widgets/axiom_panel.py` (rewritten ~200 lines):
+  - Stats header with counts and avg confidence
+  - Category and status filter dropdowns
+  - Scrollable axiom list with color-coded status indicators
+  - Validate/Dispute/Export action buttons
+
+- `/Users/dperez/Documents/Programming/r3LAY/r3lay/ui/widgets/input_pane.py`:
+  - Added `/axiom [category:] <statement>` - Create axiom with conflict check
+  - Added `/axioms [category] [--disputed]` - List axioms
+  - Added `/cite <axiom_id>` - Show provenance chain
+  - Added `/dispute <axiom_id> <reason>` - Mark as disputed
+  - Updated `/help` with Knowledge Management section
+
+- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/session.py`:
+  - Updated `get_system_prompt_with_citations()` to accept `axiom_manager`
+  - Includes validated axiom context in LLM prompts
+
+### Key Features
+
+1. **7-State Axiom Lifecycle**: PENDING → VALIDATED → DISPUTED → SUPERSEDED (or INVALIDATED)
+2. **Conflict Detection**: Keyword-based (30% overlap threshold) for finding potential contradictions
+3. **Provenance Tracking**: Full citation chains from Signal → Transmission → Citation → Axiom
+4. **SignalType ↔ SourceType Mapping**: Bridges RAG attribution with provenance tracking
+5. **LLM Context Integration**: Validated axioms included in system prompts
+
+### Storage Layout
+
+```text
+{project}/
+├── .signals/
+│   ├── sources.yaml      # Signal definitions
+│   └── citations.yaml    # Citation chains
+├── axioms/
+│   └── axioms.yaml       # Validated knowledge
+```
+
+### Verification
+
+- All imports successful (tested programmatically)
+- No IDE diagnostics in new files
+- SignalType mapping covers all 8 SourceType values
+
+### Next Steps
+
+- [ ] Phase 7.1: Architecture planning for Deep Research (R³)
+- [ ] Phase 7.2: Research orchestrator implementation
+- [ ] Phase 7.3: `/research` command and UI
 
 ---
 

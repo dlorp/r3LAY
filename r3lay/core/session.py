@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
+    from .axioms import AxiomManager
     from .project_context import ProjectContext
     from .sources import SourceType
 
@@ -243,6 +244,7 @@ class Session:
         self,
         project_context: "ProjectContext | None" = None,
         source_types_present: list["SourceType"] | None = None,
+        axiom_manager: "AxiomManager | None" = None,
     ) -> str:
         """Generate system prompt with citation instructions.
 
@@ -255,6 +257,8 @@ class Session:
                            Use extract_project_context(path) to create this.
             source_types_present: Optional list of source types available
                                  in the current retrieval results
+            axiom_manager: Optional axiom manager to include validated
+                          knowledge in the prompt context
 
         Returns:
             Formatted system prompt string with citation guidelines.
@@ -395,6 +399,12 @@ Use these when presenting information:
                 if web_sources:
                     source_names = ", ".join(s.value for s in web_sources)
                     base += f"- Web sources: {source_names}\n"
+
+        # Add validated axioms context
+        if axiom_manager:
+            axiom_context = axiom_manager.get_context_for_llm(max_axioms=15)
+            if axiom_context:
+                base += "\n" + axiom_context
 
         return base
 
