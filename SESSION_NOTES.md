@@ -8,6 +8,7 @@
 
 | Date | Session | Status |
 |------|---------|--------|
+| 2026-01-19 | Phase 5 Complete: Model Routing with Automatic Switching | Complete |
 | 2026-01-05 | Phase 4 Complete + UI Polish | Complete |
 | 2026-01-04 | [LOADED] Badge Bug + Embedding Auto-Launch Requirement | Blocked |
 | 2026-01-04 | Phase 4 Complete: Hybrid Search + Source Attribution | Complete |
@@ -32,6 +33,145 @@
 | 2026-01-02 16:00 | Phase 2: Model Discovery | Complete |
 | 2026-01-02 14:30 | Phase 1: Bootable TUI Shell | Complete |
 | 2026-01-02 | Initial Scaffold | Complete |
+
+---
+
+## Session: 2026-01-19 - Phase 5 Complete: Model Routing with Automatic Switching
+
+### Status: Complete | Time: ~2 hours | Engineer: Claude
+
+### Executive Summary
+
+Completed Phase 5 (Model Routing System) by implementing Step 5.5 (Chat Flow Integration). The SmartRouter now actually triggers model switches when routing decisions require it. Previously, the router analyzed messages and logged decisions but never executed the switch. Additionally implemented the embedder auto-launch requirement from previous session notes.
+
+### Problems Encountered
+
+1. **Model Roles Not Saved on Load**
+   - Problem: When loading a text or vision model via the Model Panel, the model name was NOT being saved to `app.config.model_roles`
+   - Result: When router decided to switch models, `_execute_model_switch()` couldn't find the target model (roles were `None`)
+   - Root Cause: `_load_selected_model()` didn't save roles like `_set_embedder_role()` did for embedders
+   - Solution: Added role saving logic to `_load_selected_model()` mirroring the embedder pattern
+
+2. **Embedders Not Auto-Initialized on Startup**
+   - Problem: Embedders only loaded lazily during reindex, not on app startup
+   - Result: First search/reindex had delay waiting for embedder initialization
+   - Solution: Added `_auto_init_embedders()` async method called as non-blocking task in `on_mount()`
+
+3. **Embedders Not Cleaned Up on Shutdown**
+   - Problem: `_graceful_shutdown()` only unloaded LLM backend, not embedders
+   - Result: Potential orphaned subprocess workers on exit
+   - Solution: Added embedder cleanup with 5-second timeouts to `_graceful_shutdown()`
+
+### Solutions Implemented
+
+1. **Model Role Saving** (`model_panel.py:703-718`):
+   ```python
+   # Save model role to config for model switching
+   if self._current_role == "text":
+       app.config.model_roles.text_model = model_info.name
+   elif self._current_role == "vision":
+       app.config.model_roles.vision_model = model_info.name
+   app.config.save()
+   ```
+
+2. **Embedder Auto-Launch** (`app.py:147-171`):
+   - New `_auto_init_embedders()` method checks `config.model_roles` for configured embedders
+   - Called via `asyncio.create_task()` in `on_mount()` - non-blocking
+   - Initializes text and/or vision embedders if configured
+
+3. **Graceful Shutdown Cleanup** (`app.py:173-201`):
+   - Unloads LLM backend (existing)
+   - Unloads text embedder with 5s timeout
+   - Unloads vision embedder with 5s timeout
+
+### Files Modified
+
+- `/Users/dperez/Documents/Programming/r3LAY/r3lay/ui/widgets/model_panel.py`:
+  - Added model role saving in `_load_selected_model()` (lines 703-718)
+  - Saves `text_model` or `vision_model` to config based on `_current_role`
+  - Calls `app.config.save()` to persist
+
+- `/Users/dperez/Documents/Programming/r3LAY/r3lay/app.py`:
+  - Added `logger` at module level (line 14)
+  - Added `_auto_init_embedders()` async method (lines 147-171)
+  - Added auto-init task in `on_mount()` (lines 144-145)
+  - Updated `_graceful_shutdown()` to cleanup embedders (lines 173-201)
+
+### Key Features Implemented
+
+**Phase 5.5 - Chat Flow Integration:**
+1. **Model Role Persistence**: Text/vision models saved to `.r3lay/config.yaml` on load
+2. **Automatic Model Switching**: Router triggers actual model load/unload when `switched=True`
+3. **Asymmetric Thresholds Working**: 0.6 to switch to vision, 0.1 to stay on vision
+4. **Graceful Fallback**: If switch fails, continues with current model + warning
+
+**Embedder Lifecycle (Bonus):**
+1. **Auto-Launch**: Configured embedders initialize on app startup
+2. **Non-Blocking**: Uses `asyncio.create_task()` to not delay UI
+3. **Graceful Shutdown**: All embedders cleaned up with timeouts
+
+### Architectural Decisions
+
+1. **Non-Blocking Embedder Init**: Embedders load in background after UI renders, not during startup. User sees TUI immediately, embedders ready shortly after.
+
+2. **Keep Roles on Unload**: When unloading a model, the role assignment stays in config. This allows easy switching back without re-selecting from the list.
+
+3. **Separate Timeouts**: Each cleanup step (LLM, text embedder, vision embedder) has independent 5s timeout. One hanging doesn't block others.
+
+4. **Role Determination from `_current_role`**: Uses the tracked role from model selection, not model capabilities. User's explicit section choice determines role assignment.
+
+### Usage Example
+
+```python
+# Model switching now works automatically:
+# 1. User loads "Qwen2.5-7B-Instruct" from TEXT MODEL section
+#    → config.model_roles.text_model = "Qwen2.5-7B-Instruct"
+#
+# 2. User loads "Qwen2.5-VL-7B" from VISION MODEL section
+#    → config.model_roles.vision_model = "Qwen2.5-VL-7B"
+#
+# 3. User attaches image to message
+#    → Router: switched=True, model_type="vision"
+#    → _execute_model_switch() loads vision model
+#
+# 4. User sends 5+ text-only messages
+#    → Router: switched=True, model_type="text"
+#    → _execute_model_switch() loads text model back
+```
+
+### Testing Results
+
+**Verified Working:**
+- Model role saving to config.yaml on load
+- Config persistence across app restarts
+- Embedder init/unload lifecycle
+- Router switching decisions (asymmetric thresholds)
+- All code imports without errors
+- No IDE diagnostics/warnings
+
+### Next Steps
+
+- [ ] Phase 6.1: Architecture planning for Signals & Axioms
+- [ ] Phase 6.2: Backend implementation (signals.py, axioms.py)
+- [ ] Phase 6.3: Frontend integration (Axioms panel, /axiom command)
+
+### Breaking Changes
+
+None - all changes are additive or fix existing incomplete behavior.
+
+### Technical Notes
+
+**Router Decision Flow:**
+1. `_handle_chat()` calls `_get_routing_decision(message)`
+2. Router's `route()` method computes vision_score and decides
+3. If `decision.switched == True`, calls `_execute_model_switch(decision)`
+4. `_execute_model_switch()` looks up target model from `app.config.model_roles`
+5. Calls `state.load_model(model_info)` which unloads current first
+
+**Two Config Objects:**
+- `state.router_config` (RouterConfig) - Used by router for decision-making
+- `app.config.model_roles` (ModelRoles) - Used by UI and switch execution
+- Both are now kept in sync when models load
 
 ---
 

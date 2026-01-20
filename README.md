@@ -4,7 +4,7 @@
 
 > A TUI AI research assistant that bridges official documentation with real world community knowledge.
 
-[![Version](https://img.shields.io/badge/version-0.5.0-blue.svg)](https://github.com/yourusername/r3lay)
+[![Version](https://img.shields.io/badge/version-0.6.0-blue.svg)](https://github.com/dlorp/r3LAY)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-green.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -38,6 +38,7 @@ Built with a **garage hobbyist / tinkerer lens**:
 ## Features
 
 - **Local LLM Inference** — MLX (Apple Silicon), vLLM (NVIDIA), llama.cpp (universal)
+- **Smart Model Routing** — Automatic text/vision model switching based on content
 - **Hybrid RAG** — BM25 + vector search with source attribution
 - **Deep Research (R³)** — Multi cycle expeditions with convergence detection
 - **Retrospective Revision** — Automatically detects and resolves contradictions
@@ -87,6 +88,18 @@ Just type your question and press Enter. r³LAY will:
 1. Search your indexed documents (if available)
 2. Include relevant context in the LLM prompt
 3. Stream the response with source citations
+
+### Smart Model Routing
+
+r³LAY automatically switches between text and vision models based on your message:
+
+| Trigger | Action |
+|---------|--------|
+| Attach an image | Switch to vision model |
+| Vision keywords ("describe", "diagram", etc.) | Switch to vision if score > 0.6 |
+| 5+ text-only messages on vision | Switch back to text model |
+
+The router uses **asymmetric thresholds**: high bar (0.6) to switch TO vision, low bar (0.1) to STAY on vision. This minimizes unnecessary model swaps since vision models handle text fine.
 
 ### Commands
 
@@ -174,20 +187,26 @@ REJECTED   DISPUTED → SUPERSEDED
 
 ## Configuration
 
-Configuration is stored in `~/.r3lay/config.yaml`:
+Project-level configuration is stored in `<project>/.r3lay/config.yaml`:
 
 ```yaml
-# LLM settings
-default_backend: mlx
-max_tokens: 2048
-temperature: 0.7
+# Model role assignments (set via UI or auto-saved on load)
+model_roles:
+  text_model: Qwen2.5-7B-Instruct-mlx-4bit
+  vision_model: Qwen2.5-VL-7B-Instruct-mlx-4bit
+  text_embedder: sentence-transformers/all-MiniLM-L6-v2
+  vision_embedder: openai/clip-vit-base-patch32
+```
 
-# Model paths
+Global settings in app config:
+
+```yaml
+# Model discovery paths
 hf_cache: ~/Documents/LLM
 gguf_folder: ~/.r3lay/models
 ollama_endpoint: http://localhost:11434
 
-# Research settings
+# Research settings (Phase 7)
 searxng_endpoint: http://localhost:8888
 max_research_cycles: 10
 convergence_threshold: 0.3
@@ -224,8 +243,11 @@ ruff check r3lay/
 
 ## Roadmap
 
-- [x] Phase 1-4: TUI shell, model discovery, LLM backends, hybrid index
-- [ ] Phase 5: Model routing (text ↔ vision switching)
+- [x] Phase 1: TUI shell with bento layout
+- [x] Phase 2: Model discovery (HuggingFace, GGUF, Ollama)
+- [x] Phase 3: LLM backends (MLX, llama.cpp, vLLM)
+- [x] Phase 4: Hybrid RAG index with source attribution
+- [x] Phase 5: Smart model routing (text ↔ vision switching)
 - [ ] Phase 6: Signals & Axioms system
 - [ ] Phase 7: Deep research with retrospective revision
 - [ ] Phase 8: Docker deployment, documentation
