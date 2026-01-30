@@ -15,6 +15,7 @@ class ModelSource(str, Enum):
     HUGGINGFACE = "huggingface"
     OLLAMA = "ollama"
     LLAMA_CPP = "llama_cpp"
+    OPENCLAW = "openclaw"  # Agent-based inference via OpenClaw
 
 
 @dataclass
@@ -31,7 +32,7 @@ class ModelInfo:
     @property
     def display_name(self) -> str:
         """Human-readable display name."""
-        tag = {"huggingface": "HF", "ollama": "OL", "llama_cpp": "LC"}.get(self.source.value, "??")
+        tag = {"huggingface": "HF", "ollama": "OL", "llama_cpp": "LC", "openclaw": "OC"}.get(self.source.value, "??")
         return f"[{tag}] {self.name}"
     
     @property
