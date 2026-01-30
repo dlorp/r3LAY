@@ -1,7 +1,12 @@
 """LLM client abstraction for multiple local backends."""
 
+import asyncio
+import json
+import time
+import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, AsyncIterator
 
 import httpx
@@ -63,6 +68,162 @@ class LLMAdapter(ABC):
     
     async def close(self) -> None:
         """Clean up resources."""
+        pass
+
+
+class OpenClawAdapter(LLMAdapter):
+    """Adapter for OpenClaw agent-based inference.
+    
+    Uses file-based communication:
+    - Writes queries to ~/.r3lay/openclaw/pending/
+    - Polls for responses in ~/.r3lay/openclaw/done/
+    - OpenClaw agent processes queries via cron/heartbeat
+    
+    No local model required - uses remote Claude via OpenClaw.
+    """
+    
+    def __init__(
+        self,
+        base_path: str | Path | None = None,
+        poll_interval: float = 0.5,
+        timeout: float = 120.0,
+        model_name: str = "openclaw:lorp",
+    ):
+        self.base_path = Path(base_path or Path.home() / ".r3lay" / "openclaw")
+        self.pending_dir = self.base_path / "pending"
+        self.done_dir = self.base_path / "done"
+        self.poll_interval = poll_interval
+        self.timeout = timeout
+        self._model_name = model_name
+        
+        # Ensure directories exist
+        self.pending_dir.mkdir(parents=True, exist_ok=True)
+        self.done_dir.mkdir(parents=True, exist_ok=True)
+    
+    @property
+    def model_name(self) -> str:
+        return self._model_name
+    
+    def _write_query(
+        self,
+        request_id: str,
+        messages: list[Message],
+        system_prompt: str | None,
+        temperature: float,
+        max_tokens: int | None,
+    ) -> Path:
+        """Write a query to the pending directory."""
+        query_file = self.pending_dir / f"{request_id}.json"
+        query_data = {
+            "request_id": request_id,
+            "timestamp": time.time(),
+            "messages": [{"role": m.role, "content": m.content} for m in messages],
+            "system_prompt": system_prompt,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        query_file.write_text(json.dumps(query_data, indent=2))
+        return query_file
+    
+    async def _wait_for_response(self, request_id: str) -> dict[str, Any]:
+        """Poll for response file."""
+        response_file = self.done_dir / f"{request_id}.json"
+        start_time = time.time()
+        
+        while time.time() - start_time < self.timeout:
+            if response_file.exists():
+                try:
+                    data = json.loads(response_file.read_text())
+                    # Clean up files
+                    response_file.unlink(missing_ok=True)
+                    (self.pending_dir / f"{request_id}.json").unlink(missing_ok=True)
+                    return data
+                except json.JSONDecodeError:
+                    # File might still be being written
+                    pass
+            await asyncio.sleep(self.poll_interval)
+        
+        # Timeout - clean up pending query
+        (self.pending_dir / f"{request_id}.json").unlink(missing_ok=True)
+        raise TimeoutError(f"OpenClaw response timeout after {self.timeout}s")
+    
+    async def chat(
+        self,
+        messages: list[Message],
+        system_prompt: str | None = None,
+        temperature: float = 0.7,
+        max_tokens: int | None = None,
+    ) -> ChatResponse:
+        request_id = str(uuid.uuid4())
+        self._write_query(request_id, messages, system_prompt, temperature, max_tokens)
+        
+        response_data = await self._wait_for_response(request_id)
+        
+        return ChatResponse(
+            content=response_data.get("content", ""),
+            model=self._model_name,
+            done=True,
+            metrics={
+                "request_id": request_id,
+                "latency_ms": response_data.get("latency_ms"),
+                "tokens": response_data.get("tokens"),
+            },
+        )
+    
+    async def chat_stream(
+        self,
+        messages: list[Message],
+        system_prompt: str | None = None,
+        temperature: float = 0.7,
+        max_tokens: int | None = None,
+    ) -> AsyncIterator[str]:
+        """Stream response - polls for incremental updates.
+        
+        The response file can contain:
+        - "streaming": true (still generating)
+        - "chunks": ["chunk1", "chunk2", ...] (content so far)
+        - "done": true (generation complete)
+        """
+        request_id = str(uuid.uuid4())
+        self._write_query(request_id, messages, system_prompt, temperature, max_tokens)
+        
+        response_file = self.done_dir / f"{request_id}.json"
+        start_time = time.time()
+        last_chunk_count = 0
+        
+        while time.time() - start_time < self.timeout:
+            if response_file.exists():
+                try:
+                    data = json.loads(response_file.read_text())
+                    chunks = data.get("chunks", [])
+                    
+                    # Yield new chunks
+                    for chunk in chunks[last_chunk_count:]:
+                        yield chunk
+                    last_chunk_count = len(chunks)
+                    
+                    # Check if done
+                    if data.get("done", False):
+                        # Clean up
+                        response_file.unlink(missing_ok=True)
+                        (self.pending_dir / f"{request_id}.json").unlink(missing_ok=True)
+                        return
+                        
+                except json.JSONDecodeError:
+                    pass
+            
+            await asyncio.sleep(self.poll_interval)
+        
+        # Timeout
+        (self.pending_dir / f"{request_id}.json").unlink(missing_ok=True)
+        raise TimeoutError(f"OpenClaw stream timeout after {self.timeout}s")
+    
+    async def is_available(self) -> bool:
+        """Check if OpenClaw communication directory exists."""
+        return self.base_path.exists() and self.pending_dir.exists()
+    
+    async def close(self) -> None:
+        """No cleanup needed for file-based adapter."""
         pass
 
 
@@ -137,7 +298,6 @@ class OllamaAdapter(LLMAdapter):
             resp.raise_for_status()
             async for line in resp.aiter_lines():
                 if line:
-                    import json
                     data = json.loads(line)
                     content = data.get("message", {}).get("content", "")
                     if content:
@@ -216,7 +376,6 @@ class LlamaCppAdapter(LLMAdapter):
             resp.raise_for_status()
             async for line in resp.aiter_lines():
                 if line.startswith("data: "):
-                    import json
                     data = json.loads(line[6:])
                     content = data.get("content", "")
                     if content:
@@ -253,7 +412,15 @@ def create_adapter(
     """Factory function to create appropriate LLM adapter."""
     config = config or {}
     
-    if model_info.source == ModelSource.OLLAMA:
+    if model_info.source == ModelSource.OPENCLAW:
+        return OpenClawAdapter(
+            base_path=config.get("openclaw_path"),
+            poll_interval=config.get("openclaw_poll_interval", 0.5),
+            timeout=config.get("openclaw_timeout", 120.0),
+            model_name=f"openclaw:{model_info.name}",
+        )
+    
+    elif model_info.source == ModelSource.OLLAMA:
         return OllamaAdapter(
             model=model_info.name,
             endpoint=config.get("ollama_endpoint", "http://localhost:11434"),
