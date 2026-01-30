@@ -4,6 +4,7 @@
 
 > A TUI AI research assistant that bridges official documentation with real world community knowledge.
 
+[![CI](https://github.com/dlorp/r3LAY/actions/workflows/ci.yml/badge.svg)](https://github.com/dlorp/r3LAY/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/dlorp/r3LAY)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-green.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
