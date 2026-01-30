@@ -86,9 +86,10 @@ class Signal:
     - LLM inferences
 
     Attributes:
-        id: Unique identifier (sig_XXXXXXXX format)
-        type: Classification of the source
+        id: Unique identifier (sig_XXXXXXXX format, auto-generated if not provided)
+        signal_type: Classification of the source (alias: type)
         title: Human-readable title/description
+        content: Optional content/body of the signal
         path: Local filesystem path (if applicable)
         url: Web URL (if applicable)
         hash: Content hash for change detection
@@ -96,14 +97,21 @@ class Signal:
         metadata: Additional context (author, page count, etc.)
     """
 
-    id: str
-    type: SignalType
     title: str
+    signal_type: SignalType
+    id: str = field(default_factory=lambda: f"sig_{uuid4().hex[:8]}")
+    content: str | None = None
     path: str | None = None
     url: str | None = None
     hash: str | None = None
     indexed_at: str = field(default_factory=lambda: datetime.now().isoformat())
     metadata: dict[str, Any] = field(default_factory=dict)
+
+    # Alias for backward compatibility
+    @property
+    def type(self) -> SignalType:
+        """Alias for signal_type (backward compatibility)."""
+        return self.signal_type
 
     def __hash__(self) -> int:
         """Allow signals to be used in sets and as dict keys."""
@@ -124,15 +132,17 @@ class Transmission:
     specific excerpt at a specific location in a signal.
 
     Attributes:
+        id: Unique identifier (cite_XXXXXXXX format, auto-generated if not provided)
         signal_id: Reference to the parent Signal
-        location: Human-readable location ("page 12", "post #3", "line 45")
         excerpt: The actual quoted text
+        location: Human-readable location ("page 12", "post #3", "line 45")
         confidence: Transmission-level confidence (0.0-1.0)
     """
 
     signal_id: str
-    location: str
     excerpt: str
+    id: str = field(default_factory=lambda: f"cite_{uuid4().hex[:8]}")
+    location: str = ""
     confidence: float = 0.8
 
     def __hash__(self) -> int:
@@ -269,28 +279,68 @@ class ConfidenceCalculator:
         """
         return self.SIGNAL_WEIGHTS.get(signal_type, 0.5)
 
-    def calculate(
-        self,
-        transmissions: list[Transmission],
-        signal_types: list[SignalType],
-    ) -> float:
-        """Calculate aggregate confidence from multiple transmissions.
+    def base_weight(self, signal_type: SignalType) -> float:
+        """Alias for get_type_weight (simpler API).
 
         Args:
-            transmissions: List of transmissions supporting the claim.
-            signal_types: Corresponding signal types for each transmission.
+            signal_type: The signal type to look up.
+
+        Returns:
+            Base confidence weight (0.0-1.0).
+        """
+        return self.get_type_weight(signal_type)
+
+    def calculate(
+        self,
+        transmissions_or_types: list[Transmission] | list[SignalType],
+        signal_types: list[SignalType] | None = None,
+    ) -> float:
+        """Calculate aggregate confidence from multiple transmissions or signal types.
+
+        Can be called in two ways:
+        1. Simple API: calculate([SignalType.WEB, SignalType.DOCUMENT])
+        2. Full API: calculate([transmission1, transmission2], [SignalType.WEB, SignalType.DOCUMENT])
+
+        Args:
+            transmissions_or_types: List of transmissions supporting the claim,
+                OR a list of signal types for the simple API.
+            signal_types: Corresponding signal types for each transmission (full API only).
 
         Returns:
             Aggregate confidence score (0.0-1.0).
 
         Example:
             >>> calc = ConfidenceCalculator()
-            >>> trans = [Transmission("sig_1", "p.5", "text", 0.9)]
+            >>> # Simple API
+            >>> calc.calculate([SignalType.WEB])
+            0.7
+            >>> # Full API
+            >>> trans = [Transmission("sig_1", "text", confidence=0.9)]
             >>> calc.calculate(trans, [SignalType.DOCUMENT])
             0.855  # 0.95 * 0.9
         """
-        if not transmissions:
+        if not transmissions_or_types:
             return 0.0
+
+        # Detect simple API: list of SignalTypes without second argument
+        if signal_types is None and all(isinstance(x, SignalType) for x in transmissions_or_types):
+            # Simple API: just signal types, use base weights directly
+            signal_types_list: list[SignalType] = transmissions_or_types  # type: ignore
+            base_scores = [self.get_type_weight(st) for st in signal_types_list]
+
+            # Start with the best score
+            aggregate = max(base_scores)
+
+            # Add corroboration bonus for additional sources
+            for _ in sorted(base_scores, reverse=True)[1:]:
+                aggregate = min(1.0, aggregate + self.corroboration_boost)
+
+            return round(aggregate, 3)
+
+        # Full API: transmissions + signal_types
+        transmissions: list[Transmission] = transmissions_or_types  # type: ignore
+        if signal_types is None:
+            signal_types = [SignalType.INFERENCE] * len(transmissions)
 
         # Ensure we have matching lengths
         if len(transmissions) != len(signal_types):
@@ -300,7 +350,7 @@ class ConfidenceCalculator:
                 signal_types.append(SignalType.INFERENCE)
 
         # Calculate base scores for each transmission
-        base_scores: list[float] = []
+        base_scores = []
         for trans, sig_type in zip(transmissions, signal_types, strict=False):
             type_weight = self.get_type_weight(sig_type)
             base_scores.append(type_weight * trans.confidence)
@@ -392,7 +442,11 @@ class SignalsManager:
             with open(self.sources_file) as f:
                 data = self.yaml.load(f) or {}
                 for sig in data.get("signals", []):
-                    sig["type"] = SignalType(sig["type"])
+                    # Convert 'type' to 'signal_type' for new dataclass API
+                    if "type" in sig:
+                        sig["signal_type"] = SignalType(sig.pop("type"))
+                    elif "signal_type" in sig:
+                        sig["signal_type"] = SignalType(sig["signal_type"])
                     signal = Signal(**sig)
                     self._signals[signal.id] = signal
 
@@ -503,9 +557,9 @@ class SignalsManager:
             ... )
         """
         signal = Signal(
-            id=f"sig_{uuid4().hex[:8]}",
-            type=signal_type,
             title=title,
+            signal_type=signal_type,
+            id=f"sig_{uuid4().hex[:8]}",
             path=path,
             url=url,
             hash=content_hash,
