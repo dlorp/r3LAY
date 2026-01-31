@@ -261,10 +261,14 @@ class TestSmartRouterRouting:
         """Test switching to vision with strong vision need."""
         vision_router.current_model_type = "text"
         
-        # Message with many vision keywords (need 7+ to exceed 0.6 threshold)
+        # Keywords max out at 0.5, so we need image in context (+0.2) to exceed 0.6
+        mock_result = MagicMock()
+        mock_result.metadata = {"source": "/docs/screenshot.png"}
+        
         decision = vision_router.route(
             message="Show me the image picture photo diagram chart and describe the colors layout design",
             attachments=[],
+            retrieved_context=[mock_result],
         )
         
         assert decision.model_type == "vision"
