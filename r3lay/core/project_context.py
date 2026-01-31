@@ -225,8 +225,10 @@ def extract_project_context(project_path: Path) -> ProjectContext:
         if "automotive" in path_str or "car" in path_str or "garage" in path_str or "vehicle" in path_str:
             context.project_type = "automotive"
 
-    # 6. Try to find automotive make and model (only if still general)
-    if context.project_type == "general":
+    # 6. Try to find automotive make and model
+    # - If already automotive: extract make/model details
+    # - If still general: can switch to automotive based on make/model
+    if context.project_type in ("general", "automotive"):
         for make, models in AUTOMOTIVE_MAKES.items():
             if make in path_str:
                 context.vehicle_make = make.title()
@@ -237,15 +239,16 @@ def extract_project_context(project_path: Path) -> ProjectContext:
                         break
                 break
 
-            # Check for model without explicit make
-            for model in models:
-                if model.lower() in path_str:
-                    context.vehicle_make = make.title()
-                    context.vehicle_model = model.title()
-                    context.project_type = "automotive"
+            # Check for model without explicit make (only switch if still general)
+            if context.project_type == "general":
+                for model in models:
+                    if model.lower() in path_str:
+                        context.vehicle_make = make.title()
+                        context.vehicle_model = model.title()
+                        context.project_type = "automotive"
+                        break
+                if context.vehicle_model:
                     break
-            if context.vehicle_model:
-                break
 
     # Extract year (4-digit between 1980-2030) for automotive
     if context.project_type == "automotive":
