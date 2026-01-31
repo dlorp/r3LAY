@@ -261,9 +261,9 @@ class TestSmartRouterRouting:
         """Test switching to vision with strong vision need."""
         vision_router.current_model_type = "text"
         
-        # Message with many vision keywords
+        # Message with many vision keywords (need 7+ to exceed 0.6 threshold)
         decision = vision_router.route(
-            message="Show me the image and describe the diagram colors and layout",
+            message="Show me the image picture photo diagram chart and describe the colors layout design",
             attachments=[],
         )
         
