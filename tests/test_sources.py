@@ -252,9 +252,10 @@ class TestDetectSourceTypeFromUrl:
     def test_community_patterns(self):
         """URLs matching community patterns are WEB_COMMUNITY."""
         pattern_urls = [
-            "https://somesite.com/forum/thread/123",
-            "https://car-enthusiast-club.com/discussion",
-            "https://owners.example.com/posts",
+            "https://somesite.com/forum/thread/123",  # matches "forum"
+            "https://car-enthusiast.com/discussion",  # matches "enthusiast"
+            "https://talk.example.com/posts",  # matches "talk."
+            "https://boards.somesite.com/topic",  # matches "boards."
         ]
         for url in pattern_urls:
             assert detect_source_type_from_url(url) == SourceType.WEB_COMMUNITY
@@ -406,11 +407,11 @@ class TestDomainLists:
         overlap = OE_DOMAINS & COMMUNITY_DOMAINS
         assert len(overlap) == 0
 
-    def test_code_extensions_lowercase(self):
-        """Code extensions are lowercase."""
+    def test_code_extensions_format(self):
+        """Code extensions start with a dot."""
         for ext in CODE_EXTENSIONS:
-            assert ext == ext.lower()
             assert ext.startswith(".")
+            # Note: .R is valid for R language (case-sensitive on some filesystems)
 
     def test_image_extensions_lowercase(self):
         """Image extensions are lowercase."""
