@@ -253,3 +253,41 @@ secrets/
 .cache/
 tmp/
 temp/
+
+# =============================================================================
+# Additional Security Patterns
+# =============================================================================
+# Credentials files
+credentials.json
+secrets.json
+*.secret
+*_secret*
+*.credentials
+
+# Package manager auth
+.npmrc
+.pypirc
+.yarnrc
+
+# Cloud provider configs
+.aws/
+.gcloud/
+.azure/
+aws-credentials
+gcp-credentials.json
+
+# SSH keys (if accidentally placed in repo)
+id_rsa*
+id_ed25519*
+id_ecdsa*
+*.ppk
+
+# Certificate formats
+*.p12
+*.pfx
+*.crt
+*.cer
+
+# Token files
+*.token
+*_token*
