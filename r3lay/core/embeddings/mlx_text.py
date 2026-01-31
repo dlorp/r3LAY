@@ -209,7 +209,7 @@ class MLXTextEmbeddingBackend(EmbeddingBackend):
 
             # Force terminate if still running
             if self._process.returncode is None:
-                logger.warning(f"Force terminating embedding worker")
+                logger.warning("Force terminating embedding worker")
                 self._process.terminate()
                 try:
                     await asyncio.wait_for(self._process.wait(), timeout=1)
