@@ -29,8 +29,8 @@ from .search import SearchError, SearXNGClient
 from .signals import SignalsManager, SignalType
 
 if TYPE_CHECKING:
-    from .index import HybridIndex
     from ..core.backends.base import InferenceBackend
+    from .index import HybridIndex
 
 logger = logging.getLogger(__name__)
 
@@ -506,9 +506,9 @@ class ContradictionDetector:
         queries = []
 
         # Direct comparison query
-        queries.append(
-            f"{contradiction.category} {contradiction.new_statement[:50]} OR {contradiction.existing_statement[:50]}"
-        )
+        new_stmt = contradiction.new_statement[:50]
+        existing_stmt = contradiction.existing_statement[:50]
+        queries.append(f"{contradiction.category} {new_stmt} OR {existing_stmt}")
 
         # Extract key terms from both statements
         words_new = set(contradiction.new_statement.lower().split())
@@ -1198,7 +1198,8 @@ class ResearchOrchestrator:
         resolved = [c for c in expedition.contradictions if c.resolution_status == "resolved"]
         if resolved:
             resolutions_section = "Resolved Contradictions:\n" + "\n".join(
-                f"- {c.resolution_outcome}: {c.existing_statement[:50]}... → {c.new_statement[:50]}..."
+                f"- {c.resolution_outcome}: {c.existing_statement[:50]}... "
+                f"→ {c.new_statement[:50]}..."
                 for c in resolved
             )
 

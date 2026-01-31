@@ -249,7 +249,8 @@ class LlamaCppBackend(InferenceBackend):
         # Check if this is a vision request with mmproj available
         if images and self._chat_handler is not None:
             logger.info("Processing vision request with %d images", len(images))
-            async for token in self._generate_with_vision(messages, images, max_tokens, temperature):
+            gen = self._generate_with_vision(messages, images, max_tokens, temperature)
+            async for token in gen:
                 yield token
             return
 
