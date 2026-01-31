@@ -69,7 +69,11 @@ class IndexPanel(Vertical):
 
     def _refresh_stats(self) -> None:
         """Update stats display from current index state."""
-        from ...core import embeddings_available, vision_embeddings_available, pdf_extraction_available
+        from ...core import (
+            embeddings_available,
+            pdf_extraction_available,
+            vision_embeddings_available,
+        )
 
         stats_widget = self.query_one("#index-stats", Static)
         if self.state.index is None:
@@ -163,7 +167,11 @@ class IndexPanel(Vertical):
         3. If text embeddings available, load embedder and generate vectors
         4. If images found and vision embedder available, generate image embeddings
         """
-        from ...core import embeddings_available, vision_embeddings_available, pdf_extraction_available
+        from ...core import (
+            embeddings_available,
+            pdf_extraction_available,
+            vision_embeddings_available,
+        )
         from ...core.index import DocumentLoader, LoadResult
 
         self._is_indexing = True
