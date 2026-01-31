@@ -197,8 +197,6 @@ class InputPane(Vertical):
             Path to saved temp image file, or None if no image in clipboard.
         """
         import platform
-        import tempfile
-        import time
 
         # Try macOS-native approach first (better browser support)
         if platform.system() == "Darwin":
@@ -223,7 +221,6 @@ class InputPane(Vertical):
 
         try:
             from AppKit import NSPasteboard, NSPasteboardTypePNG, NSPasteboardTypeTIFF
-            from Foundation import NSData
 
             pb = NSPasteboard.generalPasteboard()
 
@@ -872,7 +869,7 @@ class InputPane(Vertical):
             args: Optional category filter or --disputed flag
             response_pane: ResponsePane to display results
         """
-        from ...core.axioms import AXIOM_CATEGORIES, AxiomStatus
+        from ...core.axioms import AXIOM_CATEGORIES
 
         # Initialize axiom manager
         axiom_mgr = self.state.init_axioms()
@@ -1356,7 +1353,7 @@ class InputPane(Vertical):
         Returns:
             ProjectContext if context can be extracted, None otherwise.
         """
-        from ...core.project_context import ProjectContext, extract_project_context
+        from ...core.project_context import extract_project_context
 
         if self.state.project_path is None:
             return None
@@ -1376,7 +1373,6 @@ class InputPane(Vertical):
         Returns:
             List of unique SourceType values if index exists, None otherwise.
         """
-        from ...core.sources import SourceType
 
         if self.state.index is None:
             return None
