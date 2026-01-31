@@ -32,7 +32,7 @@ class TestSignal:
         """Signals can be created with required fields."""
         signal = Signal(
             title="Test Manual",
-            type=SignalType.DOCUMENT,
+            signal_type=SignalType.DOCUMENT,
             content="Test content",
         )
         assert signal.title == "Test Manual"
@@ -41,15 +41,15 @@ class TestSignal:
 
     def test_signal_id_generation(self):
         """Each signal gets a unique ID."""
-        s1 = Signal(title="A", type=SignalType.WEB, content="")
-        s2 = Signal(title="B", type=SignalType.WEB, content="")
+        s1 = Signal(title="A", signal_type=SignalType.WEB, content="")
+        s2 = Signal(title="B", signal_type=SignalType.WEB, content="")
         assert s1.id != s2.id
 
     def test_signal_with_url(self):
         """Signals can include source URL."""
         signal = Signal(
             title="Forum Post",
-            type=SignalType.COMMUNITY,
+            signal_type=SignalType.COMMUNITY,
             content="Real experience here",
             url="https://example.com/forum/123",
         )
@@ -63,7 +63,7 @@ class TestTransmission:
         """Transmissions link excerpts to signals."""
         signal = Signal(
             title="Manual",
-            type=SignalType.DOCUMENT,
+            signal_type=SignalType.DOCUMENT,
             content="Full content here",
         )
         transmission = Transmission(
