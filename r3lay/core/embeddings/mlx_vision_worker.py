@@ -171,8 +171,8 @@ class ColQwen2Embedder(VisionEmbedder):
 
             # Fallback to transformers Qwen2-VL (not ideal but works)
             try:
-                from transformers import AutoModel, AutoProcessor
                 import torch
+                from transformers import AutoModel, AutoProcessor
 
                 self.processor = AutoProcessor.from_pretrained(model_name)
                 self.model = AutoModel.from_pretrained(
@@ -417,7 +417,7 @@ class MLXCLIPEmbedder(VisionEmbedder):
 
         except Exception:
             # Catch ALL exceptions (not just ImportError) so fallback can happen
-            # mlx_vlm may be installed but fail to load non-MLX models (e.g., CLIP without safetensors)
+            # mlx_vlm may fail to load non-MLX models (e.g., CLIP without safetensors)
             pass
 
         # Try mlx-clip if available
@@ -520,7 +520,6 @@ def main() -> None:
     setup_isolation()
 
     embedder: VisionEmbedder | None = None
-    model_name: str | None = None
 
     # Import numpy and PIL after isolation
     import numpy as np
@@ -579,7 +578,6 @@ def main() -> None:
                         embedder = None
 
                 if embedder is not None:
-                    model_name = requested_model
                     send_response({
                         "type": "loaded",
                         "success": True,

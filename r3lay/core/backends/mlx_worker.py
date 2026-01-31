@@ -126,8 +126,8 @@ def main() -> None:
                 if is_vision:
                     # Try loading as VLM using mlx-vlm
                     try:
-                        from mlx_vlm import load as vlm_load
                         from mlx_vlm import generate as vlm_gen
+                        from mlx_vlm import load as vlm_load
 
                         model, vlm_processor = vlm_load(model_path)
                         vlm_generate = vlm_gen

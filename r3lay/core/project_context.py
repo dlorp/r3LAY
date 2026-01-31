@@ -110,8 +110,14 @@ class ProjectContext:
 
 # Automotive makes and models
 AUTOMOTIVE_MAKES: dict[str, list[str]] = {
-    "subaru": ["impreza", "outback", "forester", "wrx", "sti", "legacy", "crosstrek", "brz", "ascent", "baja"],
-    "toyota": ["camry", "corolla", "rav4", "tacoma", "tundra", "4runner", "highlander", "prius", "supra", "86"],
+    "subaru": [
+        "impreza", "outback", "forester", "wrx", "sti",
+        "legacy", "crosstrek", "brz", "ascent", "baja",
+    ],
+    "toyota": [
+        "camry", "corolla", "rav4", "tacoma", "tundra",
+        "4runner", "highlander", "prius", "supra", "86",
+    ],
     "honda": ["civic", "accord", "cr-v", "pilot", "odyssey", "fit", "hr-v", "s2000", "nsx"],
     "ford": ["f150", "f-150", "mustang", "explorer", "escape", "bronco", "ranger", "focus"],
     "chevrolet": ["silverado", "camaro", "corvette", "tahoe", "equinox", "malibu", "colorado"],
@@ -172,7 +178,6 @@ def extract_project_context(project_path: Path) -> ProjectContext:
         /workshop/dining_table -> workshop
     """
     path_str = str(project_path).lower()
-    parts = [p for p in path_str.replace("\\", "/").split("/") if p and p != "."]
 
     context = ProjectContext(
         raw_path=project_path,
@@ -222,7 +227,8 @@ def extract_project_context(project_path: Path) -> ProjectContext:
 
     # 5. Automotive detection (check explicit keywords first)
     if context.project_type == "general":
-        if "automotive" in path_str or "car" in path_str or "garage" in path_str or "vehicle" in path_str:
+        auto_keywords = ("automotive", "car", "garage", "vehicle")
+        if any(kw in path_str for kw in auto_keywords):
             context.project_type = "automotive"
 
     # 6. Try to find automotive make and model

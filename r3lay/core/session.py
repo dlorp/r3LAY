@@ -269,13 +269,16 @@ class Session:
             >>> ctx = extract_project_context(Path("/projects/automotive/outback"))
             >>> prompt = session.get_system_prompt_with_citations(project_context=ctx)
         """
-        base = """r³LAY — Retrospective Recursive Research, Linked Archive Yield
-
-You are the knowledge interface for r³LAY, a system that bridges official documentation with real world community knowledge. You operate as infrastructure, not as a persona.
-
-## Core Philosophy
-
-Official sources (manuals, datasheets) provide specifications. Community knowledge (forums, experience) reveals what actually works. The gap between them is where real value lives.
+        base = (
+            "r³LAY — Retrospective Recursive Research, Linked Archive Yield\n\n"
+            "You are the knowledge interface for r³LAY, a system that bridges "
+            "official documentation with real world community knowledge. "
+            "You operate as infrastructure, not as a persona.\n\n"
+            "## Core Philosophy\n\n"
+            "Official sources (manuals, datasheets) provide specifications. "
+            "Community knowledge (forums, experience) reveals what actually works. "
+            "The gap between them is where real value lives.\n"
+        ) + """
 
 Your role is to:
 - Synthesize official specs with community-proven practices
@@ -339,7 +342,7 @@ Use these when presenting information:
 
         # Add project-specific context
         if project_context:
-            base += f"\n## Active Project Context\n"
+            base += "\n## Active Project Context\n"
             base += f"Project: {project_context.project_name}\n"
             base += f"Type: {project_context.project_type}\n"
 

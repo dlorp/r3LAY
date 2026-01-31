@@ -77,7 +77,6 @@ def main() -> None:
     setup_isolation()
 
     model = None
-    model_name: str | None = None
     dimension: int = 0
 
     # Import numpy after isolation (it's safe, but be consistent)
@@ -106,7 +105,6 @@ def main() -> None:
                     from mlx_embeddings import load as mlx_load
 
                     model = mlx_load(requested_model)
-                    model_name = requested_model
 
                     # Get dimension by embedding a test string
                     test_embedding = model.encode(["test"])
@@ -133,7 +131,6 @@ def main() -> None:
                     # Use MPS on Apple Silicon if available
                     device = "mps" if _mps_available() else "cpu"
                     model = SentenceTransformer(requested_model, device=device)
-                    model_name = requested_model
 
                     # Get embedding dimension
                     dimension = model.get_sentence_embedding_dimension()

@@ -31,8 +31,8 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, AsyncGenerator
 
-from .base import InferenceBackend
 from . import DependencyError, GenerationError, ModelLoadError
+from .base import InferenceBackend
 
 if TYPE_CHECKING:
     pass
@@ -330,8 +330,9 @@ class MLXBackend(InferenceBackend):
                 if response is None:
                     # Check if process died
                     if self._process.returncode is not None:
+                        code = self._process.returncode
                         raise GenerationError(
-                            f"Worker process died during generation (exit: {self._process.returncode})"
+                            f"Worker process died during generation (exit: {code})"
                         )
                     await asyncio.sleep(0)
                     continue
