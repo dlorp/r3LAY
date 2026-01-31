@@ -367,7 +367,7 @@ class InputPane(Vertical):
             return
 
         # No clipboard image found - log this for debugging
-        logger.debug(f"No clipboard image detected, falling back to text paste handling")
+        logger.debug("No clipboard image detected, falling back to text paste handling")
 
         # No clipboard image - check if pasted text is a file path
         text = event.text.strip()
@@ -690,7 +690,7 @@ class InputPane(Vertical):
             size_kb = path.stat().st_size / 1024
             lines.append(f"{i}. `{path.name}` ({size_kb:.1f} KB)")
 
-        lines.append(f"\n*Use `/detach` to clear all attachments.*")
+        lines.append("\n*Use `/detach` to clear all attachments.*")
         response_pane.add_system("\n".join(lines))
 
     def _clear_attachments(self, response_pane) -> None:
@@ -1162,12 +1162,12 @@ class InputPane(Vertical):
                     block.append(f"  Created axiom: `{axiom_id}`\n")
 
                 elif event_type == "contradiction_detected":
-                    block.append(f"\n**[!!] Contradiction detected:**\n")
+                    block.append("\n**[!!] Contradiction detected:**\n")
                     block.append(f"- Existing: {data.get('existing', '')[:80]}...\n")
                     block.append(f"- New finding: {data.get('new', '')[:80]}...\n")
 
                 elif event_type == "resolution_start":
-                    block.append(f"\n### Resolution Cycle\n")
+                    block.append("\n### Resolution Cycle\n")
                     block.append(f"Investigating contradiction `{data.get('contradiction_id', '')}`...\n")
 
                 elif event_type == "resolution_complete":
