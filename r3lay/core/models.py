@@ -21,7 +21,6 @@ from typing import Any
 import httpx
 from pydantic import BaseModel, Field, computed_field
 
-
 # =============================================================================
 # Model Capability Types
 # =============================================================================

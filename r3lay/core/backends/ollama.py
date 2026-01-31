@@ -17,10 +17,10 @@ from typing import AsyncGenerator
 
 import httpx
 
-logger = logging.getLogger(__name__)
-
 from . import GenerationError, ModelLoadError
 from .base import InferenceBackend
+
+logger = logging.getLogger(__name__)
 
 
 class OllamaBackend(InferenceBackend):
