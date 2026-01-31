@@ -8,13 +8,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
-from .models import (
-    Backend,
-    ModelCapability,
-    ModelFormat,
-    ModelInfo,
-    ModelScanner,
-    ModelSource,
+from .axioms import (
+    AXIOM_CATEGORIES,
+    Axiom,
+    AxiomManager,
+    AxiomStatus,
 )
 from .index import (
     Chunk,
@@ -26,27 +24,43 @@ from .index import (
     SourceType,
     detect_source_type_from_path,
 )
-from .sources import (
-    SourceInfo,
-    detect_source_type_from_url,
-    format_citation,
-    OE_DOMAINS,
-    TRUSTED_DOMAINS,
-    COMMUNITY_DOMAINS,
+from .models import (
+    Backend,
+    ModelCapability,
+    ModelFormat,
+    ModelInfo,
+    ModelScanner,
+    ModelSource,
 )
-from .session import (
-    Message,
-    Session,
+from .project_context import (
+    AUTOMOTIVE_MAKES,
+    ProjectContext,
+    extract_project_context,
+)
+from .research import (
+    Contradiction,
+    ContradictionDetector,
+    ConvergenceDetector,
+    CycleMetrics,
+    Expedition,
+    ExpeditionStatus,
+    ResearchCycle,
+    ResearchEvent,
+    ResearchOrchestrator,
 )
 from .router import (
     RouterConfig,
     RoutingDecision,
     SmartRouter,
 )
-from .project_context import (
-    AUTOMOTIVE_MAKES,
-    ProjectContext,
-    extract_project_context,
+from .search import (
+    SearchError,
+    SearchResult,
+    SearXNGClient,
+)
+from .session import (
+    Message,
+    Session,
 )
 from .signals import (
     Citation,
@@ -57,33 +71,19 @@ from .signals import (
     Transmission,
     signal_type_from_source_type,
 )
-from .axioms import (
-    AXIOM_CATEGORIES,
-    Axiom,
-    AxiomManager,
-    AxiomStatus,
-)
-from .search import (
-    SearchError,
-    SearchResult,
-    SearXNGClient,
-)
-from .research import (
-    Contradiction,
-    ConvergenceDetector,
-    ContradictionDetector,
-    CycleMetrics,
-    Expedition,
-    ExpeditionStatus,
-    ResearchCycle,
-    ResearchEvent,
-    ResearchOrchestrator,
+from .sources import (
+    COMMUNITY_DOMAINS,
+    OE_DOMAINS,
+    TRUSTED_DOMAINS,
+    SourceInfo,
+    detect_source_type_from_url,
+    format_citation,
 )
 
 if TYPE_CHECKING:
+    from ..config import AppConfig, ModelRoles
     from .backends import InferenceBackend
     from .embeddings import EmbeddingBackend
-    from ..config import AppConfig, ModelRoles
 
 logger = logging.getLogger(__name__)
 
@@ -414,7 +414,10 @@ class R3LayState:
             return self.vision_embedder
 
         if not vision_embeddings_available():
-            logger.info("Vision embeddings unavailable: transformers/sentence-transformers or pillow not installed")
+            logger.info(
+                "Vision embeddings unavailable: "
+                "transformers/sentence-transformers or pillow not installed"
+            )
             return None
 
         try:
