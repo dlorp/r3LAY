@@ -18,7 +18,7 @@ from textual.widgets.option_list import Option
 if TYPE_CHECKING:
     from ...config import ModelRoles
     from ...core import R3LayState
-    from ...core.models import ModelCapability, ModelInfo, ModelScanner
+    from ...core.models import ModelInfo, ModelScanner
 
 
 class ModelPanel(Vertical):

@@ -26,7 +26,7 @@ from ruamel.yaml import YAML
 
 from .axioms import AXIOM_CATEGORIES, AxiomManager
 from .search import SearchError, SearXNGClient
-from .signals import SignalsManager, SignalType, Transmission
+from .signals import SignalsManager, SignalType
 
 if TYPE_CHECKING:
     from .index import HybridIndex

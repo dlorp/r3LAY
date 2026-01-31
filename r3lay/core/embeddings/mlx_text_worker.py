@@ -32,7 +32,10 @@ import gc
 import json
 import os
 import sys
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import numpy as np
 
 
 def setup_isolation() -> None:
