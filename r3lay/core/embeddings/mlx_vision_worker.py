@@ -41,7 +41,11 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import numpy as np
+    from PIL import Image
 
 
 def setup_isolation() -> None:
@@ -201,9 +205,7 @@ class ColQwen2Embedder(VisionEmbedder):
             raise RuntimeError("Model not loaded")
 
         try:
-            # colpali-engine path
-            from colpali_engine.models import ColQwen2, ColQwen2Processor
-
+            # colpali-engine path (imports already done in load)
             # Process images
             batch_images = self.processor.process_images(images)
             batch_images = {k: v.to(self.model.device) for k, v in batch_images.items()}
@@ -299,7 +301,6 @@ class CLIPEmbedder(VisionEmbedder):
 
             # Get dimension by encoding a test image
             from PIL import Image
-            import numpy as np
 
             test_img = Image.new("RGB", (64, 64), color="white")
             test_emb = self.model.encode([test_img])
@@ -315,7 +316,6 @@ class CLIPEmbedder(VisionEmbedder):
         # Try transformers CLIP
         try:
             from transformers import CLIPModel, CLIPProcessor
-            import torch
 
             device = "mps" if _mps_available() else "cpu"
             self.processor = CLIPProcessor.from_pretrained(model_name)
