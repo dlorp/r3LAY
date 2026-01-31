@@ -220,6 +220,97 @@ class TestSearXNGClientSearch:
 
             assert "Search request failed" in str(exc_info.value)
 
+    async def test_search_http_status_error_raises_search_error(self):
+        """HTTP status errors include status code in message."""
+        mock_response = MagicMock()
+        mock_response.status_code = 503
+        mock_request = MagicMock()
+
+        with patch.object(httpx.AsyncClient, "get", new_callable=AsyncMock) as mock_get:
+            mock_get.side_effect = httpx.HTTPStatusError(
+                "Service Unavailable",
+                request=mock_request,
+                response=mock_response,
+            )
+
+            client = SearXNGClient()
+            client._client = httpx.AsyncClient()
+
+            with pytest.raises(SearchError) as exc_info:
+                await client.search("test")
+
+            assert "status 503" in str(exc_info.value)
+
+    async def test_search_with_categories(self):
+        """Search passes categories parameter correctly."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"results": []}
+        mock_response.raise_for_status = MagicMock()
+
+        with patch.object(httpx.AsyncClient, "get", new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            client = SearXNGClient()
+            client._client = httpx.AsyncClient()
+
+            await client.search("test", categories=["news", "general"])
+
+            call_kwargs = mock_get.call_args
+            params = call_kwargs.kwargs.get("params", call_kwargs[1].get("params", {}))
+            assert params["categories"] == "news,general"
+
+    async def test_search_with_engines(self):
+        """Search passes engines parameter correctly."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"results": []}
+        mock_response.raise_for_status = MagicMock()
+
+        with patch.object(httpx.AsyncClient, "get", new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            client = SearXNGClient()
+            client._client = httpx.AsyncClient()
+
+            await client.search("test", engines=["google", "duckduckgo"])
+
+            call_kwargs = mock_get.call_args
+            params = call_kwargs.kwargs.get("params", call_kwargs[1].get("params", {}))
+            assert params["engines"] == "google,duckduckgo"
+
+    async def test_search_extracts_metadata(self):
+        """Search extracts metadata from results."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "results": [
+                {
+                    "title": "News Article",
+                    "url": "https://news.example.com/article",
+                    "content": "Breaking news",
+                    "engine": "google",
+                    "score": 0.95,
+                    "parsed_url": ["https", "news.example.com", "/article"],
+                    "category": "news",
+                    "publishedDate": "2025-01-15T10:00:00Z",
+                },
+            ]
+        }
+        mock_response.raise_for_status = MagicMock()
+
+        with patch.object(httpx.AsyncClient, "get", new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            client = SearXNGClient()
+            client._client = httpx.AsyncClient()
+
+            results = await client.search("breaking news")
+
+            assert len(results) == 1
+            result = results[0]
+            assert result.score == 0.95
+            assert result.metadata["category"] == "news"
+            assert result.metadata["publishedDate"] == "2025-01-15T10:00:00Z"
+            assert result.metadata["parsed_url"] == ["https", "news.example.com", "/article"]
+
 
 @pytest.mark.asyncio
 class TestSearXNGClientFetchPage:
@@ -253,6 +344,42 @@ class TestSearXNGClientFetchPage:
 
             assert "Failed to fetch" in str(exc_info.value)
 
+    async def test_fetch_page_custom_timeout(self):
+        """fetch_page respects custom timeout parameter."""
+        mock_response = MagicMock()
+        mock_response.text = "<html>content</html>"
+        mock_response.raise_for_status = MagicMock()
+
+        with patch.object(httpx.AsyncClient, "get", new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            client = SearXNGClient(timeout=30)
+            client._client = httpx.AsyncClient()
+
+            await client.fetch_page("https://example.com", timeout=60)
+
+            call_kwargs = mock_get.call_args
+            timeout = call_kwargs.kwargs.get("timeout", call_kwargs[1].get("timeout"))
+            assert timeout == 60
+
+    async def test_fetch_page_uses_default_timeout(self):
+        """fetch_page uses client timeout when none specified."""
+        mock_response = MagicMock()
+        mock_response.text = "<html>content</html>"
+        mock_response.raise_for_status = MagicMock()
+
+        with patch.object(httpx.AsyncClient, "get", new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            client = SearXNGClient(timeout=45)
+            client._client = httpx.AsyncClient()
+
+            await client.fetch_page("https://example.com")
+
+            call_kwargs = mock_get.call_args
+            timeout = call_kwargs.kwargs.get("timeout", call_kwargs[1].get("timeout"))
+            assert timeout == 45
+
 
 @pytest.mark.asyncio
 class TestSearXNGClientAvailability:
@@ -281,6 +408,60 @@ class TestSearXNGClientAvailability:
 
             assert await client.is_available() is False
 
+    async def test_is_available_healthz_success(self):
+        """is_available returns True when healthz endpoint responds 200."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+
+        with patch.object(httpx.AsyncClient, "get", new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            client = SearXNGClient()
+            client._client = httpx.AsyncClient()
+
+            result = await client.is_available()
+
+            assert result is True
+            # Should have called healthz endpoint
+            first_call_url = mock_get.call_args_list[0][0][0]
+            assert "/healthz" in first_call_url
+
+    async def test_is_available_fallback_to_root(self):
+        """is_available falls back to root when healthz fails."""
+        mock_healthz_fail = httpx.HTTPError("Not found")
+        mock_root_response = MagicMock()
+        mock_root_response.status_code = 200
+
+        with patch.object(httpx.AsyncClient, "get", new_callable=AsyncMock) as mock_get:
+            # First call (healthz) fails, second call (root) succeeds
+            mock_get.side_effect = [mock_healthz_fail, mock_root_response]
+
+            client = SearXNGClient()
+            client._client = httpx.AsyncClient()
+
+            result = await client.is_available()
+
+            assert result is True
+            assert mock_get.call_count == 2
+
+    async def test_is_available_healthz_non_200(self):
+        """is_available falls back when healthz returns non-200."""
+        mock_healthz_response = MagicMock()
+        mock_healthz_response.status_code = 404
+        mock_root_response = MagicMock()
+        mock_root_response.status_code = 200
+
+        with patch.object(httpx.AsyncClient, "get", new_callable=AsyncMock) as mock_get:
+            mock_get.side_effect = [mock_healthz_response, mock_root_response]
+
+            client = SearXNGClient()
+            client._client = httpx.AsyncClient()
+
+            result = await client.is_available()
+
+            assert result is True
+            assert mock_get.call_count == 2
+
 
 @pytest.mark.asyncio
 class TestSearXNGClientContextManager:
@@ -306,3 +487,50 @@ class TestSearXNGClientContextManager:
         client = SearXNGClient()
         await client.close()
         await client.close()  # Should not raise
+
+
+@pytest.mark.asyncio
+class TestSearXNGClientLazyInit:
+    """Tests for SearXNGClient lazy client initialization."""
+
+    async def test_client_not_created_on_init(self):
+        """HTTP client is not created on initialization."""
+        client = SearXNGClient()
+        assert client._client is None
+
+    async def test_get_client_creates_client(self):
+        """_get_client creates client on first call."""
+        client = SearXNGClient()
+        assert client._client is None
+
+        http_client = await client._get_client()
+
+        assert http_client is not None
+        assert isinstance(http_client, httpx.AsyncClient)
+        assert client._client is http_client
+
+        await client.close()
+
+    async def test_get_client_reuses_client(self):
+        """_get_client reuses existing client."""
+        client = SearXNGClient()
+
+        first = await client._get_client()
+        second = await client._get_client()
+
+        assert first is second
+
+        await client.close()
+
+    async def test_close_allows_new_client(self):
+        """After close, _get_client creates a new client."""
+        client = SearXNGClient()
+
+        first = await client._get_client()
+        await client.close()
+        assert client._client is None
+
+        second = await client._get_client()
+        assert second is not first
+
+        await client.close()
