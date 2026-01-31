@@ -299,7 +299,7 @@ class ConfidenceCalculator:
 
         Can be called in two ways:
         1. Simple API: calculate([SignalType.WEB, SignalType.DOCUMENT])
-        2. Full API: calculate([transmission1, transmission2], [SignalType.WEB, SignalType.DOCUMENT])
+        2. Full API: calculate([trans1, trans2], [SignalType.WEB, SignalType.DOCUMENT])
 
         Args:
             transmissions_or_types: List of transmissions supporting the claim,

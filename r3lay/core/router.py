@@ -215,9 +215,11 @@ class SmartRouter:
 
             # Stay on vision unless we hit max consecutive text turns
             if self.consecutive_text_turns < self.config.max_text_turns_on_vision:
+                turns = self.consecutive_text_turns
+                max_turns = self.config.max_text_turns_on_vision
                 return RoutingDecision(
                     model_type="vision",
-                    reason=f"Vision handles text fine ({self.consecutive_text_turns}/{self.config.max_text_turns_on_vision} text turns)",
+                    reason=f"Vision handles text fine ({turns}/{max_turns} text turns)",
                     vision_score=vision_score,
                     switched=False,
                 )
@@ -225,9 +227,10 @@ class SmartRouter:
             # Switch back to text after many text-only turns
             self.current_model_type = "text"
             self.consecutive_text_turns = 0
+            max_turns = self.config.max_text_turns_on_vision
             return RoutingDecision(
                 model_type="text",
-                reason=f"Switching to text after {self.config.max_text_turns_on_vision} text-only turns",
+                reason=f"Switching to text after {max_turns} text-only turns",
                 vision_score=vision_score,
                 switched=True,
             )

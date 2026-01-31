@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
-import re
 
 if TYPE_CHECKING:
     from . import R3LayState
@@ -54,7 +54,8 @@ class ProjectDetector:
         if self._matches_keywords(parts, self.ELECTRONICS_KEYWORDS) or self._has_board_type(parts):
             return self._detect_electronics(path, parts)
 
-        if self._matches_keywords(parts, self.SOFTWARE_KEYWORDS) or self._has_software_markers(path):
+        has_sw_markers = self._has_software_markers(path)
+        if self._matches_keywords(parts, self.SOFTWARE_KEYWORDS) or has_sw_markers:
             return self._detect_software(path, parts)
 
         if self._matches_keywords(parts, self.WORKSHOP_KEYWORDS):
@@ -276,10 +277,12 @@ class WelcomeMessage:
             project_str = self.project.name
             badge = ""
             if self.project.metadata:
-                if self.project.project_type == "electronics" and "board" in self.project.metadata:
-                    badge = f" `{self.project.metadata['board']}`"
-                elif self.project.project_type == "software" and "language" in self.project.metadata:
-                    badge = f" `{self.project.metadata['language']}`"
+                ptype = self.project.project_type
+                meta = self.project.metadata
+                if ptype == "electronics" and "board" in meta:
+                    badge = f" `{meta['board']}`"
+                elif ptype == "software" and "language" in meta:
+                    badge = f" `{meta['language']}`"
                 elif self.project.project_type == "automotive":
                     badge = " `AUTO`"
                 elif self.project.project_type == "workshop":
@@ -419,7 +422,8 @@ class WelcomeMessage:
             next_oil = self.registry["last_oil_change_miles"] + self.registry["oil_change_interval"]
             remaining = next_oil - odometer
             if remaining <= 500:
-                alerts.append(f"Oil change {'overdue' if remaining < 0 else 'due'} ({abs(remaining):,} mi)")
+                status = "overdue" if remaining < 0 else "due"
+                alerts.append(f"Oil change {status} ({abs(remaining):,} mi)")
             elif remaining <= 1000:
                 alerts.append(f"Oil change due in {remaining:,} mi")
 
