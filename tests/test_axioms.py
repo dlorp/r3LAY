@@ -11,7 +11,6 @@ Covers:
 from __future__ import annotations
 
 import tempfile
-from datetime import datetime
 from pathlib import Path
 
 import pytest

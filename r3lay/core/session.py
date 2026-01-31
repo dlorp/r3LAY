@@ -386,7 +386,6 @@ Use these when presenting information:
 
         # Add information about available source types
         if source_types_present:
-            from .sources import SourceType
 
             local_sources = [s for s in source_types_present if s.is_local]
             web_sources = [s for s in source_types_present if s.is_web]

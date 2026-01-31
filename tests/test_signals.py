@@ -1,6 +1,5 @@
 """Tests for the Signals provenance tracking system."""
 
-import pytest
 from r3lay.core.signals import (
     Signal,
     SignalType,
