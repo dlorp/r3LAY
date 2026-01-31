@@ -239,16 +239,16 @@ def extract_project_context(project_path: Path) -> ProjectContext:
                         break
                 break
 
-            # Check for model without explicit make (only switch if still general)
-            if context.project_type == "general":
-                for model in models:
-                    if model.lower() in path_str:
-                        context.vehicle_make = make.title()
-                        context.vehicle_model = model.title()
-                        context.project_type = "automotive"
-                        break
-                if context.vehicle_model:
+            # Check for model without explicit make
+            # Only allowed for general/automotive types (prevents stm32 -> M3)
+            for model in models:
+                if model.lower() in path_str:
+                    context.vehicle_make = make.title()
+                    context.vehicle_model = model.title()
+                    context.project_type = "automotive"
                     break
+            if context.vehicle_model:
+                break
 
     # Extract year (4-digit between 1980-2030) for automotive
     if context.project_type == "automotive":
