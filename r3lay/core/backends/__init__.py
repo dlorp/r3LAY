@@ -99,7 +99,9 @@ def create_backend(model_info: "ModelInfo") -> InferenceBackend:
         return OllamaBackend(model_info.name)
 
     elif model_info.backend == Backend.VLLM:
-        raise NotImplementedError("vLLM backend not yet implemented")
+        from .vllm import VLLMBackend
+
+        return VLLMBackend(model_info.name)
 
     else:
         raise ValueError(f"Unknown backend: {model_info.backend}")
@@ -110,6 +112,7 @@ __all__ = [
     "InferenceBackend",
     # Backends (lazy imported)
     "OllamaBackend",
+    "VLLMBackend",
     # Factory
     "create_backend",
     # Exceptions
@@ -125,4 +128,7 @@ def __getattr__(name: str):
     if name == "OllamaBackend":
         from .ollama import OllamaBackend
         return OllamaBackend
+    if name == "VLLMBackend":
+        from .vllm import VLLMBackend
+        return VLLMBackend
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
