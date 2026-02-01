@@ -2,13 +2,11 @@
 
 **Retrospective Recursive Research, Linked Archive Yield**
 
-> A TUI AI research assistant that bridges official documentation with real world community knowledge.
+> Your garage terminal — a TUI research assistant and maintenance tracker for hobbyists who wrench on their own stuff.
 
 [![CI](https://github.com/dlorp/r3LAY/actions/workflows/ci.yml/badge.svg)](https://github.com/dlorp/r3LAY/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/dlorp/r3LAY)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-green.svg)](https://www.python.org/downloads/)
 [![License: PolyForm NC](https://img.shields.io/badge/License-PolyForm%20NC-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-complete-brightgreen.svg)](https://github.com/dlorp/r3LAY)
 
 ![r3LAY Screenshot](docs/screenshot.svg)
 
@@ -16,9 +14,7 @@
 
 ## Philosophy
 
-Official documentation tells you the spec. Community knowledge tells you what actually works.
-
-**r³LAY bridges the gap:**
+Official documentation tells you the spec. Community knowledge tells you what actually works. **r³LAY bridges the gap** — and tracks your maintenance while you're at it.
 
 | Source Type | What It Provides | Example |
 |-------------|------------------|---------|
@@ -26,16 +22,16 @@ Official documentation tells you the spec. Community knowledge tells you what ac
 | **Community** | Real-world experience | "Use 65 ft-lbs on aluminum heads" |
 | **r³LAY** | Synthesized, provenance-tracked axioms | "72 ft-lbs (FSM), 65 ft-lbs for aluminum (NASIOC consensus)" |
 
-The system doesn't just accumulate facts it **revises earlier conclusions** when new evidence demands it. That's the "Retrospective" in r³LAY.
+The system doesn't just accumulate facts — it **revises earlier conclusions** when new evidence demands it. That's the "Retrospective" in r³LAY.
 
 ### Target Domains
 
 Built with a **garage hobbyist / tinkerer lens**:
 
-- **Automotive** — Parts interchange, proven fixes, real torque specs
-- **Electronics** — Component substitutions, actual vs rated specs
+- **Automotive** — Parts interchange, proven fixes, real torque specs, maintenance tracking
+- **Electronics** — Component substitutions, actual vs rated specs, project logs
 - **Software** — Workarounds, undocumented behavior, what actually works
-- **Home/DIY** — Tool recommendations, technique variations
+- **Home/DIY** — Tool recommendations, technique variations, repair history
 
 ---
 
@@ -45,14 +41,28 @@ Built with a **garage hobbyist / tinkerer lens**:
 
 | Feature | Description |
 |---------|-------------|
+| **Vehicle Maintenance Tracking** | Service history, intervals, upcoming/overdue detection |
+| **Natural Language Commands** | "logged oil change at 98k" → parsed and recorded |
+| **Contextual Search** | Searches automatically include your vehicle context |
 | **Local LLM Inference** | MLX (Apple Silicon), llama.cpp (GGUF/universal), Ollama (API) |
 | **Smart Model Routing** | Automatic text/vision model switching based on content |
 | **Hybrid RAG Search** | BM25 + vector search with RRF fusion and source attribution |
-| **Deep Research (R³)** | Multi cycle expeditions with convergence detection |
+| **Deep Research (R³)** | Multi-cycle expeditions with convergence detection |
 | **Retrospective Revision** | Automatic contradiction detection and resolution |
 | **Provenance Tracking** | Every fact linked to its source via Signals system |
 | **Axiom Management** | Validated knowledge with confidence scores and state lifecycle |
 | **Terminal-Native UI** | Built with Textual, fully keyboard-driven workflow |
+
+### Garage Workflow
+
+| Feature | Description |
+|---------|-------------|
+| **Project Profiles** | Track year/make/model/engine/VIN for each project |
+| **Mileage Tracking** | Current odometer with rollback protection |
+| **Service Intervals** | 14 default intervals (oil, timing belt, brakes, etc.) |
+| **Maintenance Log** | Full history with parts, products, costs, notes |
+| **Due Detection** | Color-coded status: OK (green), Due Soon (yellow), Overdue (red) |
+| **History Panel** | Scrollable service history in the TUI |
 
 ### LLM Backend Support
 
@@ -151,14 +161,41 @@ r³LAY automatically switches between text and vision models based on your messa
 
 The router uses **asymmetric thresholds**: high bar (0.6) to switch TO vision, low bar (0.1) to STAY on vision. This minimizes unnecessary model swaps since vision models handle text fine.
 
+### Natural Language Input
+
+r³LAY uses a three-stage intent parser so you can talk naturally:
+
+```
+"logged oil change at 98.5k with Mobil 1 5W-30"
+→ Parses: service=oil_change, mileage=98500, product="Mobil 1 5W-30"
+→ Records to maintenance log
+
+"what's the timing belt interval for an EJ25?"
+→ Detects: SEARCH intent with vehicle context
+→ Searches with "Subaru EJ25" automatically injected
+
+"show me upcoming maintenance"
+→ Detects: QUERY intent
+→ Displays services due sorted by urgency
+```
+
+**Intent Pipeline:**
+1. **Command bypass** (0ms) — `/commands` pass through directly
+2. **Pattern matching** (~1ms) — Regex + keyword scoring for common phrases
+3. **LLM fallback** (~500ms) — Only for genuinely ambiguous input
+
 ### Commands
 
 | Command | Description |
 |---------|-------------|
 | `/help` | Show available commands |
+| `/log <service> [details]` | Log maintenance entry |
+| `/due` | Show upcoming/overdue services |
+| `/history [service]` | Show maintenance history |
+| `/mileage <value>` | Update current odometer |
 | `/index <path>` | Index files for RAG search |
 | `/reindex` | Rebuild the entire index |
-| `/search <query>` | Search indexed documents |
+| `/search <query>` | Search indexed documents (includes vehicle context) |
 | `/research <query>` | Start deep research expedition |
 | `/axiom [category:] <statement>` | Create a new axiom |
 | `/axioms [category]` | List axioms (optionally filter by category) |
@@ -294,6 +331,10 @@ model_roles:
 <project>/
 ├── .r3lay/
 │   ├── config.yaml          # Model role assignments
+│   ├── project.yaml         # Vehicle profile + current mileage
+│   ├── maintenance/
+│   │   ├── log.json         # Maintenance history entries
+│   │   └── intervals.yaml   # Service interval definitions
 │   ├── index/               # Hybrid RAG index
 │   │   ├── bm25_*.json      # BM25 index data
 │   │   └── vectors_*.npy    # Vector embeddings
@@ -363,21 +404,32 @@ r3lay/
 │   ├── config.py             # Pydantic settings with env var support
 │   ├── core/
 │   │   ├── backends/         # LLM backend adapters
+│   │   ├── intent/           # Natural language intent parsing
+│   │   │   ├── parser.py     # Three-stage pipeline orchestrator
+│   │   │   ├── patterns.py   # Fast regex pattern matching
+│   │   │   └── entities.py   # Mileage, cost, date extraction
 │   │   ├── models.py         # Model discovery
+│   │   ├── project.py        # Vehicle profiles & project state
+│   │   ├── maintenance.py    # Service logging & intervals
 │   │   ├── index.py          # Hybrid RAG index
 │   │   ├── signals.py        # Provenance tracking
 │   │   ├── axioms.py         # Knowledge management
 │   │   ├── research.py       # R³ orchestrator
-│   │   ├── search.py         # SearXNG client
+│   │   ├── search.py         # Contextual search with vehicle context
+│   │   ├── searxng.py        # SearXNG metasearch client
 │   │   ├── router.py         # Smart model routing
 │   │   └── session.py        # Chat sessions
 │   └── ui/
 │       ├── widgets/          # TUI components
-│       └── styles/           # TCSS stylesheets
+│       │   ├── history_panel.py      # Service history display
+│       │   ├── maintenance_panel.py  # Upcoming/overdue services
+│       │   └── ...
+│       └── styles/
+│           └── garage.tcss   # Garage-themed styling
 ├── docs/
 │   ├── docker.md             # Docker deployment guide
+│   ├── INTENT-ARCHITECTURE.md # Intent parsing design doc
 │   └── troubleshooting.md    # Common issues
-├── plans/                    # Implementation roadmaps
 ├── Dockerfile                # Standard container
 ├── Dockerfile.nvidia         # NVIDIA GPU container
 └── docker-compose.yaml       # Multi-service deployment
@@ -387,7 +439,7 @@ r3lay/
 
 ## Roadmap
 
-All planned phases are complete:
+### Completed
 
 - [x] **Phase 1**: TUI shell with bento layout
 - [x] **Phase 2**: Model discovery (HuggingFace, GGUF, Ollama)
@@ -397,14 +449,18 @@ All planned phases are complete:
 - [x] **Phase 6**: Signals & Axioms (provenance and knowledge systems)
 - [x] **Phase 7**: Deep Research with R³ methodology
 - [x] **Phase 8**: Error handling, Docker deployment, documentation
+- [x] **Phase 9**: Garage workflow — vehicle profiles, maintenance tracking, service intervals
+- [x] **Phase 10**: Natural language intent parsing with entity extraction
+- [x] **Phase 11**: Contextual search with vehicle context injection
 
 ### Future Possibilities
 
-- vLLM backend for high throughput NVIDIA inference
+- OBD-II integration for automatic mileage updates
+- Parts cross-reference database
+- vLLM backend for high-throughput NVIDIA inference
 - Web UI alternative to TUI
 - Multi-user collaboration on axiom validation
 - Export to knowledge graph formats
-- Integration with external knowledge bases
 
 ---
 
@@ -441,4 +497,4 @@ Built with:
 
 ---
 
-*r³LAY  The manual says one thing, but the forums know the truth.*
+*r³LAY — The manual says one thing, but the forums know the truth. And your maintenance log knows when you're overdue.*
