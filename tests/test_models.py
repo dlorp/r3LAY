@@ -104,7 +104,7 @@ class TestBackend:
 
     def test_backend_count(self):
         """Test expected number of backends."""
-        assert len(Backend) == 4
+        assert len(Backend) == 5  # MLX, LLAMA_CPP, OLLAMA, VLLM, OPENCLAW
 
 
 # =============================================================================
