@@ -51,12 +51,14 @@ class ProjectDetector:
         if self._matches_keywords(parts, self.AUTOMOTIVE_KEYWORDS) or self._has_vehicle_make(parts):
             return self._detect_automotive(path, parts)
 
+        # Check software markers FIRST (file-based detection is more reliable than
+        # path substring matching used by electronics board detection)
+        has_sw_markers = self._has_software_markers(path)
+        if has_sw_markers or self._matches_keywords(parts, self.SOFTWARE_KEYWORDS):
+            return self._detect_software(path, parts)
+
         if self._matches_keywords(parts, self.ELECTRONICS_KEYWORDS) or self._has_board_type(parts):
             return self._detect_electronics(path, parts)
-
-        has_sw_markers = self._has_software_markers(path)
-        if self._matches_keywords(parts, self.SOFTWARE_KEYWORDS) or has_sw_markers:
-            return self._detect_software(path, parts)
 
         if self._matches_keywords(parts, self.WORKSHOP_KEYWORDS):
             return self._detect_workshop(path, parts)
