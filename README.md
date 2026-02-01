@@ -7,7 +7,7 @@
 [![CI](https://github.com/dlorp/r3LAY/actions/workflows/ci.yml/badge.svg)](https://github.com/dlorp/r3LAY/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/dlorp/r3LAY)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-green.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: PolyForm NC](https://img.shields.io/badge/License-PolyForm%20NC-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-complete-brightgreen.svg)](https://github.com/dlorp/r3LAY)
 
 ---
@@ -423,7 +423,7 @@ Quick fixes:
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
+[PolyForm NonCommercial 1.0.0](LICENSE) — free for personal and non-commercial use.
 
 ---
 
