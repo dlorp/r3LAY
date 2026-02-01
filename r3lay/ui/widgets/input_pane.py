@@ -516,7 +516,10 @@ class InputPane(Vertical):
                 "- `/help` - Show this help\n"
                 "- `/status` - Show system status\n"
                 "- `/clear` - Clear chat and conversation history\n"
-                "- `/session` - Show session info\n\n"
+                "- `/session` - Show session info\n"
+                "- `/save [name]` - Save current session\n"
+                "- `/load <name>` - Load a saved session\n"
+                "- `/sessions` - List saved sessions\n\n"
                 "**Attachments**\n"
                 "- `/attach <path>` - Attach image file(s) to next message\n"
                 "- `/attachments` - List current attachments\n"
@@ -600,6 +603,15 @@ class InputPane(Vertical):
                 )
                 return
             await self._handle_research(args, response_pane)
+        elif cmd == "save":
+            await self._handle_save_session(args, response_pane)
+        elif cmd == "load":
+            if not args:
+                response_pane.add_system("Usage: `/load <name>` - Load a saved session")
+                return
+            await self._handle_load_session(args, response_pane)
+        elif cmd == "sessions":
+            await self._handle_list_sessions(response_pane)
         else:
             response_pane.add_system(f"Command `/{cmd}` not implemented yet.")
 
@@ -635,6 +647,148 @@ class InputPane(Vertical):
 
         status_text = get_welcome_message(self.state)
         response_pane.add_system(status_text)
+
+    async def _handle_save_session(self, name: str, response_pane) -> None:
+        """Handle /save command - save current session.
+
+        Args:
+            name: Optional name for the session (uses title if empty)
+            response_pane: ResponsePane to display results
+        """
+        session = self.state.session
+        if session is None:
+            response_pane.add_system("No active session to save.")
+            return
+
+        if len(session.messages) == 0:
+            response_pane.add_system("Cannot save empty session. Add some messages first.")
+            return
+
+        # Set session title if name provided
+        if name.strip():
+            session.title = name.strip()
+        elif not session.title:
+            # Auto-generate title from first user message
+            for msg in session.messages:
+                if msg.role == "user":
+                    session.title = msg.content[:50] + ("..." if len(msg.content) > 50 else "")
+                    break
+
+        try:
+            sessions_dir = self.state.get_sessions_dir()
+            session.save(sessions_dir)
+            response_pane.add_system(
+                f"✓ Session saved: **{session.title or session.id}**\n\n"
+                f"ID: `{session.id}`"
+            )
+            # Refresh session panel if available
+            self._refresh_session_panel()
+        except IOError as e:
+            response_pane.add_system(f"Failed to save session: {e}")
+
+    async def _handle_load_session(self, name: str, response_pane) -> None:
+        """Handle /load command - load a saved session.
+
+        Args:
+            name: Session name or ID to load
+            response_pane: ResponsePane to display results
+        """
+        from ...core.session import Session
+
+        sessions_dir = self.state.get_sessions_dir()
+        if not sessions_dir.exists():
+            response_pane.add_system("No saved sessions found.")
+            return
+
+        name = name.strip()
+
+        # Find session by ID or title
+        matching_session = None
+        for session_file in sessions_dir.glob("*.json"):
+            try:
+                session = Session.load(session_file)
+                # Match by ID (exact or prefix) or title (case-insensitive)
+                if (
+                    session.id == name
+                    or session.id.startswith(name)
+                    or (session.title and session.title.lower() == name.lower())
+                    or (session.title and name.lower() in session.title.lower())
+                ):
+                    matching_session = session
+                    break
+            except (ValueError, IOError):
+                continue
+
+        if matching_session is None:
+            response_pane.add_system(
+                f"Session not found: `{name}`\n\n"
+                "Use `/sessions` to list available sessions."
+            )
+            return
+
+        # Replace current session
+        self.state.session = matching_session
+        response_pane.clear()
+        response_pane.add_system(
+            f"✓ Loaded session: **{matching_session.title or matching_session.id}**\n\n"
+            f"Messages: {len(matching_session.messages)}"
+        )
+
+        # Replay messages to response pane
+        for msg in matching_session.messages:
+            if msg.role == "user":
+                response_pane.add_user(msg.content)
+            elif msg.role == "assistant":
+                response_pane.add_assistant(msg.content)
+            elif msg.role == "system":
+                response_pane.add_system(msg.content)
+
+        self._refresh_session_panel()
+
+    async def _handle_list_sessions(self, response_pane) -> None:
+        """Handle /sessions command - list saved sessions."""
+        from ...core.session import Session
+
+        sessions_dir = self.state.get_sessions_dir()
+        if not sessions_dir.exists():
+            response_pane.add_system("No saved sessions found.")
+            return
+
+        sessions = []
+        for session_file in sessions_dir.glob("*.json"):
+            try:
+                session = Session.load(session_file)
+                sessions.append(session)
+            except (ValueError, IOError):
+                continue
+
+        if not sessions:
+            response_pane.add_system("No saved sessions found.")
+            return
+
+        # Sort by updated_at descending (most recent first)
+        sessions.sort(key=lambda s: s.updated_at, reverse=True)
+
+        lines = ["## Saved Sessions\n"]
+        for session in sessions:
+            title = session.title or "(untitled)"
+            msg_count = len(session.messages)
+            updated = session.updated_at.strftime("%Y-%m-%d %H:%M")
+            short_id = session.id[:8]
+            lines.append(f"- **{title}** ({msg_count} msgs) - `{short_id}` - {updated}")
+
+        lines.append("\n\nUse `/load <name or id>` to load a session.")
+        response_pane.add_assistant("\n".join(lines))
+
+    def _refresh_session_panel(self) -> None:
+        """Refresh the session panel to show updated sessions list."""
+        try:
+            from .session_panel import SessionPanel
+            panel = self.app.query_one(SessionPanel)
+            panel.refresh_sessions()
+        except Exception:
+            # Panel might not exist or not be visible
+            pass
 
     def _handle_attach(self, path_str: str, response_pane) -> None:
         """Handle /attach command - attach image file(s).
