@@ -154,7 +154,7 @@ TabPane {
    Panel widgets
    ───────────────────────────────────────────────────────────────────────────── */
 
-ModelPanel, IndexPanel, AxiomPanel, SessionPanel, SettingsPanel {
+ModelPanel, IndexPanel, AxiomPanel, SessionPanel, SettingsPanel, HistoryPanel, MaintenancePanel {
     height: 100%;
     background: #1a1a1a;
     padding: 1;
