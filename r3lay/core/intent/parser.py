@@ -28,6 +28,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Security: Maximum input length to prevent DoS via regex or LLM abuse
+MAX_INPUT_LENGTH = 10_000
+
 
 # LLM prompt for intent classification (Stage 3)
 LLM_INTENT_PROMPT = """\
@@ -121,6 +124,11 @@ class IntentParser:
         if not text:
             return IntentResult.chat_fallback("")
 
+        # Security: truncate excessively long input
+        if len(text) > MAX_INPUT_LENGTH:
+            logger.warning(f"Input truncated from {len(text)} to {MAX_INPUT_LENGTH} chars")
+            text = text[:MAX_INPUT_LENGTH]
+
         # Stage 1: Command bypass
         cmd_result = self._stage1_command_bypass(text)
         if cmd_result is not None:
@@ -171,6 +179,11 @@ class IntentParser:
 
         if not text:
             return IntentResult.chat_fallback("")
+
+        # Security: truncate excessively long input
+        if len(text) > MAX_INPUT_LENGTH:
+            logger.warning(f"Input truncated from {len(text)} to {MAX_INPUT_LENGTH} chars")
+            text = text[:MAX_INPUT_LENGTH]
 
         # Stage 1: Command bypass
         cmd_result = self._stage1_command_bypass(text)
@@ -279,10 +292,17 @@ class IntentParser:
             intent_str = result.get("intent", "CHAT").upper()
             intent_type = intent_map.get(intent_str, IntentType.CHAT)
 
+            # Validate and clamp confidence to [0.0, 1.0]
+            try:
+                raw_conf = result.get("confidence", 0.5)
+                confidence = max(0.0, min(1.0, float(raw_conf)))
+            except (ValueError, TypeError):
+                confidence = 0.5
+
             return IntentResult(
                 intent=intent_type,
                 subtype=result.get("subtype", f"{intent_str.lower()}.general"),
-                confidence=float(result.get("confidence", 0.5)),
+                confidence=confidence,
                 entities=result.get("entities", {}),
                 source="llm",
             )
