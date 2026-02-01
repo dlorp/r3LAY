@@ -523,7 +523,7 @@ class InputPane(Vertical):
                 "- `/detach` - Clear all attachments\n\n"
                 "**Search & Research**\n"
                 "- `/index <query>` - Search knowledge base\n"
-                "- `/search <query>` - Web search (not implemented)\n"
+                "- `/search <query>` - Web search via SearXNG\n"
                 "- `/research <query>` - Deep research expedition (R3 methodology)\n\n"
                 "**Knowledge Management**\n"
                 "- `/axiom [category:] <statement>` - Create new axiom\n"
@@ -576,6 +576,16 @@ class InputPane(Vertical):
                 response_pane.add_system("Usage: `/dispute <axiom_id> <reason>`")
                 return
             await self._handle_dispute_axiom(parts_dispute[0], parts_dispute[1], response_pane)
+        elif cmd == "search":
+            if not args:
+                response_pane.add_system(
+                    "Usage: `/search <query>`\n\n"
+                    "Performs a web search via SearXNG.\n\n"
+                    "Requires: SearXNG server running (default: http://localhost:8080)\n\n"
+                    "Example: `/search EJ25 timing belt replacement`"
+                )
+                return
+            await self._handle_search(args, response_pane)
         elif cmd == "research":
             if not args:
                 response_pane.add_system(
@@ -759,6 +769,66 @@ class InputPane(Vertical):
             response_pane.add_assistant("\n".join(output_lines))
 
         except Exception as e:
+            response_pane.add_error(f"Search error: {e}")
+        finally:
+            self.set_status("Ready")
+
+    async def _handle_search(self, query: str, response_pane) -> None:
+        """Handle /search command - web search via SearXNG.
+
+        Args:
+            query: Search query string
+            response_pane: ResponsePane to display results
+        """
+        from ...core.search import SearchError, SearXNGClient
+
+        # Initialize search client if needed
+        if self.state.search_client is None:
+            endpoint = self.state.config.searxng_endpoint
+            self.state.search_client = SearXNGClient(endpoint=endpoint)
+
+        self.set_status("Searching web...")
+        try:
+            # Check if SearXNG is available
+            available = await self.state.search_client.is_available()
+            if not available:
+                response_pane.add_error(
+                    "SearXNG is not available.\n\n"
+                    "Make sure SearXNG is running at "
+                    f"`{self.state.search_client.endpoint}`\n\n"
+                    "You can set a custom endpoint via the `R3LAY_SEARXNG_ENDPOINT` "
+                    "environment variable."
+                )
+                return
+
+            # Perform search
+            results = await self.state.search_client.search(query, limit=8)
+
+            if not results:
+                response_pane.add_system(f'No results found for: **"{query}"**')
+                return
+
+            # Format results as markdown (inline, simple display)
+            output_lines = [f"## Web Search: {query}\n"]
+            for i, result in enumerate(results, 1):
+                # Truncate snippet to 200 chars
+                snippet = result.snippet
+                if len(snippet) > 200:
+                    snippet = snippet[:200] + "..."
+
+                # Format: title, URL, snippet
+                output_lines.append(f"**{i}. {result.title}**")
+                output_lines.append(f"   {result.url}")
+                if snippet:
+                    output_lines.append(f"   {snippet}")
+                output_lines.append("")  # blank line between results
+
+            response_pane.add_assistant("\n".join(output_lines))
+
+        except SearchError as e:
+            response_pane.add_error(f"Search failed: {e}")
+        except Exception as e:
+            logger.exception("Web search failed")
             response_pane.add_error(f"Search error: {e}")
         finally:
             self.set_status("Ready")
