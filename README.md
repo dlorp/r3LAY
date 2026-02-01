@@ -10,6 +10,8 @@
 [![License: PolyForm NC](https://img.shields.io/badge/License-PolyForm%20NC-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-complete-brightgreen.svg)](https://github.com/dlorp/r3LAY)
 
+![r3LAY Screenshot](docs/screenshot.svg)
+
 ---
 
 ## Philosophy
