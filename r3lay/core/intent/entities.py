@@ -10,6 +10,10 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+# Bounds for extracted values (safety limits)
+MAX_MILEAGE = 2_000_000  # 2 million miles - beyond any realistic vehicle
+MAX_COST = 1_000_000.0  # $1 million - beyond any realistic single repair
+
 # Part name aliases for canonicalization
 # Multi-word aliases are checked first (sorted by length descending)
 PART_ALIASES: dict[str, str] = {
@@ -196,23 +200,29 @@ class EntityExtractor:
                 # Check if 'k' suffix is present in the match region
                 match_text = text[mileage_match.start() : mileage_match.end()].lower()
                 if "k" in match_text:
-                    entities.mileage = int(float(raw_value) * 1000)
+                    mileage_val = int(float(raw_value) * 1000)
                 else:
                     # If number is small (< 1000), assume it's in thousands
                     value = float(raw_value)
                     if value < 1000:
-                        entities.mileage = int(value * 1000)
+                        mileage_val = int(value * 1000)
                     else:
-                        entities.mileage = int(value)
-                entities.raw["mileage"] = mileage_match.group(0)
-                remaining = remaining.replace(mileage_match.group(0), " ")
+                        mileage_val = int(value)
+                # Clamp to reasonable bounds
+                if 0 <= mileage_val <= MAX_MILEAGE:
+                    entities.mileage = mileage_val
+                    entities.raw["mileage"] = mileage_match.group(0)
+                    remaining = remaining.replace(mileage_match.group(0), " ")
 
         # Extract cost
         cost_match = self.PATTERNS["cost"].search(text)
         if cost_match:
-            entities.cost = float(cost_match.group(1).replace(",", ""))
-            entities.raw["cost"] = cost_match.group(0)
-            remaining = remaining.replace(cost_match.group(0), " ")
+            cost_val = float(cost_match.group(1).replace(",", ""))
+            # Clamp to reasonable bounds
+            if 0.0 <= cost_val <= MAX_COST:
+                entities.cost = cost_val
+                entities.raw["cost"] = cost_match.group(0)
+                remaining = remaining.replace(cost_match.group(0), " ")
 
         # Extract date
         date_match = self.PATTERNS["date"].search(text)
