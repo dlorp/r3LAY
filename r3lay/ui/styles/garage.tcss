@@ -1,0 +1,742 @@
+/* r3LAY Garage Terminal Theme
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Retrofuturistic terminal aesthetic with dlorp brand colors.
+ * 
+ * Brand Palette:
+ *   #636764 - Granite Gray   (backgrounds, borders, muted text)
+ *   #FB8B24 - Dark Orange    (warnings, alerts, urgent)
+ *   #F4E409 - Titanium Yellow (highlights, active states, headers)
+ *   #50D8D7 - Medium Turquoise (info, links, secondary actions)
+ *   #3B60E4 - Royal Blue Light (primary actions, focus)
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Root / App styling
+   ───────────────────────────────────────────────────────────────────────────── */
+
+Screen {
+    background: #1a1a1a;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Header - Project identity
+   ───────────────────────────────────────────────────────────────────────────── */
+
+Header {
+    background: #0d0d0d;
+    color: #F4E409;
+    dock: top;
+    height: 3;
+    border-bottom: solid #636764;
+}
+
+Header > HeaderTitle {
+    color: #F4E409;
+    text-style: bold;
+}
+
+Header > HeaderIcon {
+    color: #50D8D7;
+}
+
+HeaderClock {
+    color: #636764;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Footer - Keybinds and status
+   ───────────────────────────────────────────────────────────────────────────── */
+
+Footer {
+    background: #0d0d0d;
+    color: #636764;
+    dock: bottom;
+    height: 1;
+    border-top: solid #636764;
+}
+
+FooterKey {
+    background: transparent;
+    color: #636764;
+}
+
+FooterKey > .footer-key--key {
+    background: #3B60E4;
+    color: #0d0d0d;
+    text-style: bold;
+    padding: 0 1;
+}
+
+FooterKey > .footer-key--description {
+    color: #50D8D7;
+}
+
+FooterKey:hover {
+    background: #1a1a1a;
+}
+
+FooterKey:hover > .footer-key--key {
+    background: #50D8D7;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Main layout
+   ───────────────────────────────────────────────────────────────────────────── */
+
+#main-layout {
+    width: 100%;
+    height: 100%;
+    background: #1a1a1a;
+}
+
+#right-column {
+    width: 40%;
+    height: 100%;
+    border-left: solid #636764;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Tabbed content - Control panels
+   ───────────────────────────────────────────────────────────────────────────── */
+
+#control-tabs {
+    width: 100%;
+    height: 1fr;
+    background: #1a1a1a;
+}
+
+TabbedContent > ContentSwitcher {
+    height: 1fr;
+    background: #1a1a1a;
+}
+
+/* Tab bar styling */
+Tabs {
+    background: #0d0d0d;
+    dock: top;
+    height: 3;
+}
+
+Tab {
+    background: transparent;
+    color: #636764;
+    padding: 0 2;
+}
+
+Tab:hover {
+    background: #1a1a1a;
+    color: #50D8D7;
+}
+
+Tab.-active {
+    background: #1a1a1a;
+    color: #F4E409;
+    text-style: bold;
+    border-bottom: solid #F4E409;
+}
+
+Tab:focus {
+    text-style: bold;
+}
+
+Underline {
+    color: #F4E409;
+}
+
+TabPane {
+    padding: 0;
+    height: 100%;
+    background: #1a1a1a;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Panel widgets
+   ───────────────────────────────────────────────────────────────────────────── */
+
+ModelPanel, IndexPanel, AxiomPanel, SessionPanel, SettingsPanel {
+    height: 100%;
+    background: #1a1a1a;
+    padding: 1;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Response pane - Main content area
+   ───────────────────────────────────────────────────────────────────────────── */
+
+#response-pane {
+    background: #0d0d0d;
+    border: round #636764;
+    padding: 1 2;
+}
+
+ResponsePane {
+    width: 60%;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Input pane - User input area
+   ───────────────────────────────────────────────────────────────────────────── */
+
+#input-pane {
+    height: auto;
+    max-height: 12;
+    background: #0d0d0d;
+    border: round #636764;
+    margin: 1;
+    padding: 0 1;
+}
+
+InputPane {
+    height: auto;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Text inputs
+   ───────────────────────────────────────────────────────────────────────────── */
+
+Input {
+    background: #0d0d0d;
+    color: #F4E409;
+    border: solid #636764;
+    padding: 0 1;
+}
+
+Input:focus {
+    border: solid #3B60E4;
+}
+
+Input.-invalid {
+    border: solid #FB8B24;
+}
+
+Input > .input--cursor {
+    background: #F4E409;
+    color: #0d0d0d;
+}
+
+Input > .input--placeholder {
+    color: #636764;
+}
+
+TextArea {
+    background: #0d0d0d;
+    color: #F4E409;
+    border: solid #636764;
+}
+
+TextArea:focus {
+    border: solid #3B60E4;
+}
+
+TextArea > .text-area--cursor {
+    background: #F4E409;
+    color: #0d0d0d;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Buttons
+   ───────────────────────────────────────────────────────────────────────────── */
+
+Button {
+    background: #3B60E4;
+    color: #ffffff;
+    border: none;
+    padding: 0 2;
+    text-style: bold;
+}
+
+Button:hover {
+    background: #50D8D7;
+    color: #0d0d0d;
+}
+
+Button:focus {
+    background: #3B60E4;
+    border: solid #F4E409;
+}
+
+Button.-primary {
+    background: #3B60E4;
+}
+
+Button.-primary:hover {
+    background: #50D8D7;
+}
+
+Button.-warning {
+    background: #FB8B24;
+    color: #0d0d0d;
+}
+
+Button.-warning:hover {
+    background: #F4E409;
+    color: #0d0d0d;
+}
+
+Button.-success {
+    background: #50D8D7;
+    color: #0d0d0d;
+}
+
+Button:disabled {
+    background: #636764;
+    color: #1a1a1a;
+    text-style: none;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Lists and selections
+   ───────────────────────────────────────────────────────────────────────────── */
+
+ListView {
+    background: #0d0d0d;
+    border: solid #636764;
+}
+
+ListItem {
+    background: transparent;
+    color: #50D8D7;
+    padding: 0 1;
+}
+
+ListItem:hover {
+    background: #1a1a1a;
+}
+
+ListItem.-selected {
+    background: #3B60E4;
+    color: #ffffff;
+}
+
+ListItem.-selected:hover {
+    background: #50D8D7;
+    color: #0d0d0d;
+}
+
+OptionList {
+    background: #0d0d0d;
+    border: solid #636764;
+}
+
+OptionList > .option-list--option {
+    color: #50D8D7;
+    padding: 0 1;
+}
+
+OptionList > .option-list--option-highlighted {
+    background: #1a1a1a;
+    color: #F4E409;
+}
+
+OptionList > .option-list--option-highlighted-selected {
+    background: #3B60E4;
+    color: #ffffff;
+}
+
+Select {
+    background: #0d0d0d;
+    border: solid #636764;
+}
+
+Select:focus {
+    border: solid #3B60E4;
+}
+
+SelectCurrent {
+    background: #0d0d0d;
+    color: #F4E409;
+}
+
+SelectOverlay {
+    background: #0d0d0d;
+    border: solid #636764;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Data tables
+   ───────────────────────────────────────────────────────────────────────────── */
+
+DataTable {
+    background: #0d0d0d;
+    color: #50D8D7;
+}
+
+DataTable > .datatable--header {
+    background: #1a1a1a;
+    color: #F4E409;
+    text-style: bold;
+}
+
+DataTable > .datatable--cursor {
+    background: #3B60E4;
+    color: #ffffff;
+}
+
+DataTable > .datatable--hover {
+    background: #1a1a1a;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Progress indicators
+   ───────────────────────────────────────────────────────────────────────────── */
+
+ProgressBar {
+    padding: 0 1;
+}
+
+ProgressBar > .bar--bar {
+    color: #3B60E4;
+}
+
+ProgressBar > .bar--complete {
+    color: #50D8D7;
+}
+
+ProgressBar > .bar--indeterminate {
+    color: #F4E409;
+}
+
+LoadingIndicator {
+    color: #F4E409;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Scrollbars
+   ───────────────────────────────────────────────────────────────────────────── */
+
+ScrollBar > .scrollbar--bar {
+    background: #636764;
+}
+
+ScrollBar > .scrollbar--bar:hover {
+    background: #50D8D7;
+}
+
+ScrollBar > .scrollbar--bar-active {
+    background: #3B60E4;
+}
+
+ScrollBar > .scrollbar--grabber {
+    background: #F4E409;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Labels and static content
+   ───────────────────────────────────────────────────────────────────────────── */
+
+Static {
+    background: transparent;
+    color: #50D8D7;
+}
+
+Label {
+    color: #636764;
+}
+
+.title {
+    text-style: bold;
+    color: #F4E409;
+}
+
+.subtitle {
+    color: #50D8D7;
+}
+
+.muted {
+    color: #636764;
+}
+
+.warning {
+    color: #FB8B24;
+}
+
+.error {
+    color: #FB8B24;
+    text-style: bold;
+}
+
+.success {
+    color: #50D8D7;
+}
+
+.info {
+    color: #3B60E4;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Containers and panels
+   ───────────────────────────────────────────────────────────────────────────── */
+
+Container {
+    background: transparent;
+}
+
+Vertical {
+    background: transparent;
+}
+
+Horizontal {
+    background: transparent;
+}
+
+/* Box-drawing aesthetic for panels */
+.panel {
+    border: round #636764;
+    background: #0d0d0d;
+    padding: 1;
+}
+
+.panel-title {
+    color: #F4E409;
+    text-style: bold;
+    padding: 0 1;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Markdown rendering
+   ───────────────────────────────────────────────────────────────────────────── */
+
+Markdown {
+    background: transparent;
+}
+
+MarkdownH1 {
+    color: #F4E409;
+    text-style: bold;
+    border-bottom: solid #636764;
+    padding-bottom: 1;
+    margin-bottom: 1;
+}
+
+MarkdownH2 {
+    color: #F4E409;
+    text-style: bold;
+    margin-top: 1;
+}
+
+MarkdownH3 {
+    color: #50D8D7;
+    text-style: bold;
+}
+
+MarkdownBlockQuote {
+    border-left: outer #636764;
+    color: #636764;
+    padding-left: 2;
+}
+
+MarkdownFence {
+    background: #0d0d0d;
+    border: solid #636764;
+    padding: 1;
+}
+
+MarkdownBulletList {
+    color: #50D8D7;
+}
+
+MarkdownOrderedList {
+    color: #50D8D7;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Splash screen
+   ───────────────────────────────────────────────────────────────────────────── */
+
+#splash-screen {
+    align: center middle;
+    background: #0d0d0d;
+}
+
+#splash-container {
+    width: auto;
+    height: auto;
+    padding: 2 4;
+    border: double #636764;
+    background: #0d0d0d;
+}
+
+#splash-text {
+    color: #F4E409;
+    text-align: center;
+}
+
+#splash-version {
+    color: #636764;
+    text-align: center;
+    margin-top: 1;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Notifications and toasts
+   ───────────────────────────────────────────────────────────────────────────── */
+
+Toast {
+    background: #1a1a1a;
+    border: solid #636764;
+    color: #50D8D7;
+}
+
+Toast.-information {
+    border-left: outer #3B60E4;
+}
+
+Toast.-warning {
+    border-left: outer #FB8B24;
+}
+
+Toast.-error {
+    border-left: outer #FB8B24;
+    color: #FB8B24;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Dialogs and modals
+   ───────────────────────────────────────────────────────────────────────────── */
+
+ModalScreen {
+    align: center middle;
+    background: rgba(0, 0, 0, 0.7);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Tree views
+   ───────────────────────────────────────────────────────────────────────────── */
+
+Tree {
+    background: #0d0d0d;
+    border: solid #636764;
+}
+
+Tree > .tree--guides {
+    color: #636764;
+}
+
+Tree > .tree--guides-hover {
+    color: #50D8D7;
+}
+
+Tree > .tree--guides-selected {
+    color: #3B60E4;
+}
+
+Tree > .tree--cursor {
+    background: #3B60E4;
+    color: #ffffff;
+}
+
+Tree > .tree--highlight {
+    background: #1a1a1a;
+}
+
+TreeNode {
+    color: #50D8D7;
+}
+
+TreeNode.-selected {
+    background: #3B60E4;
+    color: #ffffff;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Checkboxes and switches
+   ───────────────────────────────────────────────────────────────────────────── */
+
+Checkbox {
+    background: transparent;
+    color: #50D8D7;
+}
+
+Checkbox:hover {
+    color: #F4E409;
+}
+
+Checkbox.-on > .toggle--button {
+    color: #3B60E4;
+}
+
+Switch {
+    background: #636764;
+}
+
+Switch.-on {
+    background: #3B60E4;
+}
+
+Switch > .switch--slider {
+    background: #F4E409;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Rich text / Log display
+   ───────────────────────────────────────────────────────────────────────────── */
+
+RichLog {
+    background: #0d0d0d;
+    border: solid #636764;
+    padding: 0 1;
+}
+
+Log {
+    background: #0d0d0d;
+    color: #50D8D7;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Scanline effect (subtle background pattern)
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Note: True scanline effects would require custom widget rendering.
+   This provides a subtle visual separation using alternate row hints. */
+
+.scanline-odd {
+    background: #1a1a1a;
+}
+
+.scanline-even {
+    background: #0d0d0d;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Init screen (from original)
+   ───────────────────────────────────────────────────────────────────────────── */
+
+#init-container {
+    width: 60;
+    height: auto;
+    margin: 2 4;
+    padding: 1 2;
+    border: solid #FB8B24;
+    background: #0d0d0d;
+}
+
+#init-title {
+    text-align: center;
+    text-style: bold;
+    margin-bottom: 1;
+    color: #F4E409;
+}
+
+#theme-list {
+    height: 12;
+    margin: 1 0;
+}
+
+#type-list {
+    height: 8;
+    margin: 1 0;
+}
+
+#name-input {
+    margin: 1 0;
+}
+
+.hidden {
+    display: none;
+}
+
+#init-button {
+    margin-top: 1;
+    width: 100%;
+}

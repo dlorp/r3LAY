@@ -29,6 +29,7 @@ from .ui.widgets import (
     ResponsePane,
     SessionPanel,
     SettingsPanel,
+    SplashScreen,
 )
 
 
@@ -111,27 +112,35 @@ class MainScreen(Screen):
 class R3LayApp(App):
     """Main r3LAY TUI application."""
 
-    CSS_PATH = "ui/styles/app.tcss"
-    TITLE = "r3LAY"
-    SUB_TITLE = "Research Assistant"
+    CSS_PATH = "ui/styles/garage.tcss"
+    TITLE = "r³LAY"
+    SUB_TITLE = "Garage Terminal"
 
     BINDINGS = [
         Binding("ctrl+q", "quit", "Quit", show=True),
         Binding("ctrl+d", "toggle_dark", "Dark Mode"),
     ]
 
-    def __init__(self, project_path: Path | None = None):
+    def __init__(self, project_path: Path | None = None, show_splash: bool = True):
         super().__init__()
         self.project_path = project_path or Path.cwd()
         self.config = AppConfig.load(self.project_path)
         self.state: R3LayState | None = None
+        self._show_splash = show_splash
 
     async def on_mount(self) -> None:
         """Called when app is mounted."""
         self.state = R3LayState(self.project_path)
         # Wire config model roles to state for model switching (Phase 5.5)
         self.state.model_roles = self.config.model_roles
-        await self.push_screen(MainScreen(self.state))
+
+        # Show splash screen first, then main screen
+        if self._show_splash:
+            await self.push_screen(MainScreen(self.state))
+            # Push splash on top - it will dismiss itself after animation
+            await self.push_screen(SplashScreen(animate=True, duration=3.0))
+        else:
+            await self.push_screen(MainScreen(self.state))
 
         # Register signal handlers for graceful shutdown
         loop = asyncio.get_event_loop()
@@ -220,10 +229,15 @@ def main():
         default=".",
         help="Path to project directory",
     )
+    parser.add_argument(
+        "--no-splash",
+        action="store_true",
+        help="Skip the startup splash animation",
+    )
     args = parser.parse_args()
 
     project_path = Path(args.project_path).resolve()
-    app = R3LayApp(project_path)
+    app = R3LayApp(project_path, show_splash=not args.no_splash)
     app.run()
 
 
