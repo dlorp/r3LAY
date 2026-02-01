@@ -7,6 +7,7 @@ from .model_panel import ModelPanel
 from .response_pane import ResponseBlock, ResponsePane, StreamingBlock
 from .session_panel import SessionPanel
 from .settings_panel import SettingsPanel
+from .splash import SplashScreen, show_splash
 
 __all__ = [
     "AxiomPanel",
@@ -17,5 +18,7 @@ __all__ = [
     "ResponsePane",
     "SessionPanel",
     "SettingsPanel",
+    "SplashScreen",
     "StreamingBlock",
+    "show_splash",
 ]
