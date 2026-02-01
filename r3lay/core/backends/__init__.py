@@ -103,6 +103,14 @@ def create_backend(model_info: "ModelInfo") -> InferenceBackend:
 
         return VLLMBackend(model_info.name)
 
+    elif model_info.backend == Backend.OPENCLAW:
+        from .openclaw import OpenClawBackend
+
+        # Get endpoint and API key from metadata if provided
+        endpoint = model_info.metadata.get("endpoint", "http://localhost:4444")
+        api_key = model_info.metadata.get("api_key")
+        return OpenClawBackend(model_info.name, endpoint=endpoint, api_key=api_key)
+
     else:
         raise ValueError(f"Unknown backend: {model_info.backend}")
 
@@ -113,6 +121,7 @@ __all__ = [
     # Backends (lazy imported)
     "OllamaBackend",
     "VLLMBackend",
+    "OpenClawBackend",
     # Factory
     "create_backend",
     # Exceptions
@@ -131,4 +140,7 @@ def __getattr__(name: str):
     if name == "VLLMBackend":
         from .vllm import VLLMBackend
         return VLLMBackend
+    if name == "OpenClawBackend":
+        from .openclaw import OpenClawBackend
+        return OpenClawBackend
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
