@@ -51,11 +51,16 @@ class ProjectDetector:
         if self._matches_keywords(parts, self.AUTOMOTIVE_KEYWORDS) or self._has_vehicle_make(parts):
             return self._detect_automotive(path, parts)
 
+        # Check software file markers first (most reliable)
+        if self._has_software_markers(path):
+            return self._detect_software(path, parts)
+
+        # Electronics check before software keywords (path like /projects/iot/thermostat
+        # should match electronics "iot" not software "projects")
         if self._matches_keywords(parts, self.ELECTRONICS_KEYWORDS) or self._has_board_type(parts):
             return self._detect_electronics(path, parts)
 
-        has_sw_markers = self._has_software_markers(path)
-        if self._matches_keywords(parts, self.SOFTWARE_KEYWORDS) or has_sw_markers:
+        if self._matches_keywords(parts, self.SOFTWARE_KEYWORDS):
             return self._detect_software(path, parts)
 
         if self._matches_keywords(parts, self.WORKSHOP_KEYWORDS):
@@ -218,7 +223,14 @@ class ProjectDetector:
         return bool(set(parts) & self.VEHICLE_MAKES)
 
     def _has_board_type(self, parts: list[str]) -> bool:
-        return any(board in part for part in parts for board in self.BOARD_TYPES)
+        """Check if any path part contains a board type as a complete word."""
+        for part in parts:
+            for board in self.BOARD_TYPES:
+                # Match as complete word, not substring
+                # This prevents 'tmppicokx7p' from matching 'pico'
+                if re.search(rf'\b{re.escape(board)}\b', part):
+                    return True
+        return False
 
     def _has_software_markers(self, path: Path) -> bool:
         markers = ["pyproject.toml", "package.json", "Cargo.toml", "go.mod", ".git"]
