@@ -3,6 +3,7 @@
 from .axiom_panel import AxiomPanel
 from .index_panel import IndexPanel
 from .input_pane import InputPane
+from .maintenance_panel import MaintenanceItem, MaintenancePanel, MaintenanceStatus
 from .model_panel import ModelPanel
 from .response_pane import ResponseBlock, ResponsePane, StreamingBlock
 from .session_panel import SessionPanel
@@ -13,6 +14,9 @@ __all__ = [
     "AxiomPanel",
     "IndexPanel",
     "InputPane",
+    "MaintenanceItem",
+    "MaintenancePanel",
+    "MaintenanceStatus",
     "ModelPanel",
     "ResponseBlock",
     "ResponsePane",
