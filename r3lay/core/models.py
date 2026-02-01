@@ -64,6 +64,7 @@ class Backend(str, Enum):
     LLAMA_CPP = "llama_cpp"
     VLLM = "vllm"
     OLLAMA = "ollama"
+    OPENCLAW = "openclaw"
 
 
 # =============================================================================
