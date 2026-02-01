@@ -54,9 +54,12 @@ from .router import (
     SmartRouter,
 )
 from .search import (
+    ContextualSearchClient,
     SearchError,
     SearchResult,
     SearXNGClient,
+    VehicleSearchContext,
+    create_search_context_from_project,
 )
 from .session import (
     Message,
@@ -205,6 +208,7 @@ class R3LayState:
         """Get the app configuration (creates default if not set)."""
         if self._config is None:
             from ..config import AppConfig
+
             self._config = AppConfig()
         return self._config
 
@@ -300,8 +304,7 @@ class R3LayState:
 
         # Get target model name from config
         target_model_name = (
-            self.model_roles.vision_model if model_type == "vision"
-            else self.model_roles.text_model
+            self.model_roles.vision_model if model_type == "vision" else self.model_roles.text_model
         )
 
         if not target_model_name:
@@ -309,10 +312,7 @@ class R3LayState:
             return False
 
         # Find ModelInfo in available_models
-        model_info = next(
-            (m for m in self.available_models if m.name == target_model_name),
-            None
-        )
+        model_info = next((m for m in self.available_models if m.name == target_model_name), None)
 
         if model_info is None:
             logger.warning(f"Model not found in available_models: {target_model_name}")
@@ -606,6 +606,9 @@ __all__ = [
     "SearchResult",
     "SearXNGClient",
     "SearchError",
+    "ContextualSearchClient",
+    "VehicleSearchContext",
+    "create_search_context_from_project",
     # Deep Research (R3)
     "ExpeditionStatus",
     "CycleMetrics",
