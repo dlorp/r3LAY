@@ -126,11 +126,10 @@ Project config lives in: `<project>/.r3lay/config.yaml`
 | Guide | Description |
 |-------|-------------|
 | [Architecture](https://github.com/dlorp/r3LAY/wiki/ARCHITECTURE) | System design and data flow |
-| [Intent Architecture](https://github.com/dlorp/r3LAY/wiki/INTENT-ARCHITECTURE) | Natural language processing |
-| [Knowledge Systems](https://github.com/dlorp/r3LAY/wiki/KNOWLEDGE_SYSTEMS) | Signals, Axioms, Citations |
-| [Equipment Guide](https://github.com/dlorp/r3LAY/wiki/EQUIPMENT) | All 14 equipment types |
 | [API Reference](https://github.com/dlorp/r3LAY/wiki/API) | REST endpoints |
-| [Troubleshooting](docs/troubleshooting.md) | Common issues |
+| [Docker Setup](https://github.com/dlorp/r3LAY/wiki/docker) | Container deployment |
+| [OpenClaw Integration](https://github.com/dlorp/r3LAY/wiki/openclaw-integration) | Using with OpenClaw |
+| [Troubleshooting](https://github.com/dlorp/r3LAY/wiki/troubleshooting) | Common issues |
 
 ## Development
 
