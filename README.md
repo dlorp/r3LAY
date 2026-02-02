@@ -14,17 +14,17 @@ A terminal-based research assistant for hobbyists who maintain their own gear.
 
 ## What is this?
 
-r³LAY is a TUI research assistant for hobbyists who wrench on their own stuff. Whether you're maintaining a fleet of motorcycles, restoring vintage gear, or keeping your homelab alive — r³LAY helps you track what you did, find what you need, and discover what the community actually knows.
+r³LAY is a TUI research assistant for hobbyists who wrench on their own stuff. Whether you're maintaining a fleet of motorcycles, restoring vintage gear, or keeping your homelab alive - r³LAY helps you track what you did, find what you need, and discover what the community actually knows.
 
 No cloud. No subscriptions. Your data stays on your machine.
 
 ## Features
 
-- **Maintenance Tracking** — Log services, track intervals, get overdue alerts
-- **Natural Language Input** — "logged oil change at 98k" just works
-- **Local LLM Inference** — MLX (Apple Silicon), llama.cpp, or Ollama
-- **Hybrid RAG Search** — BM25 + vector search with source attribution
-- **Deep Research** — Multi-cycle expeditions with contradiction detection
+- **Maintenance Tracking** - Log services, track intervals, get overdue alerts
+- **Natural Language Input** - "logged oil change at 98k" just works
+- **Local LLM Inference** - MLX (Apple Silicon), llama.cpp, or Ollama
+- **Hybrid RAG Search** - BM25 + vector search with source attribution
+- **Deep Research** - Multi-cycle expeditions with contradiction detection
 
 ## Quick Start
 
@@ -59,7 +59,7 @@ CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python
 pip install -e .
 ```
 
-Works out of the box — slower, but gets the job done.
+Works out of the box - slower, but gets the job done.
 
 ### Docker
 
@@ -128,9 +128,9 @@ Project config lives in `<project>/.r3lay/config.yaml`.
 
 See the **[Wiki](https://github.com/dlorp/r3LAY/wiki)** for detailed guides:
 
-- [Docker Setup](https://github.com/dlorp/r3LAY/wiki/Docker) — Installation and deployment
-- [Commands & Config](https://github.com/dlorp/r3LAY/wiki/API) — CLI commands and environment variables
-- [Troubleshooting](https://github.com/dlorp/r3LAY/wiki/Troubleshooting) — Common issues
+- [Docker Setup](https://github.com/dlorp/r3LAY/wiki/Docker) - Installation and deployment
+- [Commands & Config](https://github.com/dlorp/r3LAY/wiki/API) - CLI commands and environment variables
+- [Troubleshooting](https://github.com/dlorp/r3LAY/wiki/Troubleshooting) - Common issues
 
 ## Contributing
 
@@ -145,4 +145,4 @@ Contributions welcome. Please open an issue first to discuss significant changes
 
 ## License
 
-[PolyForm Noncommercial 1.0.0](LICENSE) — Free for personal and non-commercial use.
+[PolyForm Noncommercial 1.0.0](LICENSE) - Free for personal and non-commercial use.
