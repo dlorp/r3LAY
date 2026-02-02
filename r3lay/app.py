@@ -17,12 +17,13 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
-from textual.widgets import Footer, Header, TabbedContent, TabPane
+from textual.widgets import Footer, TabbedContent, TabPane
 
 from .config import AppConfig
 from .core import R3LayState
 from .ui.widgets import (
     AxiomPanel,
+    GarageHeader,
     HistoryPanel,
     IndexPanel,
     InputPane,
@@ -56,7 +57,7 @@ class MainScreen(Screen):
         self.state = state
 
     def compose(self) -> ComposeResult:
-        yield Header()
+        yield GarageHeader(self.state, id="garage-header")
 
         with Horizontal(id="main-layout"):
             # Left: Response pane (main content area ~60%)
