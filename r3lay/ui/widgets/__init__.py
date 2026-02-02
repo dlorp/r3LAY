@@ -1,6 +1,7 @@
 """r3LAY UI Widgets."""
 
 from .axiom_panel import AxiomPanel
+from .garage_header import GarageHeader
 from .history_panel import HistoryPanel
 from .index_panel import IndexPanel
 from .input_pane import InputPane
@@ -13,6 +14,7 @@ from .splash import SplashScreen, show_splash
 
 __all__ = [
     "AxiomPanel",
+    "GarageHeader",
     "HistoryPanel",
     "IndexPanel",
     "InputPane",
