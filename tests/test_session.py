@@ -889,7 +889,7 @@ class TestSessionEdgeCases:
         session = Session()
         special_path = Path("/path/with spaces/and-dashes/file (1).png")
 
-        msg = session.add_user_message("Image", images=[special_path])
+        session.add_user_message("Image", images=[special_path])
 
         # Roundtrip test
         data = session.to_dict()
