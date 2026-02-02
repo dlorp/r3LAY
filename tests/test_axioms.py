@@ -17,6 +17,9 @@ import pytest
 
 from r3lay.core.axioms import (
     AXIOM_CATEGORIES,
+    CITATION_CONFIDENCE_BOOST,
+    MAX_CITATION_CONFIDENCE,
+    STOP_WORDS,
     Axiom,
     AxiomManager,
     AxiomStatus,
@@ -117,6 +120,43 @@ class TestAxiomCategories:
     def test_categories_not_empty(self):
         """AXIOM_CATEGORIES has at least one category."""
         assert len(AXIOM_CATEGORIES) > 0
+
+
+class TestStopWords:
+    """Tests for STOP_WORDS constant."""
+
+    def test_stop_words_is_frozenset(self):
+        """STOP_WORDS is a frozenset for immutability."""
+        assert isinstance(STOP_WORDS, frozenset)
+
+    def test_common_stop_words_present(self):
+        """Common stop words are in the set."""
+        assert "the" in STOP_WORDS
+        assert "is" in STOP_WORDS
+        assert "and" in STOP_WORDS
+        assert "or" in STOP_WORDS
+        assert "a" in STOP_WORDS
+
+    def test_stop_words_lowercase(self):
+        """All stop words are lowercase."""
+        assert all(w.islower() for w in STOP_WORDS)
+
+
+class TestConfidenceConstants:
+    """Tests for confidence boost constants."""
+
+    def test_citation_confidence_boost_positive(self):
+        """CITATION_CONFIDENCE_BOOST is positive."""
+        assert CITATION_CONFIDENCE_BOOST > 0
+
+    def test_citation_confidence_boost_reasonable(self):
+        """CITATION_CONFIDENCE_BOOST is a reasonable small value."""
+        assert CITATION_CONFIDENCE_BOOST <= 0.1
+
+    def test_max_citation_confidence_below_one(self):
+        """MAX_CITATION_CONFIDENCE is below 1.0."""
+        assert MAX_CITATION_CONFIDENCE < 1.0
+        assert MAX_CITATION_CONFIDENCE >= 0.9
 
 
 # ============================================================================
@@ -822,6 +862,49 @@ class TestAxiomManagerUpdates:
         axiom = manager.create(statement="Test", category="specifications", citation_ids=["sig1"])
         manager.add_citation(axiom.id, "sig1")
         assert axiom.citation_ids.count("sig1") == 1
+
+    def test_add_citation_with_boost(self, manager):
+        """add_citation boosts confidence when requested."""
+        axiom = manager.create(
+            statement="Test", category="specifications", citation_ids=["sig1"], confidence=0.8
+        )
+        original_confidence = axiom.confidence
+
+        manager.add_citation(axiom.id, "sig2", boost_confidence=True)
+
+        assert axiom.confidence > original_confidence
+        assert axiom.confidence == original_confidence + CITATION_CONFIDENCE_BOOST
+
+    def test_add_citation_boost_respects_max(self, manager):
+        """add_citation boost doesn't exceed MAX_CITATION_CONFIDENCE."""
+        axiom = manager.create(
+            statement="Test",
+            category="specifications",
+            citation_ids=["sig1"],
+            confidence=0.98,  # Already high
+        )
+
+        manager.add_citation(axiom.id, "sig2", boost_confidence=True)
+
+        assert axiom.confidence <= MAX_CITATION_CONFIDENCE
+
+    def test_corroborate_method(self, manager):
+        """corroborate adds citation and boosts confidence."""
+        axiom = manager.create(
+            statement="Test", category="specifications", citation_ids=["sig1"], confidence=0.75
+        )
+        original_confidence = axiom.confidence
+
+        result = manager.corroborate(axiom.id, "sig2")
+
+        assert result is not None
+        assert "sig2" in result.citation_ids
+        assert result.confidence > original_confidence
+
+    def test_corroborate_nonexistent_returns_none(self, manager):
+        """corroborate on nonexistent axiom returns None."""
+        result = manager.corroborate("axiom_doesnotexist", "sig1")
+        assert result is None
 
     def test_add_tag(self, manager):
         """add_tag appends tag."""
