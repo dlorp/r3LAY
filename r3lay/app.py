@@ -237,7 +237,7 @@ class R3LayApp(App):
 def main():
     """Entry point for the application.
 
-    Supports both CLI subcommands (log, mileage, status) and TUI mode.
+    Supports both CLI subcommands (log, mileage, status, history) and TUI mode.
     If no subcommand is given, launches the TUI.
     """
     import sys
@@ -245,7 +245,7 @@ def main():
     from .cli import run_cli
 
     # Check if we have a CLI subcommand
-    cli_commands = {"log", "mileage", "status", "--help", "-h"}
+    cli_commands = {"log", "mileage", "status", "history", "--help", "-h"}
     if len(sys.argv) > 1 and sys.argv[1] in cli_commands:
         result = run_cli()
         if result is not None:
