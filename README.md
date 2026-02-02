@@ -8,53 +8,69 @@
 
 > *The manual says one thing, but the forums know the truth.*
 
-A TUI research assistant for hobbyists who wrench on their own stuff. Whether you're maintaining a fleet of motorcycles, restoring vintage gear, or keeping your homelab alive — r³LAY helps you track what you did, find what you need, and discover what the community actually knows.
-
 <p align="center">
   <img src="docs/screenshot.png" alt="r³LAY TUI showing maintenance tracking and research interface" width="700">
   <br>
   <em>Track maintenance, chat with local LLMs, and research with full source attribution</em>
 </p>
 
-## ✨ Why r³LAY?
+## What is this?
 
-**For the tinkerer who's tired of:**
-- Scattered notes across notebooks, PDFs, and browser bookmarks
-- Forum posts that contradict the official manual (and are usually right)
-- Forgetting when you last changed that oil/filter/belt
-
-**r³LAY gives you:**
-- 🔧 **Maintenance Tracking** — Log services, track intervals, get overdue alerts
-- 💬 **Natural Language Input** — "logged oil change at 98k" just works
-- 🧠 **Local LLM Inference** — MLX (Apple Silicon), llama.cpp, or Ollama
-- 🔍 **Hybrid RAG Search** — BM25 + vector search with source attribution
-- 📚 **Deep Research (R³)** — Multi-cycle expeditions with contradiction detection
+r³LAY is a TUI research assistant for hobbyists who wrench on their own stuff. Whether you're maintaining a fleet of motorcycles, restoring vintage gear, or keeping your homelab alive — r³LAY helps you track what you did, find what you need, and discover what the community actually knows.
 
 No cloud. No subscriptions. Your data stays on your machine.
 
-## 🚀 Quick Start
+## Features
+
+- **Maintenance Tracking** — Log services, track intervals, get overdue alerts
+- **Natural Language Input** — "logged oil change at 98k" just works
+- **Local LLM Inference** — MLX (Apple Silicon), llama.cpp, or Ollama
+- **Hybrid RAG Search** — BM25 + vector search with source attribution
+- **Deep Research (R³)** — Multi-cycle expeditions with contradiction detection
+
+## Quick Start
 
 ```bash
 git clone https://github.com/dlorp/r3LAY.git
 cd r3lay
 pip install -e .
+r3lay ~/Documents/my-project
 ```
 
-### Platform Setup
+Select a model from the Models panel (`Ctrl+M`) and start chatting.
 
-**Apple Silicon (recommended):**
+## Installation
+
+### Apple Silicon (recommended)
+
 ```bash
+pip install -e .
 pip install mlx mlx-lm
 ```
 
-**NVIDIA GPU:**
+### NVIDIA GPU
+
 ```bash
+pip install -e .
 CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python
 ```
 
-**CPU-only:** Works out of the box (slower, but gets the job done)
+### CPU-only
 
-### Run
+```bash
+pip install -e .
+```
+
+Works out of the box — slower, but gets the job done.
+
+### Docker
+
+```bash
+docker compose --profile default up -d
+PROJECT_PATH=/path/to/project docker compose run r3lay
+```
+
+## Usage
 
 ```bash
 # Point at any project folder
@@ -64,19 +80,10 @@ r3lay ~/Documents/my-project
 r3lay
 ```
 
-Select a model from the Models panel (`Tab+M`) and start chatting.
+### Commands
 
-### Docker
-
-```bash
-docker compose --profile default up -d
-PROJECT_PATH=/path/to/project docker compose run r3lay
-```
-
-## 📋 Commands
-
-| Command | What it does |
-|---------|--------------|
+| Command | Description |
+|---------|-------------|
 | `/log <service>` | Log a maintenance entry |
 | `/due` | Show upcoming/overdue services |
 | `/history` | Show maintenance history |
@@ -85,7 +92,7 @@ PROJECT_PATH=/path/to/project docker compose run r3lay
 | `/research <query>` | Start deep research expedition |
 | `/axioms` | List validated knowledge |
 
-## ⌨️ Keybindings
+### Keybindings
 
 | Key | Action |
 |-----|--------|
@@ -96,7 +103,19 @@ PROJECT_PATH=/path/to/project docker compose run r3lay
 | `Ctrl+R` | Reindex |
 | `Ctrl+Q` | Quit |
 
-## 💻 Requirements
+## Configuration
+
+Environment variables (use `R3LAY_` prefix):
+
+```bash
+R3LAY_OLLAMA_ENDPOINT=http://localhost:11434
+R3LAY_SEARXNG_ENDPOINT=http://localhost:8080
+R3LAY_GGUF_FOLDER=~/.r3lay/models
+```
+
+Project config lives in `<project>/.r3lay/config.yaml`.
+
+## Requirements
 
 | Platform | Minimum | Recommended |
 |----------|---------|-------------|
@@ -107,32 +126,18 @@ PROJECT_PATH=/path/to/project docker compose run r3lay
 - Python 3.11+
 - macOS 13+ (for MLX) or CUDA 12.0+ (for NVIDIA)
 
-## ⚙️ Configuration
+## Documentation
 
-Environment variables (`R3LAY_` prefix):
+See the **[Wiki](https://github.com/dlorp/r3LAY/wiki)** for detailed guides:
 
-```bash
-R3LAY_OLLAMA_ENDPOINT=http://localhost:11434
-R3LAY_SEARXNG_ENDPOINT=http://localhost:8080
-R3LAY_GGUF_FOLDER=~/.r3lay/models
-```
+- [Architecture](https://github.com/dlorp/r3LAY/wiki/ARCHITECTURE) — System design and data flow
+- [Intent Architecture](https://github.com/dlorp/r3LAY/wiki/INTENT-ARCHITECTURE) — Natural language processing
+- [Knowledge Systems](https://github.com/dlorp/r3LAY/wiki/KNOWLEDGE_SYSTEMS) — Signals, Axioms, Citations
+- [Equipment Guide](https://github.com/dlorp/r3LAY/wiki/EQUIPMENT) — All 14 equipment types
+- [API Reference](https://github.com/dlorp/r3LAY/wiki/API) — REST endpoints
+- [Troubleshooting](docs/troubleshooting.md) — Common issues
 
-Project config lives in: `<project>/.r3lay/config.yaml`
-
-## 📚 Documentation
-
-**[Full Wiki →](https://github.com/dlorp/r3LAY/wiki)** 
-
-| Guide | Description |
-|-------|-------------|
-| [Architecture](https://github.com/dlorp/r3LAY/wiki/ARCHITECTURE) | System design and data flow |
-| [Intent Architecture](https://github.com/dlorp/r3LAY/wiki/INTENT-ARCHITECTURE) | Natural language processing |
-| [Knowledge Systems](https://github.com/dlorp/r3LAY/wiki/KNOWLEDGE_SYSTEMS) | Signals, Axioms, Citations |
-| [Equipment Guide](https://github.com/dlorp/r3LAY/wiki/EQUIPMENT) | All 14 equipment types |
-| [API Reference](https://github.com/dlorp/r3LAY/wiki/API) | REST endpoints |
-| [Troubleshooting](docs/troubleshooting.md) | Common issues |
-
-## 🛠️ Development
+## Contributing
 
 ```bash
 pip install -e ".[dev]"
@@ -141,7 +146,9 @@ mypy r3lay/
 ruff check r3lay/
 ```
 
-## 📄 License
+Contributions welcome. Please open an issue first to discuss significant changes.
+
+## License
 
 [PolyForm Noncommercial 1.0.0](LICENSE) — Free for personal and non-commercial use.
 
