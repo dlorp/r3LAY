@@ -4,7 +4,7 @@
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-yellow.svg)](https://python.org)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux-lightgrey.svg)]()
 
-**Retrospective Recursive Research, Linked Archive Yield**
+
 
 > *The manual says one thing, but the forums know the truth.*
 
