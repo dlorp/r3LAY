@@ -1,6 +1,6 @@
 # r³LAY
 
-[![License: PolyForm Noncommercial](https://img.shields.io/badge/License-PolyForm%20NC%201.0-blue.svg)](LICENSE)
+![License](https://img.shields.io/badge/license-PolyForm%20NC%201.0.0-blue)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-yellow.svg)](https://python.org)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux-lightgrey.svg)]()
 
@@ -16,7 +16,7 @@ A TUI research assistant for hobbyists who wrench on their own stuff. Whether yo
   <em>Track maintenance, chat with local LLMs, and research with full source attribution</em>
 </p>
 
-## ✨ Why r³LAY?
+## Why r³LAY?
 
 **For the tinkerer who's tired of:**
 - Scattered notes across notebooks, PDFs, and browser bookmarks
@@ -32,7 +32,7 @@ A TUI research assistant for hobbyists who wrench on their own stuff. Whether yo
 
 No cloud. No subscriptions. Your data stays on your machine.
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
 git clone https://github.com/dlorp/r3LAY.git
@@ -73,7 +73,7 @@ docker compose --profile default up -d
 PROJECT_PATH=/path/to/project docker compose run r3lay
 ```
 
-## 📋 Commands
+## Commands
 
 | Command | What it does |
 |---------|--------------|
@@ -85,7 +85,7 @@ PROJECT_PATH=/path/to/project docker compose run r3lay
 | `/research <query>` | Start deep research expedition |
 | `/axioms` | List validated knowledge |
 
-## ⌨️ Keybindings
+## Keybindings
 
 | Key | Action |
 |-----|--------|
@@ -96,7 +96,7 @@ PROJECT_PATH=/path/to/project docker compose run r3lay
 | `Ctrl+R` | Reindex |
 | `Ctrl+Q` | Quit |
 
-## 💻 Requirements
+## Requirements
 
 | Platform | Minimum | Recommended |
 |----------|---------|-------------|
@@ -107,7 +107,7 @@ PROJECT_PATH=/path/to/project docker compose run r3lay
 - Python 3.11+
 - macOS 13+ (for MLX) or CUDA 12.0+ (for NVIDIA)
 
-## ⚙️ Configuration
+## Configuration
 
 Environment variables (`R3LAY_` prefix):
 
@@ -119,7 +119,7 @@ R3LAY_GGUF_FOLDER=~/.r3lay/models
 
 Project config lives in: `<project>/.r3lay/config.yaml`
 
-## 📚 Documentation
+## Documentation
 
 **[Full Wiki →](https://github.com/dlorp/r3LAY/wiki)** 
 
@@ -132,7 +132,7 @@ Project config lives in: `<project>/.r3lay/config.yaml`
 | [API Reference](https://github.com/dlorp/r3LAY/wiki/API) | REST endpoints |
 | [Troubleshooting](docs/troubleshooting.md) | Common issues |
 
-## 🛠️ Development
+## Development
 
 ```bash
 pip install -e ".[dev]"
@@ -141,7 +141,7 @@ mypy r3lay/
 ruff check r3lay/
 ```
 
-## 📄 License
+## License
 
 [PolyForm Noncommercial 1.0.0](LICENSE) — Free for personal and non-commercial use.
 
