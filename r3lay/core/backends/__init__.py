@@ -81,14 +81,13 @@ def create_backend(model_info: "ModelInfo") -> InferenceBackend:
         from .llama_cpp import LlamaCppBackend
 
         if model_info.path is None:
-            raise ModelLoadError(
-                f"llama.cpp backend requires a model path: {model_info.name}"
-            )
+            raise ModelLoadError(f"llama.cpp backend requires a model path: {model_info.name}")
 
         # Check for mmproj path in metadata (for LLaVA-style vision)
         mmproj_path = None
         if model_info.metadata.get("mmproj_path"):
             from pathlib import Path
+
             mmproj_path = Path(model_info.metadata["mmproj_path"])
 
         return LlamaCppBackend(model_info.path, model_info.name, mmproj_path=mmproj_path)
@@ -136,11 +135,14 @@ def __getattr__(name: str):
     """Lazy import backends to avoid loading unused dependencies."""
     if name == "OllamaBackend":
         from .ollama import OllamaBackend
+
         return OllamaBackend
     if name == "VLLMBackend":
         from .vllm import VLLMBackend
+
         return VLLMBackend
     if name == "OpenClawBackend":
         from .openclaw import OpenClawBackend
+
         return OpenClawBackend
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

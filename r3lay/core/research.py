@@ -415,9 +415,7 @@ class ConvergenceDetector:
         # Check for zero findings in last two exploration cycles
         if len(exploration_metrics) >= 2:
             last_two = exploration_metrics[-2:]
-            if all(
-                m.axioms_generated == 0 and m.sources_found == 0 for m in last_two
-            ):
+            if all(m.axioms_generated == 0 and m.sources_found == 0 for m in last_two):
                 return False, "No new findings for 2 consecutive cycles"
 
         return True, "Research continuing"
@@ -745,8 +743,7 @@ class ResearchOrchestrator:
                 new_contradictions = [
                     c
                     for c in expedition.contradictions
-                    if c.resolution_status == "pending"
-                    and c not in pending_resolution
+                    if c.resolution_status == "pending" and c not in pending_resolution
                 ]
                 pending_resolution.extend(new_contradictions)
 
@@ -894,11 +891,7 @@ class ResearchOrchestrator:
 
             for item in extracted:
                 # Check for contradictions before creating axiom
-                signal_ids = [
-                    c.get("signal_id")
-                    for c in all_content
-                    if c.get("signal_id")
-                ]
+                signal_ids = [c.get("signal_id") for c in all_content if c.get("signal_id")]
                 contradictions = self.contradiction_detector.check_finding(
                     statement=item["statement"],
                     category=item.get("category", "specifications"),
@@ -1014,15 +1007,11 @@ class ResearchOrchestrator:
             contradiction.resolution_status = "resolved"
             contradiction.resolution_outcome = "confirmed"
             self.axioms.validate(contradiction.existing_axiom_id)
-            findings.append(
-                f"Confirmed existing: {contradiction.existing_statement[:60]}..."
-            )
+            findings.append(f"Confirmed existing: {contradiction.existing_statement[:60]}...")
 
         elif resolution_outcome["resolution"] == "SUPERSEDED":
             # New finding is correct, supersede existing
-            new_statement = resolution_outcome.get(
-                "new_axiom", contradiction.new_statement
-            )
+            new_statement = resolution_outcome.get("new_axiom", contradiction.new_statement)
             new_axiom = self.axioms.supersede(
                 old_axiom_id=contradiction.existing_axiom_id,
                 new_statement=new_statement,
@@ -1187,10 +1176,7 @@ class ResearchOrchestrator:
         axiom_objs = [a for a in axiom_objs if a]
 
         axiom_text = "\n".join(
-            [
-                f"- [{a.category}] {a.statement} ({a.confidence:.0%} confidence)"
-                for a in axiom_objs
-            ]
+            [f"- [{a.category}] {a.statement} ({a.confidence:.0%} confidence)" for a in axiom_objs]
         )
 
         # Gather resolution info
@@ -1210,8 +1196,7 @@ class ResearchOrchestrator:
             contradictions_section = """## Unresolved Issues
 The following contradictions require manual review:
 """ + "\n".join(
-                f"- {c.existing_statement[:60]}... vs {c.new_statement[:60]}..."
-                for c in unresolved
+                f"- {c.existing_statement[:60]}... vs {c.new_statement[:60]}..." for c in unresolved
             )
 
         # Calculate stats
@@ -1260,9 +1245,7 @@ The following contradictions require manual review:
                 except ValueError:
                     current["confidence"] = 0.7
             elif line.startswith("TAGS:"):
-                current["tags"] = [
-                    t.strip() for t in line[5:].split(",") if t.strip()
-                ]
+                current["tags"] = [t.strip() for t in line[5:].split(",") if t.strip()]
 
         if current.get("statement"):
             axioms.append(current)

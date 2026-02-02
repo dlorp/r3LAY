@@ -18,8 +18,7 @@ from __future__ import annotations
 import json
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import numpy as np
 import pytest
@@ -36,7 +35,6 @@ from r3lay.core.index import (
     SemanticChunker,
 )
 from r3lay.core.sources import SourceType
-
 
 # ============================================================================
 # Chunk Dataclass Tests
@@ -486,7 +484,9 @@ def calculate_product(a, b):
     def test_python_syntax_error_fallback(self, chunker, temp_dir):
         """Invalid Python falls back to text chunking."""
         py_file = temp_dir / "invalid.py"
-        py_file.write_text("def broken( # this is invalid syntax that will fail to parse as an AST\n    pass")
+        py_file.write_text(
+            "def broken( # this is invalid syntax that will fail to parse as an AST\n    pass"
+        )
 
         # Should not raise, should fall back
         chunks = chunker.chunk_file(py_file)
@@ -511,14 +511,14 @@ def calculate_product(a, b):
 
     def test_javascript_function_extraction(self, chunker, temp_dir):
         """JavaScript functions are extracted as chunks."""
-        js_content = '''function calculateSum(a, b) {
+        js_content = """function calculateSum(a, b) {
     return a + b;
 }
 
 const multiply = (a, b) => {
     return a * b;
 }
-'''
+"""
         js_file = temp_dir / "funcs.js"
         js_file.write_text(js_content)
 
@@ -703,10 +703,7 @@ class TestHybridIndexAddChunks:
 
     def test_add_multiple_chunks(self, index):
         """Can add multiple chunks."""
-        chunks = [
-            Chunk(content=f"Content {i}", metadata={})
-            for i in range(5)
-        ]
+        chunks = [Chunk(content=f"Content {i}", metadata={}) for i in range(5)]
         added = index.add_chunks(chunks)
         assert added == 5
 
@@ -852,9 +849,7 @@ class TestHybridIndexAsyncSearch:
         """Create mock embedding backend."""
         embedder = MagicMock()
         embedder.is_loaded = True
-        embedder.embed_texts = AsyncMock(
-            return_value=np.random.rand(1, 384).astype(np.float32)
-        )
+        embedder.embed_texts = AsyncMock(return_value=np.random.rand(1, 384).astype(np.float32))
         return embedder
 
     @pytest.fixture
@@ -891,7 +886,11 @@ class TestHybridIndexAsyncSearch:
         index = HybridIndex(persist_path=temp_dir)
         chunks = [
             Chunk(content="Code in Python", metadata={}, source_type=SourceType.INDEXED_CODE),
-            Chunk(content="Documentation about Python", metadata={}, source_type=SourceType.INDEXED_DOCUMENT),
+            Chunk(
+                content="Documentation about Python",
+                metadata={},
+                source_type=SourceType.INDEXED_DOCUMENT,
+            ),
         ]
         index.add_chunks(chunks)
 
@@ -938,12 +937,10 @@ class TestHybridIndexRRFFusion:
     def test_rrf_respects_n_results(self, index):
         """RRF fusion respects n_results limit."""
         bm25_results = [
-            RetrievalResult(content=f"{i}", metadata={}, chunk_id=f"bm25_{i}")
-            for i in range(10)
+            RetrievalResult(content=f"{i}", metadata={}, chunk_id=f"bm25_{i}") for i in range(10)
         ]
         vector_results = [
-            RetrievalResult(content=f"{i}", metadata={}, chunk_id=f"vec_{i}")
-            for i in range(10)
+            RetrievalResult(content=f"{i}", metadata={}, chunk_id=f"vec_{i}") for i in range(10)
         ]
 
         fused = index._rrf_fusion(bm25_results, vector_results, n_results=5)
@@ -1045,9 +1042,10 @@ class TestHybridIndexPersistence:
         np.save(temp_dir / "vectors.npy", vectors)
 
         # Create index file
-        data = {"collection": "test", "chunks": [
-            {"chunk_id": "id1", "content": "Test", "metadata": {}}
-        ]}
+        data = {
+            "collection": "test",
+            "chunks": [{"chunk_id": "id1", "content": "Test", "metadata": {}}],
+        }
         (temp_dir / "index.json").write_text(json.dumps(data))
 
         index = HybridIndex(persist_path=temp_dir)
@@ -1249,11 +1247,13 @@ class TestHybridIndexCosine:
         index = HybridIndex(persist_path=temp_dir)
 
         query = np.array([1.0, 0.0])
-        vectors = np.array([
-            [1.0, 0.0],   # Same direction
-            [0.0, 1.0],   # Orthogonal
-            [0.5, 0.5],   # Partial match
-        ])
+        vectors = np.array(
+            [
+                [1.0, 0.0],  # Same direction
+                [0.0, 1.0],  # Orthogonal
+                [0.5, 0.5],  # Partial match
+            ]
+        )
 
         similarities = index._cosine_similarity(query, vectors)
         assert similarities[0] == pytest.approx(1.0)
@@ -1280,9 +1280,7 @@ class TestHybridIndexEmbeddings:
         """Create mock embedding backend."""
         embedder = MagicMock()
         embedder.is_loaded = True
-        embedder.embed_texts = AsyncMock(
-            return_value=np.random.rand(2, 384).astype(np.float32)
-        )
+        embedder.embed_texts = AsyncMock(return_value=np.random.rand(2, 384).astype(np.float32))
         return embedder
 
     async def test_generate_embeddings_success(self, temp_dir, mock_embedder):
@@ -1349,12 +1347,8 @@ class TestHybridIndexImages:
         """Create mock vision embedding backend."""
         embedder = MagicMock()
         embedder.is_loaded = True
-        embedder.embed_images = AsyncMock(
-            return_value=np.random.rand(2, 512).astype(np.float32)
-        )
-        embedder.embed_texts = AsyncMock(
-            return_value=np.random.rand(1, 512).astype(np.float32)
-        )
+        embedder.embed_images = AsyncMock(return_value=np.random.rand(2, 512).astype(np.float32))
+        embedder.embed_texts = AsyncMock(return_value=np.random.rand(1, 512).astype(np.float32))
         return embedder
 
     async def test_add_images_success(self, temp_dir, mock_vision_embedder):
@@ -1703,7 +1697,9 @@ class TestDocumentLoaderLoadDirectory:
             base = Path(tmpdir)
 
             # Create some files
-            (base / "doc.md").write_text("# Markdown\n\nContent here that meets the minimum requirements.")
+            (base / "doc.md").write_text(
+                "# Markdown\n\nContent here that meets the minimum requirements."
+            )
             (base / "code.py").write_text("def test(): pass")
             (base / "config.json").write_text('{"key": "value"}')
 

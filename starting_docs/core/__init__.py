@@ -1,6 +1,6 @@
 """r3LAY core modules."""
 
-from .axioms import Axiom, AxiomManager, AXIOM_CATEGORIES
+from .axioms import AXIOM_CATEGORIES, Axiom, AxiomManager
 from .index import (
     Chunk,
     CodeAwareTokenizer,
@@ -11,8 +11,8 @@ from .index import (
 )
 from .llm import (
     ChatResponse,
-    LLMAdapter,
     LlamaCppAdapter,
+    LLMAdapter,
     Message,
     OllamaAdapter,
     create_adapter,
@@ -27,7 +27,7 @@ from .research import (
     ResearchOrchestrator,
 )
 from .scraper import PipetScraper, ScrapedContent, ScraperConfig, ScraperError
-from .search import SearchResult, SearXNGClient, SearchError
+from .search import SearchError, SearchResult, SearXNGClient
 from .session import ChatMessage, Session, SessionManager
 from .signals import (
     Citation,

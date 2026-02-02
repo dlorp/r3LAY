@@ -90,8 +90,7 @@ class VLLMBackend(InferenceBackend):
             if resp.status_code != 200:
                 await client.aclose()
                 raise ModelLoadError(
-                    f"Cannot list models from vLLM at {self._endpoint}. "
-                    "Is vLLM running?"
+                    f"Cannot list models from vLLM at {self._endpoint}. Is vLLM running?"
                 )
 
             # Check if our model is in the list
@@ -103,8 +102,7 @@ class VLLMBackend(InferenceBackend):
                 # Provide helpful error with available models
                 models_str = ", ".join(available_models) if available_models else "none"
                 raise ModelLoadError(
-                    f"Model '{self._name}' not available in vLLM. "
-                    f"Available models: {models_str}"
+                    f"Model '{self._name}' not available in vLLM. Available models: {models_str}"
                 )
 
             self._client = client
@@ -118,9 +116,7 @@ class VLLMBackend(InferenceBackend):
             ) from e
         except httpx.TimeoutException as e:
             await client.aclose()
-            raise ModelLoadError(
-                f"Timeout connecting to vLLM at {self._endpoint}"
-            ) from e
+            raise ModelLoadError(f"Timeout connecting to vLLM at {self._endpoint}") from e
 
     async def unload(self) -> None:
         """Close HTTP client.
@@ -160,9 +156,7 @@ class VLLMBackend(InferenceBackend):
             GenerationError: If streaming request fails
         """
         if not self.is_loaded:
-            raise RuntimeError(
-                "VLLMBackend not loaded. Call load() before generate_stream()"
-            )
+            raise RuntimeError("VLLMBackend not loaded. Call load() before generate_stream()")
 
         assert self._client is not None
 
@@ -187,12 +181,12 @@ class VLLMBackend(InferenceBackend):
                                 ".gif": "image/gif",
                                 ".webp": "image/webp",
                             }.get(suffix, "image/jpeg")
-                            encoded_images.append({
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:{media_type};base64,{img_data}"
+                            encoded_images.append(
+                                {
+                                    "type": "image_url",
+                                    "image_url": {"url": f"data:{media_type};base64,{img_data}"},
                                 }
-                            })
+                            )
                     except Exception as e:
                         logger.warning(f"Failed to read image {img_path}: {e}")
                 else:
@@ -272,13 +266,9 @@ class VLLMBackend(InferenceBackend):
                                 break
 
         except httpx.ConnectError as e:
-            raise GenerationError(
-                f"Lost connection to vLLM at {self._endpoint}"
-            ) from e
+            raise GenerationError(f"Lost connection to vLLM at {self._endpoint}") from e
         except httpx.TimeoutException as e:
-            raise GenerationError(
-                "Timeout during generation - vLLM may be overloaded"
-            ) from e
+            raise GenerationError("Timeout during generation - vLLM may be overloaded") from e
 
     @classmethod
     async def is_available(cls, endpoint: str = "http://localhost:8000") -> bool:

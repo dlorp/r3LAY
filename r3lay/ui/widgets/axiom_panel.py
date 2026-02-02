@@ -25,11 +25,11 @@ if TYPE_CHECKING:
 # Axiom categories from r3LAY spec
 AXIOM_CATEGORIES = [
     "specifications",  # Quantitative facts (torque values, capacities)
-    "procedures",      # How-to knowledge (repair steps, maintenance)
-    "compatibility",   # What works with what (part interchanges)
-    "diagnostics",     # Troubleshooting (symptoms, causes, solutions)
-    "history",         # Historical facts (production dates, changes)
-    "safety",          # Safety-critical info (warnings, limits)
+    "procedures",  # How-to knowledge (repair steps, maintenance)
+    "compatibility",  # What works with what (part interchanges)
+    "diagnostics",  # Troubleshooting (symptoms, causes, solutions)
+    "history",  # Historical facts (production dates, changes)
+    "safety",  # Safety-critical info (warnings, limits)
 ]
 
 
@@ -283,10 +283,7 @@ class AxiomPanel(Vertical):
     def _update_stats_no_manager(self) -> None:
         """Update stats display when no manager available."""
         stats_widget = self.query_one("#axiom-stats", Static)
-        stats_widget.update(
-            "No axioms\n"
-            "Use `/axiom <statement>` to add validated knowledge"
-        )
+        stats_widget.update("No axioms\nUse `/axiom <statement>` to add validated knowledge")
 
     def _update_stats(self, axiom_manager) -> None:
         """Update stats display from axiom manager."""
@@ -302,8 +299,10 @@ class AxiomPanel(Vertical):
             avg_conf = stats.get("avg_confidence", 0)
 
             # Build compact stats display
+            avg_pct = int(avg_conf * 100)
             stats_widget.update(
-                f"Total: {total} | Val: {validated} | Pend: {pending} | Disp: {disputed} | Avg: {int(avg_conf * 100)}%"
+                f"Total: {total} | Val: {validated} | Pend: {pending} | "
+                f"Disp: {disputed} | Avg: {avg_pct}%"
             )
         except Exception as e:
             stats_widget.update(f"Stats error: {e}")
@@ -331,8 +330,12 @@ class AxiomPanel(Vertical):
 
             # Manual status filtering for states not supported by search()
             if self._current_status == "pending":
-                axioms = [a for a in axioms if not getattr(a, "is_validated", False)
-                          and not getattr(a, "is_disputed", False)]
+                axioms = [
+                    a
+                    for a in axioms
+                    if not getattr(a, "is_validated", False)
+                    and not getattr(a, "is_disputed", False)
+                ]
             elif self._current_status == "disputed":
                 axioms = [a for a in axioms if getattr(a, "is_disputed", False)]
             elif self._current_status == "superseded":
@@ -354,9 +357,7 @@ class AxiomPanel(Vertical):
         axiom_list.remove_children()
 
         if not axioms:
-            axiom_list.mount(
-                Static("No axioms match filters", classes="axiom-list-empty")
-            )
+            axiom_list.mount(Static("No axioms match filters", classes="axiom-list-empty"))
             return
 
         for ax in axioms:

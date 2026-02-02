@@ -159,9 +159,7 @@ class ModelPanel(Vertical):
         # Display current role assignments from config (loaded on app startup)
         self._display_persisted_roles()
 
-    def watch__loaded_model_name(
-        self, old_value: str | None, new_value: str | None
-    ) -> None:
+    def watch__loaded_model_name(self, old_value: str | None, new_value: str | None) -> None:
         """React to loaded model changes by refreshing the model list.
 
         This watcher fires AFTER the reactive attribute changes, ensuring
@@ -184,9 +182,7 @@ class ModelPanel(Vertical):
             else:
                 await self._load_selected_model()
 
-    async def on_option_list_option_selected(
-        self, event: OptionList.OptionSelected
-    ) -> None:
+    async def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Handle model selection from the list."""
         if event.option_list.id == "model-list":
             option_id = str(event.option.id) if event.option.id else None
@@ -238,13 +234,21 @@ class ModelPanel(Vertical):
                 self._models[model.name] = model
 
             # Group models by capability
-            # VL models go in VISION only, not TEXT (they have both capabilities but are primarily vision)
+            # VL models go in VISION only, not TEXT
+            # (they have both capabilities but are primarily vision)
             from ...core.models import ModelCapability
 
             vision_models = [m for m in models if ModelCapability.VISION in m.capabilities]
-            text_models = [m for m in models if ModelCapability.TEXT in m.capabilities and ModelCapability.VISION not in m.capabilities]
+            text_models = [
+                m
+                for m in models
+                if ModelCapability.TEXT in m.capabilities
+                and ModelCapability.VISION not in m.capabilities
+            ]
             text_embedders = [m for m in models if ModelCapability.TEXT_EMBEDDING in m.capabilities]
-            vision_embedders = [m for m in models if ModelCapability.VISION_EMBEDDING in m.capabilities]
+            vision_embedders = [
+                m for m in models if ModelCapability.VISION_EMBEDDING in m.capabilities
+            ]
 
             # Get current role assignments from app config
             roles = self._get_model_roles()
@@ -326,7 +330,12 @@ class ModelPanel(Vertical):
 
         models = list(self._models.values())
         vision_models = [m for m in models if ModelCapability.VISION in m.capabilities]
-        text_models = [m for m in models if ModelCapability.TEXT in m.capabilities and ModelCapability.VISION not in m.capabilities]
+        text_models = [
+            m
+            for m in models
+            if ModelCapability.TEXT in m.capabilities
+            and ModelCapability.VISION not in m.capabilities
+        ]
         text_embedders = [m for m in models if ModelCapability.TEXT_EMBEDDING in m.capabilities]
         vision_embedders = [m for m in models if ModelCapability.VISION_EMBEDDING in m.capabilities]
 
@@ -334,27 +343,39 @@ class ModelPanel(Vertical):
 
         # Rebuild sections (same logic as _scan_models but from cache)
         self._add_role_section(
-            model_list, "TEXT MODEL", "text", text_models,
+            model_list,
+            "TEXT MODEL",
+            "text",
+            text_models,
             roles.text_model if roles else None,
         )
         model_list.add_option(Option("", disabled=True))
 
         self._add_role_section(
-            model_list, "VISION MODEL", "vision", vision_models,
+            model_list,
+            "VISION MODEL",
+            "vision",
+            vision_models,
             roles.vision_model if roles else None,
         )
         model_list.add_option(Option("", disabled=True))
 
         self._add_role_section(
-            model_list, "TEXT EMBEDDER", "text_embedder", text_embedders,
+            model_list,
+            "TEXT EMBEDDER",
+            "text_embedder",
+            text_embedders,
             roles.text_embedder if roles else None,
         )
 
         if vision_embedders:
             model_list.add_option(Option("", disabled=True))
             self._add_role_section(
-                model_list, "VISION EMBEDDER", "vision_embedder",
-                vision_embedders, roles.vision_embedder if roles else None,
+                model_list,
+                "VISION EMBEDDER",
+                "vision_embedder",
+                vision_embedders,
+                roles.vision_embedder if roles else None,
             )
 
         # Update status with current count and loaded model
@@ -397,12 +418,7 @@ class ModelPanel(Vertical):
 
         # Add "None" option for clearing assignment
         none_marker = "[X]" if current_assignment is None else "[ ]"
-        option_list.add_option(
-            Option(f"  {none_marker} (None - disable)", id=f"none:{role}")
-        )
-
-        # Get all role assignments to show badges
-        roles = self._get_model_roles()
+        option_list.add_option(Option(f"  {none_marker} (None - disable)", id=f"none:{role}"))
 
         # Add each model with selection indicator and role badges
         for model in models:
@@ -422,7 +438,7 @@ class ModelPanel(Vertical):
             # Or:     [X] ModelName        6.2GB MLX (no badges)
             # Compact layout to fit in 40-char panel width
             backend_str = model.backend.value.upper()[:3]  # Shorter backend name
-            size_str = model.size_human.replace(" ", "")   # Compact size: "6.2GB"
+            size_str = model.size_human.replace(" ", "")  # Compact size: "6.2GB"
 
             # Show full model name - let it wrap/scroll naturally
             # e.g., "mlx-community/Dolphin-X1-8B" -> "Dolphin-X1-8B"
@@ -433,7 +449,6 @@ class ModelPanel(Vertical):
                 label = f"  {marker} {display_name} {badges} {size_str} {backend_str}"
             else:
                 label = f"  {marker} {display_name} {size_str} {backend_str}"
-
 
             option_list.add_option(Option(label, id=f"model:{role}:{model.name}"))
 
@@ -468,7 +483,7 @@ class ModelPanel(Vertical):
             # Remove common quantization suffixes for comparison
             for suffix in ["-4bit", "-8bit", "-4b", "-8b", "-fp16", "-bf16", "-q4", "-q8", "-mlx"]:
                 if base.endswith(suffix):
-                    base = base[:-len(suffix)]
+                    base = base[: -len(suffix)]
             return base
 
         n1 = normalize(name1)
@@ -576,10 +591,16 @@ class ModelPanel(Vertical):
             add_role_display("VISION EMBEDDER", "vision_embedder", roles.vision_embedder)
 
         # Count assigned roles
-        assigned_count = sum(1 for r in [
-            roles.text_model, roles.vision_model,
-            roles.text_embedder, roles.vision_embedder
-        ] if r is not None)
+        assigned_count = sum(
+            1
+            for r in [
+                roles.text_model,
+                roles.vision_model,
+                roles.text_embedder,
+                roles.vision_embedder,
+            ]
+            if r is not None
+        )
 
         if assigned_count > 0:
             status.update(f"{assigned_count} role(s) configured - Scan to modify")
@@ -625,8 +646,7 @@ class ModelPanel(Vertical):
         # Update button based on model type and current load state
         # Only show "Unload" if the selected model IS the currently loaded model
         is_currently_loaded = (
-            self.state.current_model is not None
-            and model_name == self.state.current_model
+            self.state.current_model is not None and model_name == self.state.current_model
         )
 
         load_button.disabled = False
@@ -710,10 +730,12 @@ class ModelPanel(Vertical):
                         app.config.model_roles.vision_model = model_info.name
                     app.config.save()
                     import logging
+
                     logger = logging.getLogger(__name__)
                     logger.info(f"Saved {self._current_role} model role: {model_info.name}")
             except Exception as e:
                 import logging
+
                 logger = logging.getLogger(__name__)
                 logger.warning(f"Failed to save model role: {e}")
 
@@ -775,9 +797,7 @@ class ModelPanel(Vertical):
 
                 app.config.save()
                 status.update(f"Set {role_display}: {model_info.name}")
-                self.app.notify(
-                    f"{role_display} configured: {model_info.name}\n{hint}"
-                )
+                self.app.notify(f"{role_display} configured: {model_info.name}\n{hint}")
 
                 # Keep button as appropriate embedder button
                 if embedder_type == "vision_embedder":

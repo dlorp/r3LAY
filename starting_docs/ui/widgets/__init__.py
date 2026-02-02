@@ -1,10 +1,10 @@
 """r3LAY UI widgets."""
 
-from .response_pane import ResponsePane, ResponseBlock
+from .axiom_panel import AxiomPanel
+from .index_panel import IndexPanel
 from .input_pane import InputPane
 from .model_panel import ModelPanel
-from .index_panel import IndexPanel
-from .axiom_panel import AxiomPanel
+from .response_pane import ResponseBlock, ResponsePane
 from .session_panel import SessionPanel
 from .settings_panel import SettingsPanel
 

@@ -25,7 +25,7 @@ class TestRouterConfig:
     def test_default_config(self):
         """Test RouterConfig with minimal required args."""
         config = RouterConfig(text_model="llama-3.2-3b")
-        
+
         assert config.text_model == "llama-3.2-3b"
         assert config.vision_model is None
         assert config.switch_to_vision_threshold == 0.6
@@ -41,7 +41,7 @@ class TestRouterConfig:
             stay_on_vision_threshold=0.2,
             max_text_turns_on_vision=3,
         )
-        
+
         assert config.text_model == "llama-3.2-3b"
         assert config.vision_model == "qwen2.5-vl-7b"
         assert config.switch_to_vision_threshold == 0.7
@@ -59,7 +59,7 @@ class TestRoutingDecision:
             reason="Standard text query",
             vision_score=0.0,
         )
-        
+
         assert decision.model_type == "text"
         assert decision.reason == "Standard text query"
         assert decision.vision_score == 0.0
@@ -73,7 +73,7 @@ class TestRoutingDecision:
             vision_score=0.9,
             switched=True,
         )
-        
+
         assert decision.model_type == "vision"
         assert decision.switched is True
 
@@ -85,7 +85,7 @@ class TestSmartRouterInit:
         """Test router with only text model configured."""
         config = RouterConfig(text_model="llama-3.2-3b")
         router = SmartRouter(config)
-        
+
         assert router.config == config
         assert router.has_vision is False
         assert router.current_model_type is None
@@ -98,7 +98,7 @@ class TestSmartRouterInit:
             vision_model="qwen2.5-vl-7b",
         )
         router = SmartRouter(config)
-        
+
         assert router.has_vision is True
 
     def test_custom_thresholds_applied(self):
@@ -109,7 +109,7 @@ class TestSmartRouterInit:
             stay_on_vision_threshold=0.3,
         )
         router = SmartRouter(config)
-        
+
         assert router.THRESHOLD_SWITCH_TO_VISION == 0.8
         assert router.THRESHOLD_STAY_ON_VISION == 0.3
 
@@ -121,12 +121,12 @@ class TestSmartRouterBackends:
         """Test setting text backend that is loaded."""
         config = RouterConfig(text_model="llama-3.2-3b")
         router = SmartRouter(config)
-        
+
         mock_backend = MagicMock()
         mock_backend.is_loaded = True
-        
+
         router.text_backend = mock_backend
-        
+
         assert router.text_backend == mock_backend
         assert router.current_model_type == "text"
 
@@ -137,12 +137,12 @@ class TestSmartRouterBackends:
             vision_model="qwen2.5-vl-7b",
         )
         router = SmartRouter(config)
-        
+
         mock_backend = MagicMock()
         mock_backend.is_loaded = True
-        
+
         router.vision_backend = mock_backend
-        
+
         assert router.vision_backend == mock_backend
         assert router.current_model_type == "vision"
 
@@ -150,11 +150,11 @@ class TestSmartRouterBackends:
         """Test current_backend returns text backend when on text."""
         config = RouterConfig(text_model="llama-3.2-3b")
         router = SmartRouter(config)
-        
+
         mock_text = MagicMock()
         mock_text.is_loaded = True
         router.text_backend = mock_text
-        
+
         assert router.current_backend == mock_text
 
     def test_current_backend_returns_vision(self):
@@ -164,11 +164,11 @@ class TestSmartRouterBackends:
             vision_model="qwen2.5-vl-7b",
         )
         router = SmartRouter(config)
-        
+
         mock_vision = MagicMock()
         mock_vision.is_loaded = True
         router.vision_backend = mock_vision
-        
+
         assert router.current_backend == mock_vision
 
 
@@ -196,7 +196,7 @@ class TestSmartRouterRouting:
             message="What's in this image?",
             attachments=[Path("test.png")],
         )
-        
+
         assert decision.model_type == "vision"
         assert decision.reason == "User attached image"
         assert decision.vision_score >= 0.9
@@ -209,19 +209,19 @@ class TestSmartRouterRouting:
             message="What's in this image?",
             attachments=[Path("test.png")],
         )
-        
+
         # Without vision model, should route to text
         assert decision.model_type == "text"
 
     def test_route_stay_on_vision_high_score(self, vision_router):
         """Test staying on vision when score exceeds stay threshold."""
         vision_router.current_model_type = "vision"
-        
+
         decision = vision_router.route(
             message="Now describe the colors in the image",
             attachments=[],
         )
-        
+
         assert decision.model_type == "vision"
         assert decision.switched is False
         assert "Continuing with vision" in decision.reason
@@ -230,13 +230,13 @@ class TestSmartRouterRouting:
         """Test staying on vision even with low score if under max turns."""
         vision_router.current_model_type = "vision"
         vision_router.consecutive_text_turns = 0
-        
+
         # Very low vision score message
         decision = vision_router.route(
             message="What is 2 + 2?",
             attachments=[],
         )
-        
+
         assert decision.model_type == "vision"
         assert decision.switched is False
         assert "handles text fine" in decision.reason
@@ -246,12 +246,12 @@ class TestSmartRouterRouting:
         """Test switching to text after max consecutive text turns."""
         vision_router.current_model_type = "vision"
         vision_router.consecutive_text_turns = 4  # One less than max
-        
+
         decision = vision_router.route(
             message="What is the capital of France?",
             attachments=[],
         )
-        
+
         assert decision.model_type == "text"
         assert decision.switched is True
         assert "Switching to text" in decision.reason
@@ -260,17 +260,17 @@ class TestSmartRouterRouting:
     def test_route_switch_to_vision_high_score(self, vision_router):
         """Test switching to vision with strong vision need."""
         vision_router.current_model_type = "text"
-        
+
         # Keywords max out at 0.5, so we need image in context (+0.2) to exceed 0.6
         mock_result = MagicMock()
         mock_result.metadata = {"source": "/docs/screenshot.png"}
-        
+
         decision = vision_router.route(
             message="Show me the image picture photo diagram chart and describe the colors layout design",
             attachments=[],
             retrieved_context=[mock_result],
         )
-        
+
         assert decision.model_type == "vision"
         assert decision.switched is True
         assert "Strong vision need" in decision.reason
@@ -278,12 +278,12 @@ class TestSmartRouterRouting:
     def test_route_stay_on_text_low_score(self, vision_router):
         """Test staying on text with low vision score."""
         vision_router.current_model_type = "text"
-        
+
         decision = vision_router.route(
             message="Hello, how are you?",
             attachments=[],
         )
-        
+
         assert decision.model_type == "text"
         assert decision.switched is False
         assert "Standard text conversation" in decision.reason
@@ -291,12 +291,12 @@ class TestSmartRouterRouting:
     def test_route_default_to_text_when_none(self, vision_router):
         """Test defaulting to text when no model type set."""
         assert vision_router.current_model_type is None
-        
+
         decision = vision_router.route(
             message="Hello",
             attachments=[],
         )
-        
+
         assert decision.model_type == "text"
         assert vision_router.current_model_type == "text"
 
@@ -320,7 +320,7 @@ class TestVisionNeedScoring:
             attachments=[],
             retrieved_context=[],
         )
-        
+
         assert score == 0.0
 
     def test_score_image_attachment(self, router):
@@ -330,7 +330,7 @@ class TestVisionNeedScoring:
             attachments=[Path("diagram.png")],
             retrieved_context=[],
         )
-        
+
         assert score >= 0.9
 
     def test_score_single_keyword(self, router):
@@ -340,7 +340,7 @@ class TestVisionNeedScoring:
             attachments=[],
             retrieved_context=[],
         )
-        
+
         assert 0.1 <= score <= 0.2
 
     def test_score_multiple_keywords(self, router):
@@ -350,7 +350,7 @@ class TestVisionNeedScoring:
             attachments=[],
             retrieved_context=[],
         )
-        
+
         # Multiple keywords should give higher score
         assert score >= 0.3
 
@@ -362,20 +362,20 @@ class TestVisionNeedScoring:
             attachments=[Path("test.png"), Path("another.jpg")],
             retrieved_context=[],
         )
-        
+
         assert score == 1.0
 
     def test_score_image_in_retrieved_context(self, router):
         """Test score boost from image in retrieved context."""
         mock_result = MagicMock()
         mock_result.metadata = {"source": "/docs/screenshot.png"}
-        
+
         score = router._compute_vision_need(
             message="What does this show?",
             attachments=[],
             retrieved_context=[mock_result],
         )
-        
+
         assert score >= 0.2
 
 
@@ -417,13 +417,13 @@ class TestReset:
             vision_model="qwen2.5-vl-7b",
         )
         router = SmartRouter(config)
-        
+
         # Set some state
         router.current_model_type = "vision"
         router.consecutive_text_turns = 3
-        
+
         router.reset()
-        
+
         assert router.current_model_type is None
         assert router.consecutive_text_turns == 0
 

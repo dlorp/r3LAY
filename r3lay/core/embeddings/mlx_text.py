@@ -115,16 +115,16 @@ class MLXTextEmbeddingBackend(EmbeddingBackend):
         """
         # Check that numpy is available (needed for decoding)
         if importlib.util.find_spec("numpy") is None:
-            raise RuntimeError(
-                "numpy is required for embeddings. Install with: pip install numpy"
-            )
+            raise RuntimeError("numpy is required for embeddings. Install with: pip install numpy")
 
         try:
             logger.info(f"Loading embedding model in subprocess: {self._model_name}")
 
             # Start worker subprocess
             self._process = await asyncio.create_subprocess_exec(
-                sys.executable, "-m", "r3lay.core.embeddings.mlx_text_worker",
+                sys.executable,
+                "-m",
+                "r3lay.core.embeddings.mlx_text_worker",
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.DEVNULL,
@@ -151,9 +151,7 @@ class MLXTextEmbeddingBackend(EmbeddingBackend):
                             return
                         else:
                             error_msg = response.get("error", "Unknown error")
-                            raise RuntimeError(
-                                f"Failed to load embedding model: {error_msg}"
-                            )
+                            raise RuntimeError(f"Failed to load embedding model: {error_msg}")
 
                 # Check timeout
                 elapsed = time.monotonic() - start_time
@@ -167,9 +165,7 @@ class MLXTextEmbeddingBackend(EmbeddingBackend):
                 if self._process.returncode is not None:
                     exit_code = self._process.returncode
                     await self._cleanup_process_state()
-                    raise RuntimeError(
-                        f"Worker process died during load (exit code: {exit_code})"
-                    )
+                    raise RuntimeError(f"Worker process died during load (exit code: {exit_code})")
 
                 # Yield to event loop
                 await asyncio.sleep(0.01)
@@ -200,10 +196,7 @@ class MLXTextEmbeddingBackend(EmbeddingBackend):
             # Wait for graceful shutdown
             if self._process.returncode is None:
                 try:
-                    await asyncio.wait_for(
-                        self._process.wait(),
-                        timeout=SHUTDOWN_TIMEOUT
-                    )
+                    await asyncio.wait_for(self._process.wait(), timeout=SHUTDOWN_TIMEOUT)
                 except asyncio.TimeoutError:
                     pass
 
@@ -277,15 +270,12 @@ class MLXTextEmbeddingBackend(EmbeddingBackend):
             # Check timeout
             elapsed = time.monotonic() - start_time
             if elapsed > EMBED_TIMEOUT:
-                raise RuntimeError(
-                    f"Timeout waiting for embeddings after {EMBED_TIMEOUT}s"
-                )
+                raise RuntimeError(f"Timeout waiting for embeddings after {EMBED_TIMEOUT}s")
 
             # Check if process died
             if self._process is not None and self._process.returncode is not None:
                 raise RuntimeError(
-                    f"Worker process died during embedding "
-                    f"(exit: {self._process.returncode})"
+                    f"Worker process died during embedding (exit: {self._process.returncode})"
                 )
 
             await asyncio.sleep(0)
@@ -315,10 +305,7 @@ class MLXTextEmbeddingBackend(EmbeddingBackend):
                 return json.loads(line.decode().strip())
 
             # Read more data (up to 1MB at a time)
-            data = await asyncio.wait_for(
-                self._process.stdout.read(1024 * 1024),
-                timeout=timeout
-            )
+            data = await asyncio.wait_for(self._process.stdout.read(1024 * 1024), timeout=timeout)
 
             if data:
                 self._read_buffer += data

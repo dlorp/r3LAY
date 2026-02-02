@@ -7,12 +7,10 @@ and error handling.
 
 from __future__ import annotations
 
-import asyncio
 import base64
-from pathlib import Path
-from typing import Any
-from unittest.mock import MagicMock, patch, AsyncMock
 import sys
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -36,9 +34,8 @@ mock_pil.Image = mock_pil_image
 sys.modules["PIL"] = mock_pil
 sys.modules["PIL.Image"] = mock_pil_image
 
+from r3lay.core.backends import DependencyError, GenerationError, ModelLoadError
 from r3lay.core.backends.llama_cpp import LlamaCppBackend
-from r3lay.core.backends import ModelLoadError, DependencyError, GenerationError
-
 
 # =============================================================================
 # Fixtures
@@ -66,10 +63,10 @@ def temp_image_file(tmp_path: Path) -> Path:
     """Create a temporary valid PNG image file."""
     # Minimal valid PNG (1x1 transparent pixel)
     png_data = (
-        b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01'
-        b'\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89'
-        b'\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01'
-        b'\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82'
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"
+        b"\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"
+        b"\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01"
+        b"\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
     )
     image_file = tmp_path / "test_image.png"
     image_file.write_bytes(png_data)
@@ -116,9 +113,7 @@ class TestLlamaCppBackendInit:
 
     def test_init_with_mmproj(self, temp_model_file: Path, temp_mmproj_file: Path) -> None:
         """Test initialization with mmproj for vision support."""
-        backend = LlamaCppBackend(
-            temp_model_file, "vision-model", mmproj_path=temp_mmproj_file
-        )
+        backend = LlamaCppBackend(temp_model_file, "vision-model", mmproj_path=temp_mmproj_file)
 
         assert backend._path == temp_model_file
         assert backend._name == "vision-model"
@@ -217,22 +212,16 @@ class TestLlamaCppBackendLoad:
             await backend.load()
 
     @pytest.mark.asyncio
-    async def test_load_mmproj_not_found(
-        self, temp_model_file: Path, tmp_path: Path
-    ) -> None:
+    async def test_load_mmproj_not_found(self, temp_model_file: Path, tmp_path: Path) -> None:
         """Test load() raises ModelLoadError if mmproj file not found."""
         nonexistent_mmproj = tmp_path / "missing_mmproj.gguf"
-        backend = LlamaCppBackend(
-            temp_model_file, "vision-model", mmproj_path=nonexistent_mmproj
-        )
+        backend = LlamaCppBackend(temp_model_file, "vision-model", mmproj_path=nonexistent_mmproj)
 
         with pytest.raises(ModelLoadError, match="mmproj file not found"):
             await backend.load()
 
     @pytest.mark.asyncio
-    async def test_load_llama_constructor_fails(
-        self, backend: LlamaCppBackend
-    ) -> None:
+    async def test_load_llama_constructor_fails(self, backend: LlamaCppBackend) -> None:
         """Test load() raises ModelLoadError on Llama constructor failure."""
         mock_llama.side_effect = RuntimeError("GPU out of memory")
 
@@ -336,9 +325,7 @@ class TestLlamaCppBackendGenerateStream:
     """Tests for streaming text generation."""
 
     @pytest.mark.asyncio
-    async def test_generate_stream_not_loaded_raises(
-        self, backend: LlamaCppBackend
-    ) -> None:
+    async def test_generate_stream_not_loaded_raises(self, backend: LlamaCppBackend) -> None:
         """Test generate_stream() raises RuntimeError if not loaded."""
         messages = [{"role": "user", "content": "Hello"}]
 
@@ -383,9 +370,7 @@ class TestLlamaCppBackendGenerateStream:
         await backend.load()
 
         messages = [{"role": "user", "content": "Test"}]
-        async for _ in backend.generate_stream(
-            messages, max_tokens=1024, temperature=0.5
-        ):
+        async for _ in backend.generate_stream(messages, max_tokens=1024, temperature=0.5):
             pass
 
         # Check the call was made with correct parameters
@@ -469,8 +454,7 @@ class TestLlamaCppBackendVisionGeneration:
 
     @pytest.mark.asyncio
     async def test_generate_with_vision_success(
-        self, vision_backend: LlamaCppBackend, mock_llm_instance: MagicMock,
-        temp_image_file: Path
+        self, vision_backend: LlamaCppBackend, mock_llm_instance: MagicMock, temp_image_file: Path
     ) -> None:
         """Test vision generation with images."""
         mock_llama.return_value = mock_llm_instance
@@ -499,8 +483,7 @@ class TestLlamaCppBackendVisionGeneration:
 
     @pytest.mark.asyncio
     async def test_generate_with_vision_error_raises(
-        self, vision_backend: LlamaCppBackend, mock_llm_instance: MagicMock,
-        temp_image_file: Path
+        self, vision_backend: LlamaCppBackend, mock_llm_instance: MagicMock, temp_image_file: Path
     ) -> None:
         """Test vision generation raises GenerationError on failure."""
         mock_llama.return_value = mock_llm_instance
@@ -533,10 +516,7 @@ class TestLlamaCppBackendFormatMessages:
 
         result = backend._format_messages(messages)
 
-        expected = (
-            "<|im_start|>user\nHello<|im_end|>\n"
-            "<|im_start|>assistant\n"
-        )
+        expected = "<|im_start|>user\nHello<|im_end|>\n<|im_start|>assistant\n"
         assert result == expected
 
     def test_format_messages_conversation(self, backend: LlamaCppBackend) -> None:
@@ -581,9 +561,7 @@ class TestLlamaCppBackendFormatMessages:
 class TestLlamaCppBackendImageProcessing:
     """Tests for image processing helpers."""
 
-    def test_image_to_data_uri_png(
-        self, backend: LlamaCppBackend, temp_image_file: Path
-    ) -> None:
+    def test_image_to_data_uri_png(self, backend: LlamaCppBackend, temp_image_file: Path) -> None:
         """Test converting PNG image to data URI."""
         # Create a mock PIL Image context manager
         mock_img = MagicMock()
@@ -605,9 +583,7 @@ class TestLlamaCppBackendImageProcessing:
         decoded = base64.b64decode(base64_part)
         assert decoded == temp_image_file.read_bytes()
 
-    def test_image_to_data_uri_jpeg(
-        self, backend: LlamaCppBackend, tmp_path: Path
-    ) -> None:
+    def test_image_to_data_uri_jpeg(self, backend: LlamaCppBackend, tmp_path: Path) -> None:
         """Test converting JPEG image to data URI."""
         # Create a test file (content doesn't matter since PIL is mocked)
         jpeg_file = tmp_path / "test.jpg"
@@ -639,9 +615,7 @@ class TestLlamaCppBackendImageProcessing:
 
         assert result is None
 
-    def test_image_to_data_uri_is_directory(
-        self, backend: LlamaCppBackend, tmp_path: Path
-    ) -> None:
+    def test_image_to_data_uri_is_directory(self, backend: LlamaCppBackend, tmp_path: Path) -> None:
         """Test _image_to_data_uri returns None for directory."""
         result = backend._image_to_data_uri(tmp_path)
 
@@ -828,10 +802,12 @@ class TestLlamaCppBackendLifecycle:
         """Test complete load -> generate -> unload lifecycle."""
         mock_llama.reset_mock()
         mock_llama.return_value = mock_llm_instance
-        mock_llm_instance.return_value = iter([
-            {"choices": [{"text": "Hello"}]},
-            {"choices": [{"text": "!"}]},
-        ])
+        mock_llm_instance.return_value = iter(
+            [
+                {"choices": [{"text": "Hello"}]},
+                {"choices": [{"text": "!"}]},
+            ]
+        )
 
         backend = LlamaCppBackend(temp_model_file, "lifecycle-test")
 
@@ -900,7 +876,7 @@ class TestLlamaCppBackendDependencyErrors:
         with patch.dict(sys.modules, {"llama_cpp": None}):
             with patch(
                 "r3lay.core.backends.llama_cpp.LlamaCppBackend.load",
-                side_effect=DependencyError("llama-cpp-python is not installed")
+                side_effect=DependencyError("llama-cpp-python is not installed"),
             ):
                 with pytest.raises(DependencyError, match="llama-cpp-python"):
                     await backend.load()
