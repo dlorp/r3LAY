@@ -200,17 +200,20 @@ def detect_format(path: Path) -> ModelFormat | None:
         return _detect_file_format(path)
 
     # If path is a directory, scan for model files
-    # Check snapshots subdirectory first (HuggingFace cache structure)
-    snapshots = path / "snapshots"
-    if snapshots.exists():
-        for snapshot in snapshots.iterdir():
-            if snapshot.is_dir():
-                fmt = _scan_directory_for_format(snapshot)
-                if fmt:
-                    return fmt
+    try:
+        # Check snapshots subdirectory first (HuggingFace cache structure)
+        snapshots = path / "snapshots"
+        if snapshots.exists():
+            for snapshot in snapshots.iterdir():
+                if snapshot.is_dir():
+                    fmt = _scan_directory_for_format(snapshot)
+                    if fmt:
+                        return fmt
 
-    # Check the directory itself
-    return _scan_directory_for_format(path)
+        # Check the directory itself
+        return _scan_directory_for_format(path)
+    except (OSError, PermissionError):
+        return None
 
 
 def _detect_file_format(file_path: Path) -> ModelFormat | None:
@@ -964,9 +967,7 @@ async def scan_ollama(
                 if modified_at:
                     try:
                         # Ollama uses ISO format with timezone
-                        last_accessed = datetime.fromisoformat(
-                            modified_at.replace("Z", "+00:00")
-                        )
+                        last_accessed = datetime.fromisoformat(modified_at.replace("Z", "+00:00"))
                     except (ValueError, TypeError):
                         pass
 
@@ -1084,9 +1085,7 @@ class ModelScanner:
             ModelSource.OLLAMA: 1,
             ModelSource.GGUF_FILE: 2,
         }
-        self._models.sort(
-            key=lambda m: (source_order.get(m.source, 99), m.name.lower())
-        )
+        self._models.sort(key=lambda m: (source_order.get(m.source, 99), m.name.lower()))
 
         return self._models
 

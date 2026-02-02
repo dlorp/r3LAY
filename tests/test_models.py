@@ -42,7 +42,6 @@ from r3lay.core.models import (
     select_backend,
 )
 
-
 # =============================================================================
 # Enum Tests
 # =============================================================================
@@ -1078,7 +1077,6 @@ class TestEdgeCases:
         )
         assert model.capabilities_display == "unknown"
 
-    @pytest.mark.skip(reason="detect_format doesn't handle permission errors - TODO: fix in code")
     def test_detect_format_permission_error(self):
         """Test format detection handles permission errors gracefully."""
         with tempfile.TemporaryDirectory() as tmpdir:
