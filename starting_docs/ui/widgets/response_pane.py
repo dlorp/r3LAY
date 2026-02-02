@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 class ResponseBlock(Static):
     """A single response block."""
-    
+
     DEFAULT_CSS = """
     ResponseBlock {
         width: 100%;
@@ -55,14 +55,14 @@ class ResponseBlock(Static):
         margin-bottom: 1;
     }
     """
-    
+
     def __init__(self, role: str, content: str, language: str | None = None):
         super().__init__()
         self.role = role
         self.content = content
         self.language = language
         self.add_class(role)
-    
+
     def compose(self) -> ComposeResult:
         labels = {
             "user": "▸ You",
@@ -72,7 +72,7 @@ class ResponseBlock(Static):
             "error": "⚠ Error",
         }
         yield Static(labels.get(self.role, self.role), classes="response-header")
-        
+
         if self.role == "code" and self.language:
             yield Static(Syntax(self.content, self.language, theme="monokai"))
         elif self.role in ("assistant", "system"):
@@ -83,7 +83,7 @@ class ResponseBlock(Static):
 
 class ResponsePane(ScrollableContainer):
     """Main response/output pane."""
-    
+
     DEFAULT_CSS = """
     ResponsePane {
         width: 60%;
@@ -93,37 +93,37 @@ class ResponsePane(ScrollableContainer):
         padding: 1;
     }
     """
-    
+
     BORDER_TITLE = "Responses"
-    
+
     def __init__(self, state: "R3LayState", **kwargs):
         super().__init__(**kwargs)
         self.state = state
         self._blocks: list[ResponseBlock] = []
-    
+
     def add_user(self, content: str) -> None:
         self._add_block("user", content)
         self.state.session_manager.add_message("user", content)
-    
+
     def add_assistant(self, content: str) -> None:
         self._add_block("assistant", content)
         self.state.session_manager.add_message("assistant", content)
-    
+
     def add_system(self, content: str) -> None:
         self._add_block("system", content)
-    
+
     def add_code(self, content: str, language: str = "python") -> None:
         self._add_block("code", content, language=language)
-    
+
     def add_error(self, content: str) -> None:
         self._add_block("error", content)
-    
+
     def _add_block(self, role: str, content: str, language: str | None = None) -> None:
         block = ResponseBlock(role, content, language)
         self._blocks.append(block)
         self.mount(block)
         block.scroll_visible()
-    
+
     def clear(self) -> None:
         for block in self._blocks:
             block.remove()

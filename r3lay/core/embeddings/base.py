@@ -50,13 +50,9 @@ class EmbeddingResult:
     def __post_init__(self) -> None:
         """Validate shape and set dimension if not provided."""
         if len(self.vectors.shape) != 2:
-            raise ValueError(
-                f"Expected 2D array (N, D), got shape {self.vectors.shape}"
-            )
+            raise ValueError(f"Expected 2D array (N, D), got shape {self.vectors.shape}")
         if self.dimension != self.vectors.shape[1]:
-            raise ValueError(
-                f"Dimension mismatch: {self.dimension} != {self.vectors.shape[1]}"
-            )
+            raise ValueError(f"Dimension mismatch: {self.dimension} != {self.vectors.shape[1]}")
 
 
 class EmbeddingBackend(ABC):
@@ -127,9 +123,7 @@ class EmbeddingBackend(ABC):
             FileNotFoundError: If an image path doesn't exist.
             Exception: If embedding generation fails.
         """
-        raise NotImplementedError(
-            f"{self.__class__.__name__} does not support image embeddings"
-        )
+        raise NotImplementedError(f"{self.__class__.__name__} does not support image embeddings")
 
     @property
     def supports_images(self) -> bool:

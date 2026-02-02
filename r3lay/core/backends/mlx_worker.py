@@ -136,16 +136,19 @@ def main() -> None:
                         stream_generate = None
                         send_response({"type": "loaded", "success": True, "is_vlm": True})
                     except ImportError:
-                        send_response({
-                            "type": "loaded",
-                            "success": False,
-                            "error": "mlx-vlm not installed for vision models"
-                        })
+                        send_response(
+                            {
+                                "type": "loaded",
+                                "success": False,
+                                "error": "mlx-vlm not installed for vision models",
+                            }
+                        )
                         continue
                 else:
                     # Load as text model using mlx-lm
                     from mlx_lm import load
                     from mlx_lm import stream_generate as sg
+
                     stream_generate = sg
                     is_vlm = False
                     vlm_generate = None
@@ -155,17 +158,11 @@ def main() -> None:
                     send_response({"type": "loaded", "success": True, "is_vlm": False})
 
             except ImportError as e:
-                send_response({
-                    "type": "loaded",
-                    "success": False,
-                    "error": f"mlx-lm not installed: {e}"
-                })
+                send_response(
+                    {"type": "loaded", "success": False, "error": f"mlx-lm not installed: {e}"}
+                )
             except Exception as e:
-                send_response({
-                    "type": "loaded",
-                    "success": False,
-                    "error": f"Failed to load: {e}"
-                })
+                send_response({"type": "loaded", "success": False, "error": f"Failed to load: {e}"})
 
         elif cmd_type == "generate":
             if model is None:
@@ -197,10 +194,12 @@ def main() -> None:
                             img = Image.open(img_path)
                             loaded_images.append(img)
                         except Exception as e:
-                            send_response({
-                                "type": "error",
-                                "message": f"Failed to load image {img_path}: {e}"
-                            })
+                            send_response(
+                                {
+                                    "type": "error",
+                                    "message": f"Failed to load image {img_path}: {e}",
+                                }
+                            )
                             continue
 
                     # Generate with VLM (mlx-vlm uses different API)
@@ -242,6 +241,7 @@ def main() -> None:
                     # Try new mlx-lm API (>= 0.30)
                     try:
                         from mlx_lm.sample_utils import make_sampler
+
                         gen_kwargs["sampler"] = make_sampler(temperature)
                     except ImportError:
                         gen_kwargs["temp"] = temperature
@@ -290,11 +290,11 @@ def main() -> None:
                     gc.collect()
 
                     # Clear Metal cache with force sync
-                    if hasattr(mx.metal, 'clear_cache'):
+                    if hasattr(mx.metal, "clear_cache"):
                         mx.metal.clear_cache()
                         mx.eval(mx.zeros(1))  # Force sync
                         mx.metal.clear_cache()
-                    elif hasattr(mx, 'clear_cache'):
+                    elif hasattr(mx, "clear_cache"):
                         mx.clear_cache()
                 except Exception:
                     pass

@@ -12,21 +12,19 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 from r3lay.core.sources import (
-    SourceType,
+    CODE_EXTENSIONS,
+    COMMUNITY_DOMAINS,
+    CURATED_KEYWORDS,
+    IMAGE_EXTENSIONS,
+    OE_DOMAINS,
+    TRUSTED_DOMAINS,
     SourceInfo,
+    SourceType,
     detect_source_type_from_path,
     detect_source_type_from_url,
     format_citation,
-    OE_DOMAINS,
-    TRUSTED_DOMAINS,
-    COMMUNITY_DOMAINS,
-    CODE_EXTENSIONS,
-    IMAGE_EXTENSIONS,
-    CURATED_KEYWORDS,
 )
-
 
 # ============================================================================
 # SourceType Enum Tests

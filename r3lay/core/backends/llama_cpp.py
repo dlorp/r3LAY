@@ -133,8 +133,7 @@ class LlamaCppBackend(InferenceBackend):
             from llama_cpp import Llama
         except ImportError as e:
             raise DependencyError(
-                "llama-cpp-python is not installed. "
-                "Install with: pip install llama-cpp-python"
+                "llama-cpp-python is not installed. Install with: pip install llama-cpp-python"
             ) from e
 
         # Create chat handler for vision models
@@ -175,9 +174,7 @@ class LlamaCppBackend(InferenceBackend):
             # Clean up any partial state
             self._llm = None
             self._chat_handler = None
-            raise ModelLoadError(
-                f"Failed to load model {self._name}: {e}"
-            ) from e
+            raise ModelLoadError(f"Failed to load model {self._name}: {e}") from e
 
     async def unload(self) -> None:
         """Unload model and free GPU/Metal memory.
@@ -240,9 +237,7 @@ class LlamaCppBackend(InferenceBackend):
         from . import GenerationError
 
         if not self.is_loaded:
-            raise RuntimeError(
-                f"Model {self._name} not loaded. Call load() first."
-            )
+            raise RuntimeError(f"Model {self._name} not loaded. Call load() first.")
 
         assert self._llm is not None  # Type narrowing
 
@@ -388,29 +383,37 @@ class LlamaCppBackend(InferenceBackend):
                 for img_path in images:
                     data_uri = self._image_to_data_uri(img_path)
                     if data_uri:
-                        content_parts.append({
-                            "type": "image_url",
-                            "image_url": {"url": data_uri},
-                        })
+                        content_parts.append(
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": data_uri},
+                            }
+                        )
                         logger.info("Added image to message: %s", img_path.name)
                     else:
                         logger.error("Failed to encode image, skipping: %s", img_path)
 
                 # Add text
-                content_parts.append({
-                    "type": "text",
-                    "text": content,
-                })
+                content_parts.append(
+                    {
+                        "type": "text",
+                        "text": content,
+                    }
+                )
 
-                formatted.append({
-                    "role": role,
-                    "content": content_parts,
-                })
+                formatted.append(
+                    {
+                        "role": role,
+                        "content": content_parts,
+                    }
+                )
             else:
-                formatted.append({
-                    "role": role,
-                    "content": content,
-                })
+                formatted.append(
+                    {
+                        "role": role,
+                        "content": content,
+                    }
+                )
 
         return formatted
 
@@ -442,7 +445,11 @@ class LlamaCppBackend(InferenceBackend):
                 # Log image info for debugging
                 logger.info(
                     "Processing image: %s (%dx%d, format=%s, mode=%s)",
-                    image_path.name, img.width, img.height, img.format, img.mode
+                    image_path.name,
+                    img.width,
+                    img.height,
+                    img.format,
+                    img.mode,
                 )
 
                 # Map PIL format to MIME type

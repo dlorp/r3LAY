@@ -121,9 +121,7 @@ class OllamaBackend(InferenceBackend):
             ) from e
         except httpx.TimeoutException as e:
             await client.aclose()
-            raise ModelLoadError(
-                f"Timeout connecting to Ollama at {self._endpoint}"
-            ) from e
+            raise ModelLoadError(f"Timeout connecting to Ollama at {self._endpoint}") from e
 
     async def unload(self) -> None:
         """Close HTTP client.
@@ -163,9 +161,7 @@ class OllamaBackend(InferenceBackend):
             GenerationError: If streaming request fails
         """
         if not self.is_loaded:
-            raise RuntimeError(
-                "OllamaBackend not loaded. Call load() before generate_stream()"
-            )
+            raise RuntimeError("OllamaBackend not loaded. Call load() before generate_stream()")
 
         assert self._client is not None  # Type narrowing for mypy
 
@@ -249,13 +245,9 @@ class OllamaBackend(InferenceBackend):
                         break
 
         except httpx.ConnectError as e:
-            raise GenerationError(
-                f"Lost connection to Ollama at {self._endpoint}"
-            ) from e
+            raise GenerationError(f"Lost connection to Ollama at {self._endpoint}") from e
         except httpx.TimeoutException as e:
-            raise GenerationError(
-                "Timeout during generation - Ollama may be overloaded"
-            ) from e
+            raise GenerationError("Timeout during generation - Ollama may be overloaded") from e
 
     @classmethod
     async def is_available(cls, endpoint: str = "http://localhost:11434") -> bool:

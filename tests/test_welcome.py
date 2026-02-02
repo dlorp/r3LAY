@@ -11,15 +11,12 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
-
 from r3lay.core.welcome import (
     ProjectDetector,
     WelcomeMessage,
     WelcomeProjectContext,
     get_welcome_message,
 )
-
 
 # =============================================================================
 # WelcomeProjectContext Tests
@@ -960,7 +957,9 @@ class TestEdgeCases:
         state = MagicMock()
         state.project_path = None
         state.index = None
-        state.current_model = "organization/very-long-model-name-that-should-be-truncated-in-display"
+        state.current_model = (
+            "organization/very-long-model-name-that-should-be-truncated-in-display"
+        )
         state.text_embedder = None
 
         output = get_welcome_message(state)

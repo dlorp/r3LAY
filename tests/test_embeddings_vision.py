@@ -13,24 +13,22 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import gc
 import json
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
 import sys
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import numpy as np
 import pytest
 
-from r3lay.core.embeddings.mlx_vision import (
-    MLXVisionEmbeddingBackend,
-    DEFAULT_MODEL,
-    MODEL_LOAD_TIMEOUT,
-    EMBED_TIMEOUT,
-    SHUTDOWN_TIMEOUT,
-)
 from r3lay.core.embeddings.base_vision import VisionEmbeddingConfig
-
+from r3lay.core.embeddings.mlx_vision import (
+    DEFAULT_MODEL,
+    EMBED_TIMEOUT,
+    MODEL_LOAD_TIMEOUT,
+    SHUTDOWN_TIMEOUT,
+    MLXVisionEmbeddingBackend,
+)
 
 # =============================================================================
 # Fixtures
@@ -42,10 +40,10 @@ def temp_image_file(tmp_path: Path) -> Path:
     """Create a temporary valid PNG image file."""
     # Minimal valid PNG (1x1 transparent pixel)
     png_data = (
-        b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01'
-        b'\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89'
-        b'\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01'
-        b'\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82'
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"
+        b"\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"
+        b"\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01"
+        b"\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
     )
     image_file = tmp_path / "test_image.png"
     image_file.write_bytes(png_data)
@@ -56,10 +54,10 @@ def temp_image_file(tmp_path: Path) -> Path:
 def temp_image_files(tmp_path: Path) -> list[Path]:
     """Create multiple temporary image files."""
     png_data = (
-        b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01'
-        b'\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89'
-        b'\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01'
-        b'\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82'
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"
+        b"\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"
+        b"\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01"
+        b"\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
     )
     paths = []
     for i in range(3):
@@ -78,11 +76,7 @@ def backend() -> MLXVisionEmbeddingBackend:
 @pytest.fixture
 def custom_config() -> VisionEmbeddingConfig:
     """Create a custom VisionEmbeddingConfig."""
-    return VisionEmbeddingConfig(
-        max_image_size=1024,
-        normalize=True,
-        batch_size=8
-    )
+    return VisionEmbeddingConfig(max_image_size=1024, normalize=True, batch_size=8)
 
 
 # =============================================================================
@@ -150,14 +144,19 @@ class TestMLXVisionEmbeddingBackendLoad:
         mock_process.stdin.drain = AsyncMock()
         mock_process.stdout = MagicMock()
 
-        load_response = json.dumps({
-            "type": "loaded",
-            "success": True,
-            "dimension": 768,
-            "backend": "transformers_clip",
-            "late_interaction": False,
-            "num_vectors": 1
-        }).encode() + b"\n"
+        load_response = (
+            json.dumps(
+                {
+                    "type": "loaded",
+                    "success": True,
+                    "dimension": 768,
+                    "backend": "transformers_clip",
+                    "late_interaction": False,
+                    "num_vectors": 1,
+                }
+            ).encode()
+            + b"\n"
+        )
 
         mock_process.stdout.read = AsyncMock(return_value=load_response)
 
@@ -185,14 +184,19 @@ class TestMLXVisionEmbeddingBackendLoad:
         mock_process.stdin.drain = AsyncMock()
         mock_process.stdout = MagicMock()
 
-        load_response = json.dumps({
-            "type": "loaded",
-            "success": True,
-            "dimension": 768,
-            "backend": "colqwen2",
-            "late_interaction": True,
-            "num_vectors": 256
-        }).encode() + b"\n"
+        load_response = (
+            json.dumps(
+                {
+                    "type": "loaded",
+                    "success": True,
+                    "dimension": 768,
+                    "backend": "colqwen2",
+                    "late_interaction": True,
+                    "num_vectors": 256,
+                }
+            ).encode()
+            + b"\n"
+        )
 
         mock_process.stdout.read = AsyncMock(return_value=load_response)
 
@@ -220,14 +224,19 @@ class TestMLXVisionEmbeddingBackendLoad:
         mock_process.stdin.drain = AsyncMock()
         mock_process.stdout = MagicMock()
 
-        load_response = json.dumps({
-            "type": "loaded",
-            "success": True,
-            "dimension": 512,
-            "backend": "mlx_vlm",
-            "late_interaction": False,
-            "num_vectors": 1
-        }).encode() + b"\n"
+        load_response = (
+            json.dumps(
+                {
+                    "type": "loaded",
+                    "success": True,
+                    "dimension": 512,
+                    "backend": "mlx_vlm",
+                    "late_interaction": False,
+                    "num_vectors": 1,
+                }
+            ).encode()
+            + b"\n"
+        )
 
         mock_process.stdout.read = AsyncMock(return_value=load_response)
 
@@ -255,11 +264,16 @@ class TestMLXVisionEmbeddingBackendLoad:
         mock_process.stdout = MagicMock()
         mock_process.stdout.close = MagicMock()
 
-        error_response = json.dumps({
-            "type": "loaded",
-            "success": False,
-            "error": "No vision embedding library available"
-        }).encode() + b"\n"
+        error_response = (
+            json.dumps(
+                {
+                    "type": "loaded",
+                    "success": False,
+                    "error": "No vision embedding library available",
+                }
+            ).encode()
+            + b"\n"
+        )
 
         mock_process.stdout.read = AsyncMock(return_value=error_response)
 
@@ -282,11 +296,16 @@ class TestMLXVisionEmbeddingBackendLoad:
         mock_process.stdout = MagicMock()
         mock_process.stdout.close = MagicMock()
 
-        error_response = json.dumps({
-            "type": "loaded",
-            "success": False,
-            "error": "Failed to load model: Model not found"
-        }).encode() + b"\n"
+        error_response = (
+            json.dumps(
+                {
+                    "type": "loaded",
+                    "success": False,
+                    "error": "Failed to load model: Model not found",
+                }
+            ).encode()
+            + b"\n"
+        )
 
         mock_process.stdout.read = AsyncMock(return_value=error_response)
 
@@ -506,13 +525,18 @@ class TestMLXVisionEmbeddingBackendEmbed:
         mock_process.stdin.drain = AsyncMock()
         mock_process.stdout = MagicMock()
 
-        embed_response = json.dumps({
-            "type": "embeddings",
-            "vectors": encoded,
-            "shape": [1, 768],
-            "dtype": "float32",
-            "late_interaction": False
-        }).encode() + b"\n"
+        embed_response = (
+            json.dumps(
+                {
+                    "type": "embeddings",
+                    "vectors": encoded,
+                    "shape": [1, 768],
+                    "dtype": "float32",
+                    "late_interaction": False,
+                }
+            ).encode()
+            + b"\n"
+        )
 
         mock_process.stdout.read = AsyncMock(return_value=embed_response)
         backend._process = mock_process
@@ -540,13 +564,18 @@ class TestMLXVisionEmbeddingBackendEmbed:
         mock_process.stdin.drain = AsyncMock()
         mock_process.stdout = MagicMock()
 
-        embed_response = json.dumps({
-            "type": "embeddings",
-            "vectors": encoded,
-            "shape": [3, 768],
-            "dtype": "float32",
-            "late_interaction": False
-        }).encode() + b"\n"
+        embed_response = (
+            json.dumps(
+                {
+                    "type": "embeddings",
+                    "vectors": encoded,
+                    "shape": [3, 768],
+                    "dtype": "float32",
+                    "late_interaction": False,
+                }
+            ).encode()
+            + b"\n"
+        )
 
         mock_process.stdout.read = AsyncMock(return_value=embed_response)
         backend._process = mock_process
@@ -577,13 +606,18 @@ class TestMLXVisionEmbeddingBackendEmbed:
         mock_process.stdin.drain = AsyncMock()
         mock_process.stdout = MagicMock()
 
-        embed_response = json.dumps({
-            "type": "embeddings",
-            "vectors": encoded,
-            "shape": [3, 256, 768],
-            "dtype": "float32",
-            "late_interaction": True
-        }).encode() + b"\n"
+        embed_response = (
+            json.dumps(
+                {
+                    "type": "embeddings",
+                    "vectors": encoded,
+                    "shape": [3, 256, 768],
+                    "dtype": "float32",
+                    "late_interaction": True,
+                }
+            ).encode()
+            + b"\n"
+        )
 
         mock_process.stdout.read = AsyncMock(return_value=embed_response)
         backend._process = mock_process
@@ -610,10 +644,9 @@ class TestMLXVisionEmbeddingBackendEmbed:
         mock_process.stdin.drain = AsyncMock()
         mock_process.stdout = MagicMock()
 
-        error_response = json.dumps({
-            "type": "error",
-            "message": "Failed to process image"
-        }).encode() + b"\n"
+        error_response = (
+            json.dumps({"type": "error", "message": "Failed to process image"}).encode() + b"\n"
+        )
 
         mock_process.stdout.read = AsyncMock(return_value=error_response)
         backend._process = mock_process
@@ -669,13 +702,18 @@ class TestMLXVisionEmbeddingBackendEmbed:
         mock_process.stdin.drain = AsyncMock()
         mock_process.stdout = MagicMock()
 
-        embed_response = json.dumps({
-            "type": "embeddings",
-            "vectors": encoded,
-            "shape": [1, 768],
-            "dtype": "float32",
-            "late_interaction": False
-        }).encode() + b"\n"
+        embed_response = (
+            json.dumps(
+                {
+                    "type": "embeddings",
+                    "vectors": encoded,
+                    "shape": [1, 768],
+                    "dtype": "float32",
+                    "late_interaction": False,
+                }
+            ).encode()
+            + b"\n"
+        )
 
         mock_process.stdout.read = AsyncMock(return_value=embed_response)
         backend._process = mock_process
@@ -764,12 +802,17 @@ class TestMLXVisionEmbeddingBackendInternals:
         # Simulate large embeddings (e.g., 3 images x 256 vectors x 768 dims)
         large_vectors = np.random.randn(3, 256, 768).astype(np.float32)
         encoded = base64.b64encode(large_vectors.tobytes()).decode()
-        large_response = json.dumps({
-            "type": "embeddings",
-            "vectors": encoded,
-            "shape": [3, 256, 768],
-            "dtype": "float32"
-        }).encode() + b"\n"
+        large_response = (
+            json.dumps(
+                {
+                    "type": "embeddings",
+                    "vectors": encoded,
+                    "shape": [3, 256, 768],
+                    "dtype": "float32",
+                }
+            ).encode()
+            + b"\n"
+        )
 
         mock_stdout.read = AsyncMock(return_value=large_response)
         result = await backend._read_response(timeout=0.1)
@@ -882,6 +925,7 @@ class TestMLXVisionEmbeddingBackendAvailability:
     @pytest.mark.asyncio
     async def test_available_with_transformers_and_pillow(self) -> None:
         """Test availability with transformers and pillow."""
+
         def mock_find_spec(name):
             if name in ("PIL", "transformers"):
                 return MagicMock()
@@ -894,6 +938,7 @@ class TestMLXVisionEmbeddingBackendAvailability:
     @pytest.mark.asyncio
     async def test_available_with_sentence_transformers_and_pillow(self) -> None:
         """Test availability with sentence-transformers and pillow."""
+
         def mock_find_spec(name):
             if name in ("PIL", "sentence_transformers"):
                 return MagicMock()
@@ -906,6 +951,7 @@ class TestMLXVisionEmbeddingBackendAvailability:
     @pytest.mark.asyncio
     async def test_not_available_missing_pillow(self) -> None:
         """Test not available when pillow is missing."""
+
         def mock_find_spec(name):
             if name == "PIL":
                 return None
@@ -918,6 +964,7 @@ class TestMLXVisionEmbeddingBackendAvailability:
     @pytest.mark.asyncio
     async def test_not_available_missing_embedder(self) -> None:
         """Test not available when no embedder library is available."""
+
         def mock_find_spec(name):
             if name == "PIL":
                 return MagicMock()
@@ -941,6 +988,7 @@ class TestWorkerHelperFunctions:
         # The worker module uses np which is only set in main() after setup_isolation
         # We need to inject numpy into the module before testing
         import r3lay.core.embeddings.mlx_vision_worker as worker_module
+
         worker_module.np = np
 
         from r3lay.core.embeddings.mlx_vision_worker import encode_array
@@ -958,6 +1006,7 @@ class TestWorkerHelperFunctions:
     def test_encode_array_multi_vector(self) -> None:
         """Test encode_array with multi-vector (late interaction) embeddings."""
         import r3lay.core.embeddings.mlx_vision_worker as worker_module
+
         worker_module.np = np
 
         from r3lay.core.embeddings.mlx_vision_worker import encode_array
@@ -974,6 +1023,7 @@ class TestWorkerHelperFunctions:
     def test_encode_array_empty(self) -> None:
         """Test encode_array with empty array."""
         import r3lay.core.embeddings.mlx_vision_worker as worker_module
+
         worker_module.np = np
 
         from r3lay.core.embeddings.mlx_vision_worker import encode_array
@@ -988,6 +1038,7 @@ class TestWorkerHelperFunctions:
     def test_encode_array_different_dtypes(self) -> None:
         """Test encode_array with different dtypes."""
         import r3lay.core.embeddings.mlx_vision_worker as worker_module
+
         worker_module.np = np
 
         from r3lay.core.embeddings.mlx_vision_worker import encode_array
@@ -1048,6 +1099,7 @@ class TestWorkerHelperFunctions:
 
         with patch.dict("sys.modules", {"PIL": MagicMock(), "PIL.Image": mock_pil_image}):
             with patch.object(worker_module, "Image", mock_pil_image, create=True):
+
                 def load_and_preprocess(path, max_size):
                     img = mock_pil_image.open(path)
                     if img.mode != "RGB":
@@ -1268,22 +1320,28 @@ class TestMLXVisionEmbeddingBackendFullCycle:
 
         responses = [
             # Load response
-            json.dumps({
-                "type": "loaded",
-                "success": True,
-                "dimension": 768,
-                "backend": "transformers_clip",
-                "late_interaction": False,
-                "num_vectors": 1
-            }).encode() + b"\n",
+            json.dumps(
+                {
+                    "type": "loaded",
+                    "success": True,
+                    "dimension": 768,
+                    "backend": "transformers_clip",
+                    "late_interaction": False,
+                    "num_vectors": 1,
+                }
+            ).encode()
+            + b"\n",
             # Embed response
-            json.dumps({
-                "type": "embeddings",
-                "vectors": encoded,
-                "shape": [3, 768],
-                "dtype": "float32",
-                "late_interaction": False
-            }).encode() + b"\n",
+            json.dumps(
+                {
+                    "type": "embeddings",
+                    "vectors": encoded,
+                    "shape": [3, 768],
+                    "dtype": "float32",
+                    "late_interaction": False,
+                }
+            ).encode()
+            + b"\n",
         ]
         response_idx = [0]
 
@@ -1339,22 +1397,28 @@ class TestMLXVisionEmbeddingBackendFullCycle:
 
         responses = [
             # Load response
-            json.dumps({
-                "type": "loaded",
-                "success": True,
-                "dimension": 768,
-                "backend": "colqwen2",
-                "late_interaction": True,
-                "num_vectors": 256
-            }).encode() + b"\n",
+            json.dumps(
+                {
+                    "type": "loaded",
+                    "success": True,
+                    "dimension": 768,
+                    "backend": "colqwen2",
+                    "late_interaction": True,
+                    "num_vectors": 256,
+                }
+            ).encode()
+            + b"\n",
             # Embed response
-            json.dumps({
-                "type": "embeddings",
-                "vectors": encoded,
-                "shape": [3, 256, 768],
-                "dtype": "float32",
-                "late_interaction": True
-            }).encode() + b"\n",
+            json.dumps(
+                {
+                    "type": "embeddings",
+                    "vectors": encoded,
+                    "shape": [3, 256, 768],
+                    "dtype": "float32",
+                    "late_interaction": True,
+                }
+            ).encode()
+            + b"\n",
         ]
         response_idx = [0]
 
@@ -1413,13 +1477,18 @@ class TestEdgeCases:
         mock_process.stdin.drain = AsyncMock()
         mock_process.stdout = MagicMock()
 
-        embed_response = json.dumps({
-            "type": "embeddings",
-            "vectors": encoded,
-            "shape": [1, 4096],
-            "dtype": "float32",
-            "late_interaction": False
-        }).encode() + b"\n"
+        embed_response = (
+            json.dumps(
+                {
+                    "type": "embeddings",
+                    "vectors": encoded,
+                    "shape": [1, 4096],
+                    "dtype": "float32",
+                    "late_interaction": False,
+                }
+            ).encode()
+            + b"\n"
+        )
 
         mock_process.stdout.read = AsyncMock(return_value=embed_response)
         backend._process = mock_process
@@ -1453,13 +1522,18 @@ class TestEdgeCases:
         mock_process.stdin.drain = AsyncMock()
         mock_process.stdout = MagicMock()
 
-        embed_response = json.dumps({
-            "type": "embeddings",
-            "vectors": encoded,
-            "shape": [20, 768],
-            "dtype": "float32",
-            "late_interaction": False
-        }).encode() + b"\n"
+        embed_response = (
+            json.dumps(
+                {
+                    "type": "embeddings",
+                    "vectors": encoded,
+                    "shape": [20, 768],
+                    "dtype": "float32",
+                    "late_interaction": False,
+                }
+            ).encode()
+            + b"\n"
+        )
 
         mock_process.stdout.read = AsyncMock(return_value=embed_response)
         backend._process = mock_process

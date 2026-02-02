@@ -13,15 +13,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-from textual.app import App, ComposeResult
-from textual.binding import Binding
-from textual.containers import Horizontal, Vertical
-from textual.screen import Screen
-from textual.widgets import Footer, TabbedContent, TabPane
+from textual.app import App, ComposeResult  # noqa: E402
+from textual.binding import Binding  # noqa: E402
+from textual.containers import Horizontal, Vertical  # noqa: E402
+from textual.screen import Screen  # noqa: E402
+from textual.widgets import Footer, TabbedContent, TabPane  # noqa: E402
 
-from .config import AppConfig
-from .core import R3LayState
-from .ui.widgets import (
+from .config import AppConfig  # noqa: E402
+from .core import R3LayState  # noqa: E402
+from .ui.widgets import (  # noqa: E402
     AxiomPanel,
     GarageHeader,
     HistoryPanel,

@@ -60,13 +60,13 @@ class SignalType(str, Enum):
     real-world experience that official docs lack.
     """
 
-    DOCUMENT = "document"      # PDF, manual, datasheet, FSM (0.95)
-    CODE = "code"              # Source code, config files (0.90)
-    USER = "user"              # User-provided information (0.80)
-    COMMUNITY = "community"    # Forums, discussions, reddit (0.75) - NEW
-    WEB = "web"                # General web content (0.70)
-    INFERENCE = "inference"    # LLM-derived from other sources (0.60)
-    SESSION = "session"        # From chat session context (0.50)
+    DOCUMENT = "document"  # PDF, manual, datasheet, FSM (0.95)
+    CODE = "code"  # Source code, config files (0.90)
+    USER = "user"  # User-provided information (0.80)
+    COMMUNITY = "community"  # Forums, discussions, reddit (0.75) - NEW
+    WEB = "web"  # General web content (0.70)
+    INFERENCE = "inference"  # LLM-derived from other sources (0.60)
+    SESSION = "session"  # From chat session context (0.50)
 
 
 # ============================================================================
@@ -245,13 +245,13 @@ class ConfidenceCalculator:
 
     # Base confidence by signal type
     SIGNAL_WEIGHTS: dict[SignalType, float] = {
-        SignalType.DOCUMENT: 0.95,    # Factory manuals, datasheets, FSMs
-        SignalType.CODE: 0.90,        # Config files, source code
-        SignalType.USER: 0.80,        # User-provided facts
-        SignalType.COMMUNITY: 0.75,   # Forum posts, discussions (NEW)
-        SignalType.WEB: 0.70,         # General web articles
-        SignalType.INFERENCE: 0.60,   # LLM-derived conclusions
-        SignalType.SESSION: 0.50,     # Conversational context
+        SignalType.DOCUMENT: 0.95,  # Factory manuals, datasheets, FSMs
+        SignalType.CODE: 0.90,  # Config files, source code
+        SignalType.USER: 0.80,  # User-provided facts
+        SignalType.COMMUNITY: 0.75,  # Forum posts, discussions (NEW)
+        SignalType.WEB: 0.70,  # General web articles
+        SignalType.INFERENCE: 0.60,  # LLM-derived conclusions
+        SignalType.SESSION: 0.50,  # Conversational context
     }
 
     def __init__(
@@ -720,9 +720,7 @@ class SignalsManager:
             signal_types: list[SignalType] = []
             for trans in transmissions:
                 signal = self._signals.get(trans.signal_id)
-                signal_types.append(
-                    signal.type if signal else SignalType.INFERENCE
-                )
+                signal_types.append(signal.type if signal else SignalType.INFERENCE)
             confidence = self._calculator.calculate(transmissions, signal_types)
 
         citation = Citation(
@@ -759,10 +757,7 @@ class SignalsManager:
             List of matching citations, sorted by confidence.
         """
         query_lower = query.lower()
-        results = [
-            c for c in self._citations.values()
-            if query_lower in c.statement.lower()
-        ]
+        results = [c for c in self._citations.values() if query_lower in c.statement.lower()]
         return sorted(results, key=lambda c: c.confidence, reverse=True)[:limit]
 
     def link_citation_to_axiom(self, citation_id: str, axiom_id: str) -> None:
@@ -836,20 +831,22 @@ class SignalsManager:
         for trans in citation.transmissions:
             signal = self._signals.get(trans.signal_id)
             if signal:
-                chain["sources"].append({
-                    "signal": {
-                        "id": signal.id,
-                        "type": signal.type.value,
-                        "title": signal.title,
-                        "path": signal.path,
-                        "url": signal.url,
-                    },
-                    "transmission": {
-                        "location": trans.location,
-                        "excerpt": trans.excerpt,
-                        "confidence": trans.confidence,
-                    },
-                })
+                chain["sources"].append(
+                    {
+                        "signal": {
+                            "id": signal.id,
+                            "type": signal.type.value,
+                            "title": signal.title,
+                            "path": signal.path,
+                            "url": signal.url,
+                        },
+                        "transmission": {
+                            "location": trans.location,
+                            "excerpt": trans.excerpt,
+                            "confidence": trans.confidence,
+                        },
+                    }
+                )
 
         return chain
 
@@ -892,7 +889,8 @@ class SignalsManager:
             "signals_by_type": type_counts,
             "avg_confidence": (
                 sum(c.confidence for c in self._citations.values()) / len(self._citations)
-                if self._citations else 0.0
+                if self._citations
+                else 0.0
             ),
         }
 
