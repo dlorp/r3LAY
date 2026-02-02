@@ -725,7 +725,7 @@ class TestOllamaBackendIsAvailable:
             MockClient.return_value.__aenter__.return_value = mock_client
             MockClient.return_value.__aexit__.return_value = None
 
-            result = await OllamaBackend.is_available(endpoint="http://192.168.1.50:11434")
+            await OllamaBackend.is_available(endpoint="http://192.168.1.50:11434")
 
             mock_client.get.assert_called_once_with("http://192.168.1.50:11434/api/tags")
 

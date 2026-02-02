@@ -35,37 +35,38 @@
 ## Data Flow
 
 ```
-User initiates observation generation
+User enters input in TUI
     ↓
-SessionManager creates/loads session with EquipmentStateManager
+Intent Parser analyzes input
+    ├─→ /commands → Direct command execution
+    ├─→ Pattern match → Maintenance logging, queries
+    └─→ Fallback → Chat/search with LLM
     ↓
-NarrativeConversationThread initialized
-    ├─→ System message with context (cached)
-    ├─→ Phase detection (beginning/middle/end)
-    └─→ Discovery accumulation tracking
+Smart Router evaluates content
+    ├─→ Image attachments → Vision model
+    ├─→ Vision keywords (>0.6 score) → Switch to vision
+    ├─→ Text-only for 5+ turns → Switch back to text
+    └─→ Default → Stay on current model
     ↓
-CriticalMomentDetector.calculate_critical_score()
-    ├─→ Equipment consciousness (<0.4 reliability): +0.3
-    ├─→ First discovery (new category): +0.2
-    ├─→ Cascade failure (3+ equipment): +0.2
-    └─→ Other factors...
+Hybrid Index (RAG) retrieves context
+    ├─→ BM25 keyword search
+    ├─→ Vector similarity search
+    └─→ RRF fusion (k=60) combines results
     ↓
-Generation strategy selected based on score:
-    ├─→ 0.8-1.0: Full AI (critical moments)
-    ├─→ 0.6-0.8: AI if under budget
-    ├─→ 0.3-0.6: Ollama or minimal AI
-    └─→ 0.0-0.3: Enhanced template
+LLM Backend generates response
+    ├─→ MLX (Apple Silicon native)
+    ├─→ llama.cpp (GGUF models)
+    └─→ Ollama (API-based)
     ↓
-VarianceManager.apply_variance() filters observation
-    ├─→ Preset determines tone
-    └─→ Equipment reliability affects confidence
+Signals Manager tracks provenance
+    ├─→ Source attribution
+    └─→ Citation chains
     ↓
-Observation created with Pydantic validation
+Session Manager persists state
+    ├─→ Conversation history (JSON)
+    └─→ Model context maintained
     ↓
-SessionManager.add_observation()
-    ├─→ Save to disk with equipment snapshot
-    ├─→ Apply discovery stress
-    └─→ Update session statistics
+Response rendered in TUI
 ```
 
 ## Project Data Structure

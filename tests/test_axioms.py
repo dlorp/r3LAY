@@ -730,7 +730,7 @@ class TestAxiomManagerConflictDetection:
 
     def test_find_conflicts_only_active(self, manager):
         """Only active axioms are checked for conflicts."""
-        ax1 = manager.create(
+        manager.create(
             statement="Engine torque spec is 50 ft-lb",
             category="specifications",
         )

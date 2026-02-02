@@ -1077,7 +1077,7 @@ class TestWorkerHelperFunctions:
                         img = img.resize(new_size, mock_pil_image.LANCZOS)
                     return img
 
-                result = load_and_preprocess(str(temp_image_file), max_size=512)
+                load_and_preprocess(str(temp_image_file), max_size=512)
 
         mock_img.convert.assert_called_once_with("RGB")
         # Image is smaller than max_size, so resize should not be called
@@ -1110,7 +1110,7 @@ class TestWorkerHelperFunctions:
                         img = img.resize(new_size, mock_pil_image.LANCZOS)
                     return img
 
-                result = load_and_preprocess(str(temp_image_file), max_size=512)
+                load_and_preprocess(str(temp_image_file), max_size=512)
 
         mock_img.resize.assert_called_once()
         # Check resize maintains aspect ratio
@@ -1153,7 +1153,7 @@ class TestWorkerHelperFunctions:
 
         with patch.dict(sys.modules, {"torch": mock_torch}):
             # The function uses try/except, so we test directly
-            result = _mps_available()
+            _mps_available()
             # Result depends on actual torch availability, but shouldn't raise
 
 
@@ -1219,7 +1219,7 @@ class TestCLIPEmbedder:
         # CLIPEmbedder.load() tries sentence-transformers first, then transformers
         # Both may fail if not installed, which is expected
         # We just verify it handles the failure gracefully
-        result = embedder.load("openai/clip-vit-base-patch32")
+        embedder.load("openai/clip-vit-base-patch32")
 
         # Result is False when libraries not available, which is acceptable
         # The test verifies no exception is raised

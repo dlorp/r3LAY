@@ -266,7 +266,7 @@ class TestSmartRouterRouting:
         mock_result.metadata = {"source": "/docs/screenshot.png"}
 
         decision = vision_router.route(
-            message="Show me the image picture photo diagram chart and describe the colors layout design",
+            message="Show me the image picture photo diagram chart and describe colors layout",
             attachments=[],
             retrieved_context=[mock_result],
         )
