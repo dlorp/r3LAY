@@ -24,7 +24,7 @@ ruff format src/ tests/
 
 ## Pull Requests
 
-- Keep PRs focused — one feature or fix per PR
+- Keep PRs focused - one feature or fix per PR
 - Add tests for new functionality
 - Update docs if needed
 - Follow existing code style
@@ -43,4 +43,4 @@ ruff format src/ tests/
 
 ## Questions?
 
-Open a discussion or issue — we're happy to help!
+Open a discussion or issue - we're happy to help!
