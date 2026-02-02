@@ -133,7 +133,7 @@ Stubbed for future implementation. Will target:
 
 ## HuggingFace Cache Scanning
 
-**Custom cache path**: `/Users/dperez/Documents/LLM`
+**Custom cache path**: `~/.cache/huggingface`
 
 **Structure**: `hub/models--{org}--{name}/snapshots/{commit}/`
 
@@ -327,7 +327,7 @@ Validated knowledge statements with categories:
 # r3lay.yaml
 models:
   # Custom HuggingFace cache path
-  hf_cache_path: "/Users/dperez/Documents/LLM"
+  hf_cache_path: "~/.cache/huggingface"
   
   # Backend priority: mlx > vllm > llama_cpp
   preferred_backend: "auto"  # or "mlx", "llama_cpp", "vllm"
