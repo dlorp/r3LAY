@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Generator
 
-# Brand colors from dlorp palette (hex without #)
+# r3LAY brand colors (hex without #)
 GRANITE_GRAY = "636764"
 DARK_ORANGE = "FB8B24"
 TITANIUM_YELLOW = "F4E409"

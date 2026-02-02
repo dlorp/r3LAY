@@ -20,7 +20,7 @@ You are the system architect for r3LAY, a TUI-based personal research assistant 
 - Primary: Apple M4 Pro with 24GB unified memory
 - Secondary: NVIDIA RTX 3080 Ti with 12GB VRAM
 - Optimal model size: 7B at 4-bit quantization (~6-8GB)
-- Models stored at `/Users/dperez/Documents/LLM/`
+- Models stored at `~/.cache/huggingface/`
 
 ### Memory Management (Critical)
 - `del model + gc.collect()` does NOT reliably free GPU/Metal memory
