@@ -127,7 +127,7 @@ When implementing or reviewing backend code, verify:
 
 | Source | Path | Format |
 |--------|------|--------|
-| HuggingFace cache | `/Users/dperez/Documents/LLM/` | safetensors, GGUF |
+| HuggingFace cache | `~/.cache/huggingface/` | safetensors, GGUF |
 | GGUF drop folder | `~/.r3lay/models/` | .gguf files |
 | Ollama | `http://localhost:11434` | via API |
 
