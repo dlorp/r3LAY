@@ -79,17 +79,17 @@ Steps 5.1-5.4 are **already implemented**:
    - Provide method to execute switch decision
 
 **Files to Modify**:
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/ui/widgets/input_pane.py`
+- `r3lay/ui/widgets/input_pane.py`
   - Update `_handle_chat()` to call `_execute_model_switch()` when needed
   - Add `async _execute_model_switch(decision: RoutingDecision)` method
   - Add loading indicator during model switch
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/__init__.py` (R3LayState)
+- `r3lay/core/__init__.py` (R3LayState)
   - Add `async switch_model(model_type: Literal["text", "vision"])` method
   - Add `get_model_for_type(model_type)` to look up configured model
   - Handle memory cleanup during switch
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/router.py`
+- `r3lay/core/router.py`
   - Add `execute_switch()` method that returns backend to use
   - Track backend instances for text/vision
 
@@ -159,7 +159,7 @@ The Signals system provides provenance tracking for all knowledge sources. The A
 - Pydantic models for all data types
 
 **Files to Create** (design docs):
-- `/Users/dperez/Documents/Programming/r3LAY/plans/signals-axioms-architecture.md`
+- `plans/signals-axioms-architecture.md`
 
 **Dependencies**: None
 
@@ -171,7 +171,7 @@ The Signals system provides provenance tracking for all knowledge sources. The A
 
 **Description**: Implement the core Signals and Axioms modules based on the reference implementations in `starting_docs/`.
 
-**Signals Module** (`/Users/dperez/Documents/Programming/r3LAY/r3lay/core/signals.py`):
+**Signals Module** (`r3lay/core/signals.py`):
 
 ```python
 from enum import Enum
@@ -242,7 +242,7 @@ class SignalsManager:
     def get_citation_chain(self, citation_id: str) -> dict: ...
 ```
 
-**Axioms Module** (`/Users/dperez/Documents/Programming/r3LAY/r3lay/core/axioms.py`):
+**Axioms Module** (`r3lay/core/axioms.py`):
 
 ```python
 AXIOM_CATEGORIES = [
@@ -292,11 +292,11 @@ class AxiomManager:
 ```
 
 **Files to Create**:
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/signals.py` (~350 lines)
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/axioms.py` (~400 lines)
+- `r3lay/core/signals.py` (~350 lines)
+- `r3lay/core/axioms.py` (~400 lines)
 
 **Files to Modify**:
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/__init__.py`
+- `r3lay/core/__init__.py`
   - Add SignalsManager and AxiomManager to R3LayState
   - Initialize lazily when project path is set
   - Export new types
@@ -317,7 +317,7 @@ class AxiomManager:
 
 **Description**: Create the Axioms panel UI and implement the `/axiom` and `/axioms` commands.
 
-**Axioms Panel** (`/Users/dperez/Documents/Programming/r3LAY/r3lay/ui/widgets/axiom_panel.py`):
+**Axioms Panel** (`r3lay/ui/widgets/axiom_panel.py`):
 
 Features:
 - List axioms grouped by category
@@ -366,8 +366,8 @@ elif cmd == "cite":
 ```
 
 **Files to Modify**:
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/ui/widgets/axiom_panel.py` (rewrite from placeholder)
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/ui/widgets/input_pane.py`
+- `r3lay/ui/widgets/axiom_panel.py` (rewrite from placeholder)
+- `r3lay/ui/widgets/input_pane.py`
   - Add `/axiom` command handler
   - Add `/axioms` command handler
   - Add `/cite` command handler
@@ -509,7 +509,7 @@ The R³ methodology specifically handles the gap between official and community 
 - Prompt templates for query generation, axiom extraction, and conflict resolution
 
 **Files to Create** (design docs):
-- `/Users/dperez/Documents/Programming/r3LAY/plans/deep-research-architecture.md`
+- `plans/deep-research-architecture.md`
 
 **Dependencies**: Phase 6 complete (Signals & Axioms)
 
@@ -635,11 +635,11 @@ class ResearchOrchestrator:
 - SearXNG client (simple HTTP wrapper, can be stubbed initially)
 
 **Files to Create**:
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/research.py` (~800 lines)
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/search.py` (~150 lines, SearXNG client)
+- `r3lay/core/research.py` (~800 lines)
+- `r3lay/core/search.py` (~150 lines, SearXNG client)
 
 **Files to Modify**:
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/__init__.py`
+- `r3lay/core/__init__.py`
   - Add ResearchOrchestrator to R3LayState
   - Add SearXNGClient initialization
 
@@ -706,11 +706,11 @@ async def _handle_research(self, query: str, response_pane) -> None:
 - Ctrl+E: Focus input with `/research ` prefix
 
 **Files to Modify**:
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/ui/widgets/input_pane.py`
+- `r3lay/ui/widgets/input_pane.py`
   - Add `/research` command handler
   - Add `_handle_research()` method
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/app.py`
+- `r3lay/app.py`
   - Add Ctrl+E binding to start research mode
 
 **Dependencies**: Step 7.2 (backend implementation)
@@ -769,7 +769,7 @@ Final phase focusing on error handling, deployment, and documentation.
 
 **Files to Modify**:
 - All core modules (review and improve)
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/app.py` - Global error handler
+- `r3lay/app.py` - Global error handler
 
 **Dependencies**: Phases 5-7 complete
 
@@ -787,7 +787,7 @@ Final phase focusing on error handling, deployment, and documentation.
 
 **Files to Create**:
 
-`/Users/dperez/Documents/Programming/r3LAY/Dockerfile`:
+`Dockerfile`:
 ```dockerfile
 # Multi-stage build for R³LAY
 FROM python:3.11-slim as base
@@ -810,7 +810,7 @@ COPY r3lay/ ./r3lay/
 ENTRYPOINT ["python", "-m", "r3lay.app"]
 ```
 
-`/Users/dperez/Documents/Programming/r3LAY/Dockerfile.nvidia`:
+`Dockerfile.nvidia`:
 ```dockerfile
 # NVIDIA GPU support
 FROM nvidia/cuda:12.1-runtime-ubuntu22.04
@@ -829,7 +829,7 @@ COPY r3lay/ ./r3lay/
 ENTRYPOINT ["python3", "-m", "r3lay.app"]
 ```
 
-`/Users/dperez/Documents/Programming/r3LAY/docker-compose.yaml`:
+`docker-compose.yaml`:
 ```yaml
 version: '3.8'
 
@@ -851,10 +851,10 @@ services:
 ```
 
 **Files to Create**:
-- `/Users/dperez/Documents/Programming/r3LAY/Dockerfile`
-- `/Users/dperez/Documents/Programming/r3LAY/Dockerfile.nvidia`
-- `/Users/dperez/Documents/Programming/r3LAY/docker-compose.yaml`
-- `/Users/dperez/Documents/Programming/r3LAY/searxng/settings.yml` (SearXNG config)
+- `Dockerfile`
+- `Dockerfile.nvidia`
+- `docker-compose.yaml`
+- `searxng/settings.yml` (SearXNG config)
 
 **Dependencies**: Step 8.1 (error handling)
 
@@ -904,13 +904,13 @@ services:
    - Example expeditions
 
 **Files to Create**:
-- `/Users/dperez/Documents/Programming/r3LAY/docs/CONFIGURATION.md`
-- `/Users/dperez/Documents/Programming/r3LAY/docs/MODELS.md`
-- `/Users/dperez/Documents/Programming/r3LAY/docs/RESEARCH.md`
-- `/Users/dperez/Documents/Programming/r3LAY/ARCHITECTURE.md`
+- `docs/CONFIGURATION.md`
+- `docs/MODELS.md`
+- `docs/RESEARCH.md`
+- `ARCHITECTURE.md`
 
 **Files to Update**:
-- `/Users/dperez/Documents/Programming/r3LAY/README.md`
+- `README.md`
 
 **Dependencies**: All implementation complete
 
