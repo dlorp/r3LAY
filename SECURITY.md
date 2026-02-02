@@ -11,7 +11,7 @@
 
 If you find a security issue, please report it privately rather than opening a public issue.
 
-**Email:** security@dlorp.dev
+**Email:** dlorp@duck.com
 
 Include:
 - Description of the vulnerability
