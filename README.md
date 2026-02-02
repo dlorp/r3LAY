@@ -95,9 +95,14 @@ Project config: `<project>/.r3lay/config.yaml`
 
 ## Documentation
 
-- [Architecture](docs/ARCHITECTURE.md) — System design and data flow
-- [Knowledge Systems](docs/KNOWLEDGE_SYSTEMS.md) — Signals, Axioms, Citations
-- [Equipment Guide](docs/EQUIPMENT.md) — All 14 equipment types
+📚 **[Full Wiki Documentation](https://github.com/dlorp/r3LAY/wiki)** — Comprehensive guides and architecture docs
+
+Quick links:
+- [Architecture](https://github.com/dlorp/r3LAY/wiki/ARCHITECTURE) — System design and data flow
+- [Intent Architecture](https://github.com/dlorp/r3LAY/wiki/INTENT-ARCHITECTURE) — Natural language processing
+- [Knowledge Systems](https://github.com/dlorp/r3LAY/wiki/KNOWLEDGE_SYSTEMS) — Signals, Axioms, Citations
+- [Equipment Guide](https://github.com/dlorp/r3LAY/wiki/EQUIPMENT) — All 14 equipment types
+- [API Reference](https://github.com/dlorp/r3LAY/wiki/API) — REST endpoints
 - [API Reference](docs/API.md) — Commands and configuration
 - [Troubleshooting](docs/troubleshooting.md) — Common issues
 
