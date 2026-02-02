@@ -8,7 +8,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-green.svg)](https://www.python.org/downloads/)
 [![License: PolyForm NC](https://img.shields.io/badge/License-PolyForm%20NC-blue.svg)](LICENSE)
 
-![r3LAY Screenshot](docs/screenshot.svg)
+![r3LAY Screenshot](docs/screenshot.png)
 
 ---
 
