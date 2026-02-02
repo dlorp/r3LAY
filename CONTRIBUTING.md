@@ -16,10 +16,10 @@ Thanks for your interest in contributing! 🎉
 pytest tests/ -v
 
 # Lint
-ruff check src/ tests/
+ruff check r3lay/ tests/
 
 # Format
-ruff format src/ tests/
+ruff format r3lay/ tests/
 ```
 
 ## Pull Requests
