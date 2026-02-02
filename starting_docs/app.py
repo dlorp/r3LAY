@@ -20,45 +20,45 @@ from .core import (
     SignalsManager,
 )
 from .ui.screens.init import InitScreen
-from .ui.widgets.response_pane import ResponsePane
+from .ui.widgets.axiom_panel import AxiomPanel
+from .ui.widgets.index_panel import IndexPanel
 from .ui.widgets.input_pane import InputPane
 from .ui.widgets.model_panel import ModelPanel
-from .ui.widgets.index_panel import IndexPanel
-from .ui.widgets.axiom_panel import AxiomPanel
+from .ui.widgets.response_pane import ResponsePane
 from .ui.widgets.session_panel import SessionPanel
 from .ui.widgets.settings_panel import SettingsPanel
 
 
 class R3LayState:
     """Shared application state."""
-    
+
     def __init__(self, project_path: Path, config: AppConfig):
         self.project_path = project_path
         self.config = config
-        
+
         # Core components
         self.registry = RegistryManager(project_path)
         self.session_manager = SessionManager(project_path)
         self.signals = SignalsManager(project_path)
         self.axioms = AxiomManager(project_path)
-        
+
         self.model_scanner = ModelScanner(
             hf_cache_path=config.models.huggingface.cache_path,
             ollama_endpoint=config.models.ollama.endpoint,
         )
-        
+
         self.searxng = SearXNGClient(
             endpoint=config.searxng.endpoint,
             timeout=config.searxng.timeout,
         )
-        
+
         # Hybrid index (lazy init)
         self._index: HybridIndex | None = None
-        
+
         # Current LLM client
         self.current_model: str | None = config.models.default_model
         self.llm_client = None
-    
+
     @property
     def index(self) -> HybridIndex:
         """Get or initialize hybrid index."""
@@ -77,7 +77,7 @@ class R3LayState:
 
 class MainScreen(Screen):
     """Main application screen with bento layout."""
-    
+
     BINDINGS = [
         Binding("ctrl+n", "new_session", "New"),
         Binding("ctrl+s", "save_session", "Save"),
@@ -91,23 +91,23 @@ class MainScreen(Screen):
         Binding("ctrl+4", "tab_sessions", "Sessions", show=False),
         Binding("ctrl+5", "tab_settings", "Settings", show=False),
     ]
-    
+
     def __init__(self, state: R3LayState):
         super().__init__()
         self.state = state
-    
+
     def compose(self) -> ComposeResult:
         yield Header()
-        
+
         with Horizontal(id="main-layout"):
             # Left: Response pane (main content area ~60%)
             yield ResponsePane(self.state, id="response-pane")
-            
+
             # Right column (~40%): Input + Tabbed panels
             with Vertical(id="right-column"):
                 # Top right: User input
                 yield InputPane(self.state, id="input-pane")
-                
+
                 # Bottom right: Tabbed pane
                 with TabbedContent(id="control-tabs"):
                     with TabPane("Models", id="tab-models"):
@@ -120,23 +120,23 @@ class MainScreen(Screen):
                         yield SessionPanel(self.state)
                     with TabPane("Settings", id="tab-settings"):
                         yield SettingsPanel(self.state)
-        
+
         yield Footer()
-    
+
     async def on_mount(self) -> None:
         """Initialize on mount."""
         # Start a new session
         self.state.session_manager.new_session()
-        
+
         # Load project context
         if self.state.registry.exists():
             response_pane = self.query_one(ResponsePane)
             response_pane.add_system(f"▸▸ r3LAY ◂◂  Project: {self.state.registry.get('name')}")
             response_pane.add_system(self.state.registry.get_summary())
-        
+
         # Focus input
         self.query_one(InputPane).focus_input()
-    
+
     async def action_new_session(self) -> None:
         """Start a new session."""
         if self.state.session_manager.current:
@@ -144,33 +144,33 @@ class MainScreen(Screen):
         self.state.session_manager.new_session()
         self.query_one(ResponsePane).clear()
         self.notify("New session started")
-    
+
     async def action_save_session(self) -> None:
         """Save current session."""
         path = self.state.session_manager.end_session()
         if path:
             self.notify(f"Session saved: {path.name}")
         self.state.session_manager.new_session()
-    
+
     async def action_refresh_index(self) -> None:
         """Refresh the hybrid index."""
         self.notify("Reindexing...")
         asyncio.create_task(self._reindex())
-    
+
     async def _reindex(self) -> None:
         """Background reindex task."""
         from .core import DocumentLoader
-        
+
         loader = DocumentLoader(
             chunk_size=self.state.config.index.chunk_size,
             chunk_overlap=self.state.config.index.chunk_overlap,
         )
-        
+
         total = 0
         folders = ["manuals", "diagrams", "docs", "datasheets", "schematics", "configs"]
-        
+
         self.state.index.clear()
-        
+
         for folder in folders:
             folder_path = self.state.project_path / folder
             if folder_path.exists():
@@ -178,7 +178,7 @@ class MainScreen(Screen):
                 if chunks:
                     self.state.index.add_chunks(chunks)
                     total += len(chunks)
-        
+
         # Index scraped content
         scraped = self.state.project_path / "links" / "scraped"
         if scraped.exists():
@@ -186,71 +186,71 @@ class MainScreen(Screen):
             if chunks:
                 self.state.index.add_chunks(chunks)
                 total += len(chunks)
-        
+
         self.notify(f"Indexed {total} chunks")
-        
+
         # Update index panel
         try:
             index_panel = self.query_one(IndexPanel)
             index_panel.refresh_stats()
         except Exception:
             pass
-    
+
     async def action_start_expedition(self) -> None:
         """Start research mode."""
         input_pane = self.query_one(InputPane)
         input_pane.set_value("/research ")
         input_pane.focus_input()
-    
+
     async def action_submit_input(self) -> None:
         """Submit the current input."""
         input_pane = self.query_one(InputPane)
         await input_pane.submit()
-    
+
     def action_tab_models(self) -> None:
         self.query_one("#control-tabs", TabbedContent).active = "tab-models"
-    
+
     def action_tab_index(self) -> None:
         self.query_one("#control-tabs", TabbedContent).active = "tab-index"
-    
+
     def action_tab_axioms(self) -> None:
         self.query_one("#control-tabs", TabbedContent).active = "tab-axioms"
-    
+
     def action_tab_sessions(self) -> None:
         self.query_one("#control-tabs", TabbedContent).active = "tab-sessions"
-    
+
     def action_tab_settings(self) -> None:
         self.query_one("#control-tabs", TabbedContent).active = "tab-settings"
 
 
 class R3LayApp(App):
     """Main r3LAY TUI application."""
-    
+
     CSS_PATH = "ui/styles/app.tcss"
     TITLE = "r3LAY"
     SUB_TITLE = "Research Assistant"
-    
+
     BINDINGS = [
         Binding("ctrl+q", "quit", "Quit", show=True),
         Binding("ctrl+d", "toggle_dark", "Dark Mode"),
     ]
-    
+
     def __init__(self, project_path: Path | None = None):
         super().__init__()
         self.project_path = project_path or Path.cwd()
         self.config = AppConfig.load(self.project_path)
         self.state: R3LayState | None = None
-    
+
     async def on_mount(self) -> None:
         """Called when app is mounted."""
         registry_path = self.project_path / "registry.yaml"
-        
+
         if not registry_path.exists():
             await self.push_screen(InitScreen(self.project_path))
         else:
             self.state = R3LayState(self.project_path, self.config)
             await self.push_screen(MainScreen(self.state))
-    
+
     def action_toggle_dark(self) -> None:
         """Toggle dark mode."""
         self.dark = not self.dark
@@ -259,7 +259,7 @@ class R3LayApp(App):
 def main():
     """Entry point for the application."""
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="r3LAY Research Assistant")
     parser.add_argument(
         "project_path",
@@ -268,7 +268,7 @@ def main():
         help="Path to project directory",
     )
     args = parser.parse_args()
-    
+
     project_path = Path(args.project_path).resolve()
     app = R3LayApp(project_path)
     app.run()

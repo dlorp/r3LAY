@@ -22,7 +22,6 @@ from r3lay.core.axioms import (
     AxiomStatus,
 )
 
-
 # ============================================================================
 # AxiomStatus Enum Tests
 # ============================================================================
@@ -765,7 +764,9 @@ class TestAxiomManagerHelpers:
 
     def test_get_disputed_axioms(self, manager):
         """get_disputed_axioms returns only disputed."""
-        ax1 = manager.create(statement="Will dispute", category="specifications", auto_validate=True)
+        ax1 = manager.create(
+            statement="Will dispute", category="specifications", auto_validate=True
+        )
         manager.create(statement="Normal", category="specifications", auto_validate=True)
         manager.dispute(ax1.id, reason="Issue")
 

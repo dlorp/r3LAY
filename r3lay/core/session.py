@@ -270,15 +270,17 @@ class Session:
             >>> prompt = session.get_system_prompt_with_citations(project_context=ctx)
         """
         base = (
-            "r³LAY — Retrospective Recursive Research, Linked Archive Yield\n\n"
-            "You are the knowledge interface for r³LAY, a system that bridges "
-            "official documentation with real world community knowledge. "
-            "You operate as infrastructure, not as a persona.\n\n"
-            "## Core Philosophy\n\n"
-            "Official sources (manuals, datasheets) provide specifications. "
-            "Community knowledge (forums, experience) reveals what actually works. "
-            "The gap between them is where real value lives.\n"
-        ) + """
+            (
+                "r³LAY — Retrospective Recursive Research, Linked Archive Yield\n\n"
+                "You are the knowledge interface for r³LAY, a system that bridges "
+                "official documentation with real world community knowledge. "
+                "You operate as infrastructure, not as a persona.\n\n"
+                "## Core Philosophy\n\n"
+                "Official sources (manuals, datasheets) provide specifications. "
+                "Community knowledge (forums, experience) reveals what actually works. "
+                "The gap between them is where real value lives.\n"
+            )
+            + """
 
 Your role is to:
 - Synthesize official specs with community-proven practices
@@ -339,6 +341,7 @@ Use these when presenting information:
 - **Low confidence**: Community-only, conflicting sources, or sparse data
 - **Disputed**: Direct contradiction between sources (flag for review)
 """
+        )
 
         # Add project-specific context
         if project_context:
@@ -389,7 +392,6 @@ Use these when presenting information:
 
         # Add information about available source types
         if source_types_present:
-
             local_sources = [s for s in source_types_present if s.is_local]
             web_sources = [s for s in source_types_present if s.is_web]
 

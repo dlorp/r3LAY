@@ -481,9 +481,7 @@ class MaintenanceLog:
 
             intervals = {}
             for service_type, interval_data in data.items():
-                intervals[service_type] = ServiceInterval.from_dict(
-                    service_type, interval_data
-                )
+                intervals[service_type] = ServiceInterval.from_dict(service_type, interval_data)
 
             logger.debug(f"Loaded {len(intervals)} service intervals")
             return intervals

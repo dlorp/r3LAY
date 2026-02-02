@@ -259,11 +259,7 @@ class SemanticChunker:
                     if len(text) >= self.min_chunk_size:
                         chunks.append(
                             Chunk(
-                                content=(
-                                    f"{current_heading}\n{text}"
-                                    if current_heading
-                                    else text
-                                ),
+                                content=(f"{current_heading}\n{text}" if current_heading else text),
                                 metadata={
                                     "source": source,
                                     "type": "markdown",
@@ -283,9 +279,7 @@ class SemanticChunker:
             if len(text) >= self.min_chunk_size:
                 chunks.append(
                     Chunk(
-                        content=(
-                            f"{current_heading}\n{text}" if current_heading else text
-                        ),
+                        content=(f"{current_heading}\n{text}" if current_heading else text),
                         metadata={
                             "source": source,
                             "type": "markdown",
@@ -772,10 +766,7 @@ class HybridIndex:
         # Save to disk
         np.save(self._vectors_file, self._chunk_vectors)
 
-        logger.info(
-            f"Generated {len(self._chunk_vectors)} embeddings "
-            f"(dim={self._embedding_dim})"
-        )
+        logger.info(f"Generated {len(self._chunk_vectors)} embeddings (dim={self._embedding_dim})")
 
         return len(self._chunk_vectors)
 
@@ -802,8 +793,7 @@ class HybridIndex:
         """
         if not PYMUPDF_AVAILABLE:
             raise RuntimeError(
-                "pymupdf is required for PDF extraction. "
-                "Install with: pip install pymupdf"
+                "pymupdf is required for PDF extraction. Install with: pip install pymupdf"
             )
 
         if not pdf_path.exists():
@@ -863,9 +853,7 @@ class HybridIndex:
         if self.vision_embedder is None:
             raise RuntimeError("No vision embedder configured")
         if not self.vision_embedder.is_loaded:
-            raise RuntimeError(
-                "Vision embedder not loaded. Call embedder.load() first."
-            )
+            raise RuntimeError("Vision embedder not loaded. Call embedder.load() first.")
 
         if not image_paths:
             return 0
@@ -964,12 +952,14 @@ class HybridIndex:
         for idx in top_indices:
             if similarities[idx] > 0:
                 chunk = self._image_chunks[idx]
-                results.append({
-                    "path": chunk.path,
-                    "chunk_id": chunk.id,
-                    "score": float(similarities[idx]),
-                    "metadata": chunk.metadata,
-                })
+                results.append(
+                    {
+                        "path": chunk.path,
+                        "chunk_id": chunk.id,
+                        "score": float(similarities[idx]),
+                        "metadata": chunk.metadata,
+                    }
+                )
 
         return results
 
@@ -1139,9 +1129,7 @@ class HybridIndex:
         scores = self._bm25.get_scores(query_tokens)
 
         # Get top results by score
-        top_indices = sorted(
-            range(len(scores)), key=lambda i: scores[i], reverse=True
-        )[:n_results]
+        top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:n_results]
 
         results: list[RetrievalResult] = []
 
@@ -1213,9 +1201,7 @@ class HybridIndex:
 
         return results
 
-    def _cosine_similarity(
-        self, query: np.ndarray, vectors: np.ndarray
-    ) -> np.ndarray:
+    def _cosine_similarity(self, query: np.ndarray, vectors: np.ndarray) -> np.ndarray:
         """Compute cosine similarity between query and all vectors.
 
         Args:
@@ -1256,12 +1242,8 @@ class HybridIndex:
             Fused results sorted by combined RRF score.
         """
         # Build rank maps
-        bm25_ranks: dict[str, int] = {
-            r.chunk_id: i + 1 for i, r in enumerate(bm25_results)
-        }
-        vector_ranks: dict[str, int] = {
-            r.chunk_id: i + 1 for i, r in enumerate(vector_results)
-        }
+        bm25_ranks: dict[str, int] = {r.chunk_id: i + 1 for i, r in enumerate(bm25_results)}
+        vector_ranks: dict[str, int] = {r.chunk_id: i + 1 for i, r in enumerate(vector_results)}
 
         # Collect all unique chunk IDs
         all_ids = set(bm25_ranks.keys()) | set(vector_ranks.keys())
@@ -1404,13 +1386,9 @@ class HybridIndex:
             "collection": self.collection_name,
             "hybrid_enabled": self.hybrid_enabled,
             "bm25_ready": self._bm25 is not None,
-            "vectors_count": (
-                len(self._chunk_vectors) if self._chunk_vectors is not None else 0
-            ),
+            "vectors_count": (len(self._chunk_vectors) if self._chunk_vectors is not None else 0),
             "embedding_dim": self._embedding_dim,
-            "embedder_loaded": (
-                self.text_embedder is not None and self.text_embedder.is_loaded
-            ),
+            "embedder_loaded": (self.text_embedder is not None and self.text_embedder.is_loaded),
             # Image index stats
             "image_count": len(self._image_chunks),
             "image_vectors_count": (
@@ -1559,8 +1537,7 @@ class DocumentLoader:
         """Extract PDF pages as images for visual indexing."""
         if not PYMUPDF_AVAILABLE:
             logger.warning(
-                f"Skipping PDF {path}: pymupdf not installed. "
-                "Install with: pip install pymupdf"
+                f"Skipping PDF {path}: pymupdf not installed. Install with: pip install pymupdf"
             )
             return LoadResult(chunks=[], image_paths=[], image_metadata=[])
 
@@ -1658,8 +1635,7 @@ class DocumentLoader:
                 all_image_metadata.extend(result.image_metadata)
 
         logger.info(
-            f"Loaded {len(all_chunks)} text chunks, "
-            f"{len(all_image_paths)} images from {path}"
+            f"Loaded {len(all_chunks)} text chunks, {len(all_image_paths)} images from {path}"
         )
 
         return LoadResult(

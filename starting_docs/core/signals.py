@@ -19,28 +19,31 @@ from uuid import uuid4
 
 from ruamel.yaml import YAML
 
-
 # ============================================================================
 # Signal Types
 # ============================================================================
 
+
 class SignalType(str, Enum):
     """Classification of knowledge sources."""
-    DOCUMENT = "document"      # PDF, manual, datasheet
-    WEB = "web"                # Web page via SearXNG/Pipet
-    USER = "user"              # User-provided information
-    INFERENCE = "inference"    # LLM-derived from other sources
-    CODE = "code"              # Extracted from code/config files
-    SESSION = "session"        # From chat session context
+
+    DOCUMENT = "document"  # PDF, manual, datasheet
+    WEB = "web"  # Web page via SearXNG/Pipet
+    USER = "user"  # User-provided information
+    INFERENCE = "inference"  # LLM-derived from other sources
+    CODE = "code"  # Extracted from code/config files
+    SESSION = "session"  # From chat session context
 
 
 # ============================================================================
 # Data Models
 # ============================================================================
 
+
 @dataclass
 class Signal:
     """A knowledge source."""
+
     id: str
     type: SignalType
     title: str
@@ -54,6 +57,7 @@ class Signal:
 @dataclass
 class Transmission:
     """A specific reference to a location in a signal."""
+
     signal_id: str
     location: str  # "page 12", "post #3", "line 45"
     excerpt: str
@@ -63,6 +67,7 @@ class Transmission:
 @dataclass
 class Citation:
     """A cited statement with full provenance."""
+
     id: str
     statement: str
     confidence: float
@@ -75,27 +80,28 @@ class Citation:
 # Confidence Calculator
 # ============================================================================
 
+
 class ConfidenceCalculator:
     """
     Calculate confidence scores for knowledge assertions.
-    
+
     Factors:
     - Source type reliability
     - Source age (recency)
     - Corroboration (multiple sources agreeing)
     - Contradictions (sources disagreeing)
     """
-    
+
     # Base confidence by signal type
     SIGNAL_WEIGHTS = {
-        SignalType.DOCUMENT: 0.95,    # Factory manuals, datasheets
-        SignalType.CODE: 0.90,        # Config files, source code
-        SignalType.USER: 0.80,        # User-provided facts
-        SignalType.WEB: 0.70,         # Forum posts, articles
-        SignalType.INFERENCE: 0.60,   # LLM-derived
-        SignalType.SESSION: 0.50,     # Conversational context
+        SignalType.DOCUMENT: 0.95,  # Factory manuals, datasheets
+        SignalType.CODE: 0.90,  # Config files, source code
+        SignalType.USER: 0.80,  # User-provided facts
+        SignalType.WEB: 0.70,  # Forum posts, articles
+        SignalType.INFERENCE: 0.60,  # LLM-derived
+        SignalType.SESSION: 0.50,  # Conversational context
     }
-    
+
     def __init__(
         self,
         corroboration_boost: float = 0.05,
@@ -103,7 +109,7 @@ class ConfidenceCalculator:
     ):
         self.corroboration_boost = corroboration_boost
         self.recency_decay_days = recency_decay_days
-    
+
     def calculate(
         self,
         transmissions: list[Transmission],
@@ -112,20 +118,20 @@ class ConfidenceCalculator:
         """Calculate aggregate confidence from multiple transmissions."""
         if not transmissions:
             return 0.0
-        
+
         # Base confidence from signal types and transmission confidence
         base_scores = []
         for trans, sig_type in zip(transmissions, signal_types):
             type_weight = self.SIGNAL_WEIGHTS.get(sig_type, 0.5)
             base_scores.append(type_weight * trans.confidence)
-        
+
         # Start with the best score
         aggregate = max(base_scores)
-        
+
         # Add corroboration bonus for additional sources
         for score in sorted(base_scores, reverse=True)[1:]:
             aggregate = min(1.0, aggregate + self.corroboration_boost)
-        
+
         return round(aggregate, 3)
 
 
@@ -133,26 +139,27 @@ class ConfidenceCalculator:
 # Signals Manager
 # ============================================================================
 
+
 class SignalsManager:
     """Manages source and citation tracking."""
-    
+
     def __init__(self, project_path: Path):
         self.project_path = project_path
         self.signals_path = project_path / ".signals"
         self.signals_path.mkdir(exist_ok=True)
-        
+
         self.sources_file = self.signals_path / "sources.yaml"
         self.citations_file = self.signals_path / "citations.yaml"
-        
+
         self.yaml = YAML()
         self.yaml.default_flow_style = False
-        
+
         self._signals: dict[str, Signal] = {}
         self._citations: dict[str, Citation] = {}
         self._calculator = ConfidenceCalculator()
-        
+
         self._load()
-    
+
     def _load(self) -> None:
         """Load signals data from disk."""
         if self.sources_file.exists():
@@ -162,7 +169,7 @@ class SignalsManager:
                     sig["type"] = SignalType(sig["type"])
                     signal = Signal(**sig)
                     self._signals[signal.id] = signal
-        
+
         if self.citations_file.exists():
             with open(self.citations_file) as f:
                 data = self.yaml.load(f) or {}
@@ -170,7 +177,7 @@ class SignalsManager:
                     trans = [Transmission(**t) for t in cite.pop("transmissions", [])]
                     citation = Citation(**cite, transmissions=trans)
                     self._citations[citation.id] = citation
-    
+
     def _save(self) -> None:
         """Persist signals data to disk."""
         signals_data = {
@@ -190,7 +197,7 @@ class SignalsManager:
         }
         with open(self.sources_file, "w") as f:
             self.yaml.dump(signals_data, f)
-        
+
         citations_data = {
             "citations": [
                 {
@@ -214,7 +221,7 @@ class SignalsManager:
         }
         with open(self.citations_file, "w") as f:
             self.yaml.dump(citations_data, f)
-    
+
     def register_signal(
         self,
         signal_type: SignalType,
@@ -235,7 +242,7 @@ class SignalsManager:
         self._signals[signal.id] = signal
         self._save()
         return signal
-    
+
     def add_citation(
         self,
         statement: str,
@@ -250,7 +257,7 @@ class SignalsManager:
                 signal = self._signals.get(trans.signal_id)
                 signal_types.append(signal.type if signal else SignalType.INFERENCE)
             confidence = self._calculator.calculate(transmissions, signal_types)
-        
+
         citation = Citation(
             id=f"cite_{uuid4().hex[:8]}",
             statement=statement,
@@ -260,38 +267,35 @@ class SignalsManager:
         self._citations[citation.id] = citation
         self._save()
         return citation
-    
+
     def get_signal(self, signal_id: str) -> Signal | None:
         """Get a signal by ID."""
         return self._signals.get(signal_id)
-    
+
     def get_citation(self, citation_id: str) -> Citation | None:
         """Get a citation by ID."""
         return self._citations.get(citation_id)
-    
+
     def find_signals_by_path(self, path: str) -> list[Signal]:
         """Find all signals from a file path."""
         return [s for s in self._signals.values() if s.path == path]
-    
+
     def find_signals_by_type(self, signal_type: SignalType) -> list[Signal]:
         """Find all signals of a given type."""
         return [s for s in self._signals.values() if s.type == signal_type]
-    
+
     def search_citations(self, query: str, limit: int = 10) -> list[Citation]:
         """Search citations by statement text."""
         query_lower = query.lower()
-        results = [
-            c for c in self._citations.values()
-            if query_lower in c.statement.lower()
-        ]
+        results = [c for c in self._citations.values() if query_lower in c.statement.lower()]
         return sorted(results, key=lambda c: c.confidence, reverse=True)[:limit]
-    
+
     def get_citation_chain(self, citation_id: str) -> dict[str, Any]:
         """Get full provenance chain for a citation."""
         citation = self._citations.get(citation_id)
         if not citation:
             return {}
-        
+
         chain = {
             "citation": {
                 "id": citation.id,
@@ -300,46 +304,49 @@ class SignalsManager:
             },
             "sources": [],
         }
-        
+
         for trans in citation.transmissions:
             signal = self._signals.get(trans.signal_id)
             if signal:
-                chain["sources"].append({
-                    "signal": {
-                        "id": signal.id,
-                        "type": signal.type.value,
-                        "title": signal.title,
-                        "path": signal.path,
-                        "url": signal.url,
-                    },
-                    "transmission": {
-                        "location": trans.location,
-                        "excerpt": trans.excerpt,
-                        "confidence": trans.confidence,
-                    },
-                })
-        
+                chain["sources"].append(
+                    {
+                        "signal": {
+                            "id": signal.id,
+                            "type": signal.type.value,
+                            "title": signal.title,
+                            "path": signal.path,
+                            "url": signal.url,
+                        },
+                        "transmission": {
+                            "location": trans.location,
+                            "excerpt": trans.excerpt,
+                            "confidence": trans.confidence,
+                        },
+                    }
+                )
+
         return chain
-    
+
     def link_citation_to_axiom(self, citation_id: str, axiom_id: str) -> None:
         """Link a citation to an axiom that uses it."""
         citation = self._citations.get(citation_id)
         if citation and axiom_id not in citation.used_in:
             citation.used_in.append(axiom_id)
             self._save()
-    
+
     def get_stats(self) -> dict[str, Any]:
         """Get signals statistics."""
         type_counts = {}
         for signal in self._signals.values():
             type_counts[signal.type.value] = type_counts.get(signal.type.value, 0) + 1
-        
+
         return {
             "total_signals": len(self._signals),
             "total_citations": len(self._citations),
             "signals_by_type": type_counts,
             "avg_confidence": (
                 sum(c.confidence for c in self._citations.values()) / len(self._citations)
-                if self._citations else 0
+                if self._citations
+                else 0
             ),
         }

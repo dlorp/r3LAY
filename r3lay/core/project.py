@@ -256,9 +256,7 @@ class ProjectManager:
             return None
 
         if mileage < self._state.current_mileage:
-            raise ValueError(
-                f"Mileage cannot decrease: {mileage} < {self._state.current_mileage}"
-            )
+            raise ValueError(f"Mileage cannot decrease: {mileage} < {self._state.current_mileage}")
 
         self._state.current_mileage = mileage
         self.save(self._state)

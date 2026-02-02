@@ -7,16 +7,13 @@ All HTTP calls are mocked - no real Ollama server required.
 from __future__ import annotations
 
 import json
-from pathlib import Path
-from typing import AsyncIterator
-from unittest.mock import AsyncMock, MagicMock, patch, mock_open
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
 
 from r3lay.core.backends import GenerationError, ModelLoadError
 from r3lay.core.backends.ollama import OllamaBackend
-
 
 # =============================================================================
 # Fixtures
@@ -286,6 +283,7 @@ class TestOllamaBackendGenerateStream:
     @pytest.mark.asyncio
     async def test_generate_stream_success(self, backend):
         """Test successful streaming generation."""
+
         # Mock streaming response
         async def mock_aiter_lines():
             yield '{"message": {"content": "Hello"}, "done": false}'
@@ -311,6 +309,7 @@ class TestOllamaBackendGenerateStream:
     @pytest.mark.asyncio
     async def test_generate_stream_with_parameters(self, backend):
         """Test that parameters are passed correctly to Ollama API."""
+
         async def mock_aiter_lines():
             yield '{"message": {"content": "response"}, "done": true}'
 
@@ -340,6 +339,7 @@ class TestOllamaBackendGenerateStream:
     @pytest.mark.asyncio
     async def test_generate_stream_skips_empty_content(self, backend):
         """Test that empty content chunks are skipped."""
+
         async def mock_aiter_lines():
             yield '{"message": {"content": ""}, "done": false}'
             yield '{"message": {"content": "actual"}, "done": false}'
@@ -363,6 +363,7 @@ class TestOllamaBackendGenerateStream:
     @pytest.mark.asyncio
     async def test_generate_stream_skips_empty_lines(self, backend):
         """Test that empty lines in stream are skipped."""
+
         async def mock_aiter_lines():
             yield ""
             yield '{"message": {"content": "hello"}, "done": false}'
@@ -386,6 +387,7 @@ class TestOllamaBackendGenerateStream:
     @pytest.mark.asyncio
     async def test_generate_stream_skips_malformed_json(self, backend):
         """Test that malformed JSON lines are skipped."""
+
         async def mock_aiter_lines():
             yield "not valid json"
             yield '{"message": {"content": "valid"}, "done": false}'
@@ -444,9 +446,7 @@ class TestOllamaBackendGenerateStream:
     async def test_generate_stream_connection_lost(self, backend):
         """Test GenerationError when connection is lost mid-stream."""
         mock_client = AsyncMock()
-        mock_client.stream = MagicMock(
-            side_effect=httpx.ConnectError("Connection lost")
-        )
+        mock_client.stream = MagicMock(side_effect=httpx.ConnectError("Connection lost"))
         backend._client = mock_client
 
         with pytest.raises(GenerationError) as exc_info:
@@ -459,9 +459,7 @@ class TestOllamaBackendGenerateStream:
     async def test_generate_stream_timeout(self, backend):
         """Test GenerationError on timeout during generation."""
         mock_client = AsyncMock()
-        mock_client.stream = MagicMock(
-            side_effect=httpx.TimeoutException("Read timeout")
-        )
+        mock_client.stream = MagicMock(side_effect=httpx.TimeoutException("Read timeout"))
         backend._client = mock_client
 
         with pytest.raises(GenerationError) as exc_info:
@@ -541,6 +539,7 @@ class TestOllamaBackendGenerateStreamVision:
         assert len(user_message["images"]) == 1
         # Check base64 encoding
         import base64
+
         assert user_message["images"][0] == base64.b64encode(image_content).decode("utf-8")
 
     @pytest.mark.asyncio
@@ -639,6 +638,7 @@ class TestOllamaBackendGenerateStreamVision:
     @pytest.mark.asyncio
     async def test_generate_stream_no_images_no_modification(self, backend):
         """Test that messages are not modified when no images provided."""
+
         async def mock_aiter_lines():
             yield '{"message": {"content": "done"}, "done": true}'
 

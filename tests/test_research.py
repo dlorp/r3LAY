@@ -11,22 +11,18 @@ and are covered separately in integration tests.
 """
 
 from datetime import datetime
-from pathlib import Path
 from unittest.mock import MagicMock
-
-import pytest
 
 from r3lay.core.research import (
     Contradiction,
-    ConvergenceDetector,
     ContradictionDetector,
+    ConvergenceDetector,
     CycleMetrics,
     Expedition,
     ExpeditionStatus,
     ResearchCycle,
     ResearchEvent,
 )
-
 
 # =============================================================================
 # Enum Tests
@@ -275,7 +271,7 @@ class TestContradictionDetector:
         mock_axiom_manager = MagicMock()
         mock_axiom_manager.find_conflicts.return_value = []
         detector = ContradictionDetector(axiom_manager=mock_axiom_manager)
-        
+
         contradictions = detector.check_finding(
             statement="New finding",
             category="procedures",
@@ -292,7 +288,7 @@ class TestContradictionDetector:
         mock_axiom_manager = MagicMock()
         mock_axiom_manager.find_conflicts.return_value = [mock_axiom]
         detector = ContradictionDetector(axiom_manager=mock_axiom_manager)
-        
+
         contradictions = detector.check_finding(
             statement="Oil change every 3000 miles",
             category="procedures",
@@ -307,7 +303,7 @@ class TestContradictionDetector:
         """Test generating resolution queries for a contradiction."""
         mock_axiom_manager = MagicMock()
         detector = ContradictionDetector(axiom_manager=mock_axiom_manager)
-        
+
         contradiction = Contradiction(
             id="contra_test",
             new_statement="Oil filter should be replaced every 3000 miles",
@@ -317,7 +313,7 @@ class TestContradictionDetector:
             detected_in_cycle=1,
         )
         queries = detector.generate_resolution_queries(contradiction)
-        
+
         assert isinstance(queries, list)
         assert len(queries) > 0
         assert len(queries) <= 5

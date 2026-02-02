@@ -113,12 +113,14 @@ def main() -> None:
                     else:
                         dimension = len(test_embedding[0])
 
-                    send_response({
-                        "type": "loaded",
-                        "success": True,
-                        "dimension": dimension,
-                        "backend": "mlx_embeddings",
-                    })
+                    send_response(
+                        {
+                            "type": "loaded",
+                            "success": True,
+                            "dimension": dimension,
+                            "backend": "mlx_embeddings",
+                        }
+                    )
                     continue
 
                 except ImportError:
@@ -135,35 +137,41 @@ def main() -> None:
                     # Get embedding dimension
                     dimension = model.get_sentence_embedding_dimension()
 
-                    send_response({
-                        "type": "loaded",
-                        "success": True,
-                        "dimension": dimension,
-                        "backend": "sentence_transformers",
-                        "device": device,
-                    })
+                    send_response(
+                        {
+                            "type": "loaded",
+                            "success": True,
+                            "dimension": dimension,
+                            "backend": "sentence_transformers",
+                            "device": device,
+                        }
+                    )
                     continue
 
                 except ImportError:
                     pass
 
                 # No embedding library available
-                send_response({
-                    "type": "loaded",
-                    "success": False,
-                    "error": (
-                        "No embedding library available. "
-                        "Install with: pip install sentence-transformers "
-                        "or pip install mlx-embeddings"
-                    ),
-                })
+                send_response(
+                    {
+                        "type": "loaded",
+                        "success": False,
+                        "error": (
+                            "No embedding library available. "
+                            "Install with: pip install sentence-transformers "
+                            "or pip install mlx-embeddings"
+                        ),
+                    }
+                )
 
             except Exception as e:
-                send_response({
-                    "type": "loaded",
-                    "success": False,
-                    "error": f"Failed to load model: {e}",
-                })
+                send_response(
+                    {
+                        "type": "loaded",
+                        "success": False,
+                        "error": f"Failed to load model: {e}",
+                    }
+                )
 
         elif cmd_type == "embed":
             if model is None:
@@ -172,12 +180,14 @@ def main() -> None:
 
             texts = cmd.get("texts", [])
             if not texts:
-                send_response({
-                    "type": "embeddings",
-                    "vectors": "",
-                    "shape": [0, dimension],
-                    "dtype": "float32",
-                })
+                send_response(
+                    {
+                        "type": "embeddings",
+                        "vectors": "",
+                        "shape": [0, dimension],
+                        "dtype": "float32",
+                    }
+                )
                 continue
 
             try:
@@ -191,12 +201,14 @@ def main() -> None:
 
                 # Encode and send
                 data, shape, dtype = encode_array(embeddings)
-                send_response({
-                    "type": "embeddings",
-                    "vectors": data,
-                    "shape": shape,
-                    "dtype": dtype,
-                })
+                send_response(
+                    {
+                        "type": "embeddings",
+                        "vectors": data,
+                        "shape": shape,
+                        "dtype": dtype,
+                    }
+                )
 
             except Exception as e:
                 send_response({"type": "error", "message": f"Embedding error: {e}"})
@@ -211,6 +223,7 @@ def main() -> None:
                     # Try to clear MLX cache if available
                     try:
                         import mlx.core as mx
+
                         if hasattr(mx.metal, "clear_cache"):
                             mx.metal.clear_cache()
                     except ImportError:
@@ -219,6 +232,7 @@ def main() -> None:
                     # Try to clear torch cache if available
                     try:
                         import torch
+
                         if torch.backends.mps.is_available():
                             torch.mps.empty_cache()
                     except (ImportError, AttributeError):
@@ -237,6 +251,7 @@ def _mps_available() -> bool:
     """Check if MPS (Metal Performance Shaders) is available."""
     try:
         import torch
+
         return torch.backends.mps.is_available()
     except (ImportError, AttributeError):
         return False
