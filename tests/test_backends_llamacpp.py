@@ -34,8 +34,8 @@ mock_pil.Image = mock_pil_image
 sys.modules["PIL"] = mock_pil
 sys.modules["PIL.Image"] = mock_pil_image
 
-from r3lay.core.backends import DependencyError, GenerationError, ModelLoadError
-from r3lay.core.backends.llama_cpp import LlamaCppBackend
+from r3lay.core.backends import DependencyError, GenerationError, ModelLoadError  # noqa: E402
+from r3lay.core.backends.llama_cpp import LlamaCppBackend  # noqa: E402
 
 # =============================================================================
 # Fixtures

@@ -892,8 +892,6 @@ class TestMLXWorkerHelpers:
         import os
         from unittest.mock import mock_open, patch
 
-        original_env = os.environ.copy()
-
         with patch.dict(os.environ, {}, clear=True):
             with patch("builtins.open", mock_open()):
                 with patch("sys.stderr"):
