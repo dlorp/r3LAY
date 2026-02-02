@@ -529,13 +529,13 @@ def scan_huggingface_cache(
 
     Args:
         cache_path: Path to HuggingFace cache hub directory.
-                   Default: /Users/dperez/Documents/LLM/llm-models/hub
+                   Default: ~/.cache/huggingface/hub
 
     Returns:
         List of ModelInfo for discovered models. Empty list if path doesn't exist.
     """
     if cache_path is None:
-        cache_path = Path("/Users/dperez/Documents/LLM/llm-models/hub")
+        cache_path = Path.home() / ".cache" / "huggingface" / "hub"
 
     if not cache_path.exists():
         return []
@@ -664,13 +664,13 @@ def scan_mlx_folder(
 
     Args:
         folder_path: Path to MLX models folder.
-                    Default: /Users/dperez/Documents/LLM/mlx-community
+                    Default: ~/.r3lay/models/mlx
 
     Returns:
         List of ModelInfo for discovered MLX models.
     """
     if folder_path is None:
-        folder_path = Path("/Users/dperez/Documents/LLM/mlx-community")
+        folder_path = Path.home() / ".r3lay" / "models" / "mlx"
 
     if not folder_path.exists():
         return []
@@ -831,13 +831,13 @@ def scan_llm_models_folder(
 
     Args:
         folder_path: Path to llm-models folder.
-                    Default: /Users/dperez/Documents/LLM/llm-models
+                    Default: ~/.r3lay/models
 
     Returns:
         List of ModelInfo for discovered models.
     """
     if folder_path is None:
-        folder_path = Path("/Users/dperez/Documents/LLM/llm-models")
+        folder_path = Path("~/.r3lay/models")
 
     if not folder_path.exists():
         return []
@@ -1028,13 +1028,13 @@ class ModelScanner:
 
         Args:
             hf_cache_path: HuggingFace cache path.
-                          Default: /Users/dperez/Documents/LLM/llm-models/hub
+                          Default: ~/.cache/huggingface/hub
             mlx_folder: MLX models folder (direct downloads).
-                       Default: /Users/dperez/Documents/LLM/mlx-community
+                       Default: ~/.r3lay/models/mlx
             gguf_folder: GGUF drop folder path.
                         Default: ~/.r3lay/models/
             llm_models_folder: LLM models folder (GGUF with mmproj).
-                              Default: /Users/dperez/Documents/LLM/llm-models
+                              Default: ~/.r3lay/models
             ollama_endpoint: Ollama API endpoint.
                             Default: http://localhost:11434
         """

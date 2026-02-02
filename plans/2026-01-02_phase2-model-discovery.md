@@ -32,7 +32,7 @@ Implement a unified model discovery system that scans three sources (HuggingFace
 **Key Insights:**
 - Backend auto-detection follows: MLX (Apple Silicon) -> vLLM (CUDA) -> llama.cpp (fallback)
 - GGUF format works with llama.cpp; safetensors works with MLX
-- Model sources: HuggingFace cache at `/Users/dperez/Documents/LLM/llm-models/hub`, GGUF folder at `~/.r3lay/models/`, Ollama at `localhost:11434`
+- Model sources: HuggingFace cache at `~/.cache/huggingface/hub`, GGUF folder at `~/.r3lay/models/`, Ollama at `localhost:11434`
 - Detection logic: `platform.system() == "Darwin" and platform.machine() == "arm64"` for MLX
 
 ### @r3lay-architect
@@ -66,7 +66,7 @@ Implement a unified model discovery system that scans three sources (HuggingFace
 
 ### Hardware Environment
 - Apple M4 Pro, 24GB unified memory
-- HuggingFace cache: `/Users/dperez/Documents/LLM/llm-models/hub`
+- HuggingFace cache: `~/.cache/huggingface/hub`
 - Contains 5 GGUF models (Qwen, DeepSeek-R1, GPT-OSS)
 - Ollama: Not currently running (graceful skip needed)
 - GGUF drop folder: `~/.r3lay/models/` does not exist yet
@@ -274,7 +274,7 @@ Implement a unified model discovery system that scans three sources (HuggingFace
 1. Add `scanner: ModelScanner | None` to R3LayState
 2. Add `available_models: list[ModelInfo]` to R3LayState
 3. Initialize scanner with proper paths in `__post_init__`
-4. Default HF cache: `/Users/dperez/Documents/LLM/llm-models/hub` (configurable)
+4. Default HF cache: `~/.cache/huggingface/hub` (configurable)
 5. Default GGUF folder: `~/.r3lay/models/`
 
 **Acceptance Criteria:**
