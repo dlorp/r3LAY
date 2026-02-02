@@ -1,10 +1,10 @@
 """Tests for the Signals provenance tracking system."""
 
 from r3lay.core.signals import (
+    ConfidenceCalculator,
     Signal,
     SignalType,
     Transmission,
-    ConfidenceCalculator,
 )
 
 

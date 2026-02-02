@@ -268,6 +268,7 @@ class ColQwen2Embedder(VisionEmbedder):
         # Try to clear GPU memory
         try:
             import torch
+
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
             elif torch.backends.mps.is_available():
@@ -376,6 +377,7 @@ class CLIPEmbedder(VisionEmbedder):
 
         try:
             import torch
+
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
             elif torch.backends.mps.is_available():
@@ -485,6 +487,7 @@ class MLXCLIPEmbedder(VisionEmbedder):
         # Clear MLX cache
         try:
             import mlx.core as mx
+
             if hasattr(mx.metal, "clear_cache"):
                 mx.metal.clear_cache()
                 mx.eval(mx.zeros(1))  # Force sync
@@ -497,6 +500,7 @@ def _mps_available() -> bool:
     """Check if MPS (Metal Performance Shaders) is available."""
     try:
         import torch
+
         return torch.backends.mps.is_available()
     except (ImportError, AttributeError):
         return False
@@ -559,6 +563,7 @@ def main() -> None:
                 elif _is_clip_model(requested_model):
                     # CLIP-style model - try MLX first on Apple Silicon
                     import platform
+
                     if platform.system() == "Darwin" and platform.machine() == "arm64":
                         embedder = MLXCLIPEmbedder()
                         if not embedder.load(requested_model):
@@ -578,31 +583,37 @@ def main() -> None:
                         embedder = None
 
                 if embedder is not None:
-                    send_response({
-                        "type": "loaded",
-                        "success": True,
-                        "dimension": embedder.dimension,
-                        "backend": embedder.backend_name,
-                        "late_interaction": embedder.late_interaction,
-                        "num_vectors": embedder.num_vectors,
-                    })
+                    send_response(
+                        {
+                            "type": "loaded",
+                            "success": True,
+                            "dimension": embedder.dimension,
+                            "backend": embedder.backend_name,
+                            "late_interaction": embedder.late_interaction,
+                            "num_vectors": embedder.num_vectors,
+                        }
+                    )
                 else:
-                    send_response({
-                        "type": "loaded",
-                        "success": False,
-                        "error": (
-                            "No vision embedding library available. "
-                            "Install with: pip install transformers pillow "
-                            "or pip install sentence-transformers pillow"
-                        ),
-                    })
+                    send_response(
+                        {
+                            "type": "loaded",
+                            "success": False,
+                            "error": (
+                                "No vision embedding library available. "
+                                "Install with: pip install transformers pillow "
+                                "or pip install sentence-transformers pillow"
+                            ),
+                        }
+                    )
 
             except Exception as e:
-                send_response({
-                    "type": "loaded",
-                    "success": False,
-                    "error": f"Failed to load model: {e}",
-                })
+                send_response(
+                    {
+                        "type": "loaded",
+                        "success": False,
+                        "error": f"Failed to load model: {e}",
+                    }
+                )
 
         elif cmd_type == "embed":
             if embedder is None:
@@ -618,13 +629,15 @@ def main() -> None:
                     shape = [0, embedder.num_vectors, embedder.dimension]
                 else:
                     shape = [0, embedder.dimension]
-                send_response({
-                    "type": "embeddings",
-                    "vectors": "",
-                    "shape": shape,
-                    "dtype": "float32",
-                    "late_interaction": embedder.late_interaction,
-                })
+                send_response(
+                    {
+                        "type": "embeddings",
+                        "vectors": "",
+                        "shape": shape,
+                        "dtype": "float32",
+                        "late_interaction": embedder.late_interaction,
+                    }
+                )
                 continue
 
             try:
@@ -632,10 +645,7 @@ def main() -> None:
                 images = []
                 for path in image_paths:
                     if not Path(path).exists():
-                        send_response({
-                            "type": "error",
-                            "message": f"Image not found: {path}"
-                        })
+                        send_response({"type": "error", "message": f"Image not found: {path}"})
                         images = []  # Clear and skip
                         break
                     images.append(load_and_preprocess_image(path, max_size))
@@ -648,13 +658,15 @@ def main() -> None:
 
                 # Encode and send
                 data, shape, dtype = encode_array(embeddings)
-                send_response({
-                    "type": "embeddings",
-                    "vectors": data,
-                    "shape": shape,
-                    "dtype": dtype,
-                    "late_interaction": embedder.late_interaction,
-                })
+                send_response(
+                    {
+                        "type": "embeddings",
+                        "vectors": data,
+                        "shape": shape,
+                        "dtype": dtype,
+                        "late_interaction": embedder.late_interaction,
+                    }
+                )
 
             except Exception as e:
                 send_response({"type": "error", "message": f"Embedding error: {e}"})

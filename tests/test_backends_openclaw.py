@@ -6,8 +6,6 @@ All HTTP calls are mocked - no real OpenClaw server required.
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -15,7 +13,6 @@ import pytest
 
 from r3lay.core.backends import GenerationError, ModelLoadError
 from r3lay.core.backends.openclaw import OpenClawBackend
-
 
 # =============================================================================
 # Fixtures
@@ -34,17 +31,14 @@ def backend_with_auth() -> OpenClawBackend:
     return OpenClawBackend(
         "anthropic/claude-sonnet-4-20250514",
         endpoint="http://localhost:4444",
-        api_key="test-api-key"
+        api_key="test-api-key",
     )
 
 
 @pytest.fixture
 def backend_custom_endpoint() -> OpenClawBackend:
     """Create OpenClawBackend with custom endpoint."""
-    return OpenClawBackend(
-        "gpt-4o-mini",
-        endpoint="http://192.168.1.100:4444"
-    )
+    return OpenClawBackend("gpt-4o-mini", endpoint="http://192.168.1.100:4444")
 
 
 @pytest.fixture
@@ -74,28 +68,21 @@ class TestOpenClawBackendInit:
 
     def test_init_with_custom_endpoint(self):
         """Test initialization with custom endpoint."""
-        backend = OpenClawBackend(
-            "gpt-4o",
-            endpoint="http://192.168.1.50:4444"
-        )
+        backend = OpenClawBackend("gpt-4o", endpoint="http://192.168.1.50:4444")
 
         assert backend.model_name == "gpt-4o"
         assert backend._endpoint == "http://192.168.1.50:4444"
 
     def test_init_with_api_key(self):
         """Test initialization with API key."""
-        backend = OpenClawBackend(
-            "anthropic/claude-sonnet-4-20250514",
-            api_key="sk-test-123"
-        )
+        backend = OpenClawBackend("anthropic/claude-sonnet-4-20250514", api_key="sk-test-123")
 
         assert backend._api_key == "sk-test-123"
 
     def test_init_strips_trailing_slash(self):
         """Test that trailing slash is stripped from endpoint."""
         backend = OpenClawBackend(
-            "anthropic/claude-sonnet-4-20250514",
-            endpoint="http://localhost:4444/"
+            "anthropic/claude-sonnet-4-20250514", endpoint="http://localhost:4444/"
         )
 
         assert backend._endpoint == "http://localhost:4444"
@@ -275,7 +262,7 @@ class TestOpenClawBackendGenerateStream:
             'data: {"choices":[{"delta":{"content":"Hello"}}]}',
             'data: {"choices":[{"delta":{"content":" world"}}]}',
             'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
-            'data: [DONE]',
+            "data: [DONE]",
         ]
 
         mock_response = AsyncMock()
@@ -326,9 +313,7 @@ class TestOpenClawBackendGenerateStream:
         backend._client = mock_client
 
         mock_response = AsyncMock()
-        mock_response.__aenter__ = AsyncMock(
-            side_effect=httpx.ConnectError("Connection lost")
-        )
+        mock_response.__aenter__ = AsyncMock(side_effect=httpx.ConnectError("Connection lost"))
 
         mock_client.stream = MagicMock(return_value=mock_response)
 
@@ -410,14 +395,10 @@ class TestOpenClawBackendIsAvailable:
             mock_client.__aexit__ = AsyncMock(return_value=None)
             MockClient.return_value = mock_client
 
-            result = await OpenClawBackend.is_available(
-                endpoint="http://192.168.1.100:4444"
-            )
+            result = await OpenClawBackend.is_available(endpoint="http://192.168.1.100:4444")
 
             assert result is True
-            mock_client.get.assert_called_with(
-                "http://192.168.1.100:4444/v1/models"
-            )
+            mock_client.get.assert_called_with("http://192.168.1.100:4444/v1/models")
 
 
 # =============================================================================

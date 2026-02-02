@@ -330,21 +330,27 @@ class TestMaintenanceLogEntries:
         log = MaintenanceLog(tmp_path)
 
         # Add entries out of order
-        log.add_entry(MaintenanceEntry(
-            service_type="oil_change",
-            mileage=151000,
-            date=datetime(2025, 1, 1),
-        ))
-        log.add_entry(MaintenanceEntry(
-            service_type="oil_change",
-            mileage=156000,
-            date=datetime(2025, 1, 15),
-        ))
-        log.add_entry(MaintenanceEntry(
-            service_type="oil_change",
-            mileage=146000,
-            date=datetime(2024, 7, 1),
-        ))
+        log.add_entry(
+            MaintenanceEntry(
+                service_type="oil_change",
+                mileage=151000,
+                date=datetime(2025, 1, 1),
+            )
+        )
+        log.add_entry(
+            MaintenanceEntry(
+                service_type="oil_change",
+                mileage=156000,
+                date=datetime(2025, 1, 15),
+            )
+        )
+        log.add_entry(
+            MaintenanceEntry(
+                service_type="oil_change",
+                mileage=146000,
+                date=datetime(2024, 7, 1),
+            )
+        )
 
         entries = log.entries
         assert entries[0].mileage == 156000  # Newest
@@ -357,11 +363,13 @@ class TestMaintenanceLogEntries:
 
         # Add multiple entries
         for i in range(5):
-            log.add_entry(MaintenanceEntry(
-                service_type="oil_change",
-                mileage=150000 + i * 5000,
-                date=datetime(2025, 1, 1) + timedelta(days=i * 30),
-            ))
+            log.add_entry(
+                MaintenanceEntry(
+                    service_type="oil_change",
+                    mileage=150000 + i * 5000,
+                    date=datetime(2025, 1, 1) + timedelta(days=i * 30),
+                )
+            )
 
         history = log.get_history(limit=3)
         assert len(history) == 3
@@ -382,16 +390,20 @@ class TestMaintenanceLogEntries:
         """Test getting the last service of a type."""
         log = MaintenanceLog(tmp_path)
 
-        log.add_entry(MaintenanceEntry(
-            service_type="oil_change",
-            mileage=151000,
-            date=datetime(2025, 1, 1),
-        ))
-        log.add_entry(MaintenanceEntry(
-            service_type="oil_change",
-            mileage=156000,
-            date=datetime(2025, 1, 15),
-        ))
+        log.add_entry(
+            MaintenanceEntry(
+                service_type="oil_change",
+                mileage=151000,
+                date=datetime(2025, 1, 1),
+            )
+        )
+        log.add_entry(
+            MaintenanceEntry(
+                service_type="oil_change",
+                mileage=156000,
+                date=datetime(2025, 1, 15),
+            )
+        )
 
         last = log.get_last_service("oil_change")
         assert last is not None
@@ -477,10 +489,12 @@ class TestMaintenanceLogIntervals:
         log = MaintenanceLog(tmp_path)
 
         # Add an entry to set last_performed
-        log.add_entry(MaintenanceEntry(
-            service_type="oil_change",
-            mileage=156000,
-        ))
+        log.add_entry(
+            MaintenanceEntry(
+                service_type="oil_change",
+                mileage=156000,
+            )
+        )
 
         # Get the interval to verify last_performed
         interval = log.get_interval("oil_change")
@@ -510,10 +524,12 @@ class TestMaintenanceLogIntervals:
         assert interval.last_performed is None
 
         # Add entry
-        log.add_entry(MaintenanceEntry(
-            service_type="oil_change",
-            mileage=156000,
-        ))
+        log.add_entry(
+            MaintenanceEntry(
+                service_type="oil_change",
+                mileage=156000,
+            )
+        )
 
         # Verify interval updated
         interval = log.get_interval("oil_change")
@@ -552,10 +568,12 @@ class TestMaintenanceLogUpcoming:
         log = MaintenanceLog(tmp_path)
 
         # Add one entry
-        log.add_entry(MaintenanceEntry(
-            service_type="oil_change",
-            mileage=156000,
-        ))
+        log.add_entry(
+            MaintenanceEntry(
+                service_type="oil_change",
+                mileage=156000,
+            )
+        )
 
         upcoming = log.get_upcoming(
             current_mileage=160000,
@@ -571,18 +589,24 @@ class TestMaintenanceLogUpcoming:
         log = MaintenanceLog(tmp_path)
 
         # Add entries at different mileages to create different due dates
-        log.add_entry(MaintenanceEntry(
-            service_type="oil_change",
-            mileage=155000,  # Due at 160000
-        ))
-        log.add_entry(MaintenanceEntry(
-            service_type="transmission_fluid",
-            mileage=130000,  # Due at 160000 (overdue)
-        ))
-        log.add_entry(MaintenanceEntry(
-            service_type="tire_rotation",
-            mileage=158000,  # Due at 165500
-        ))
+        log.add_entry(
+            MaintenanceEntry(
+                service_type="oil_change",
+                mileage=155000,  # Due at 160000
+            )
+        )
+        log.add_entry(
+            MaintenanceEntry(
+                service_type="transmission_fluid",
+                mileage=130000,  # Due at 160000 (overdue)
+            )
+        )
+        log.add_entry(
+            MaintenanceEntry(
+                service_type="tire_rotation",
+                mileage=158000,  # Due at 165500
+            )
+        )
 
         upcoming = log.get_upcoming(
             current_mileage=162000,
@@ -599,14 +623,18 @@ class TestMaintenanceLogUpcoming:
         log = MaintenanceLog(tmp_path)
 
         # Add entries
-        log.add_entry(MaintenanceEntry(
-            service_type="oil_change",
-            mileage=155000,  # Due at 160000
-        ))
-        log.add_entry(MaintenanceEntry(
-            service_type="tire_rotation",
-            mileage=160000,  # Due at 167500
-        ))
+        log.add_entry(
+            MaintenanceEntry(
+                service_type="oil_change",
+                mileage=155000,  # Due at 160000
+            )
+        )
+        log.add_entry(
+            MaintenanceEntry(
+                service_type="tire_rotation",
+                mileage=160000,  # Due at 167500
+            )
+        )
 
         overdue = log.get_overdue(current_mileage=162000)
 
@@ -618,10 +646,12 @@ class TestMaintenanceLogUpcoming:
         """Test get_overdue when nothing is overdue."""
         log = MaintenanceLog(tmp_path)
 
-        log.add_entry(MaintenanceEntry(
-            service_type="oil_change",
-            mileage=160000,  # Due at 165000
-        ))
+        log.add_entry(
+            MaintenanceEntry(
+                service_type="oil_change",
+                mileage=160000,  # Due at 165000
+            )
+        )
 
         overdue = log.get_overdue(current_mileage=162000)
         assert len(overdue) == 0
@@ -691,13 +721,15 @@ class TestMaintenanceFileFormats:
         """Test that log file is valid JSON."""
         log = MaintenanceLog(tmp_path)
 
-        log.add_entry(MaintenanceEntry(
-            service_type="oil_change",
-            mileage=156000,
-            parts=["filter"],
-            products=["Mobil 1"],
-            cost=75.00,
-        ))
+        log.add_entry(
+            MaintenanceEntry(
+                service_type="oil_change",
+                mileage=156000,
+                parts=["filter"],
+                products=["Mobil 1"],
+                cost=75.00,
+            )
+        )
 
         content = log.log_file.read_text()
         data = json.loads(content)
@@ -725,10 +757,12 @@ class TestMaintenanceFileFormats:
 
         assert not log.maintenance_dir.exists()
 
-        log.add_entry(MaintenanceEntry(
-            service_type="oil_change",
-            mileage=156000,
-        ))
+        log.add_entry(
+            MaintenanceEntry(
+                service_type="oil_change",
+                mileage=156000,
+            )
+        )
 
         assert log.maintenance_dir.exists()
         assert log.maintenance_dir.is_dir()

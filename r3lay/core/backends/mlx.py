@@ -103,19 +103,14 @@ class MLXBackend(InferenceBackend):
         """
         # Verify mlx-lm is installed WITHOUT importing it
         if importlib.util.find_spec("mlx.core") is None:
-            raise DependencyError(
-                "mlx is required for MLX backend. "
-                "Install with: pip install mlx"
-            )
+            raise DependencyError("mlx is required for MLX backend. Install with: pip install mlx")
         if importlib.util.find_spec("mlx_lm") is None:
             raise DependencyError(
-                "mlx-lm is required for MLX backend. "
-                "Install with: pip install mlx-lm"
+                "mlx-lm is required for MLX backend. Install with: pip install mlx-lm"
             )
         if self._is_vision and importlib.util.find_spec("mlx_vlm") is None:
             raise DependencyError(
-                "mlx-vlm is required for vision models. "
-                "Install with: pip install mlx-vlm"
+                "mlx-vlm is required for vision models. Install with: pip install mlx-vlm"
             )
 
         try:
@@ -123,18 +118,22 @@ class MLXBackend(InferenceBackend):
 
             # Start worker subprocess using asyncio for proper non-blocking I/O
             self._process = await asyncio.create_subprocess_exec(
-                sys.executable, "-m", "r3lay.core.backends.mlx_worker",
+                sys.executable,
+                "-m",
+                "r3lay.core.backends.mlx_worker",
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.DEVNULL,
             )
 
             # Send load command with vision flag
-            await self._send_command({
-                "cmd": "load",
-                "path": str(self._path),
-                "is_vision": self._is_vision,
-            })
+            await self._send_command(
+                {
+                    "cmd": "load",
+                    "path": str(self._path),
+                    "is_vision": self._is_vision,
+                }
+            )
 
             # Wait for load response with timeout
             start_time = time.monotonic()
@@ -196,10 +195,7 @@ class MLXBackend(InferenceBackend):
             # Wait for graceful shutdown
             if self._process.returncode is None:
                 try:
-                    await asyncio.wait_for(
-                        self._process.wait(),
-                        timeout=SHUTDOWN_TIMEOUT
-                    )
+                    await asyncio.wait_for(self._process.wait(), timeout=SHUTDOWN_TIMEOUT)
                 except asyncio.TimeoutError:
                     pass
 
@@ -261,10 +257,7 @@ class MLXBackend(InferenceBackend):
 
         try:
             # Read line with timeout
-            line = await asyncio.wait_for(
-                self._process.stdout.readline(),
-                timeout=timeout
-            )
+            line = await asyncio.wait_for(self._process.stdout.readline(), timeout=timeout)
             if line:
                 return json.loads(line.decode().strip())
         except asyncio.TimeoutError:
@@ -299,9 +292,7 @@ class MLXBackend(InferenceBackend):
             GenerationError: If generation fails mid-stream
         """
         if not self.is_loaded:
-            raise RuntimeError(
-                f"Model {self._name} is not loaded. Call load() first."
-            )
+            raise RuntimeError(f"Model {self._name} is not loaded. Call load() first.")
 
         logger.debug(f"Generating with {len(messages)} messages")
 

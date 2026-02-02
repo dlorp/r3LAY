@@ -152,9 +152,7 @@ class MLXVisionEmbeddingBackend(VisionEmbeddingBackend):
         """
         # Check that required packages are available
         if importlib.util.find_spec("numpy") is None:
-            raise RuntimeError(
-                "numpy is required for embeddings. Install with: pip install numpy"
-            )
+            raise RuntimeError("numpy is required for embeddings. Install with: pip install numpy")
         if importlib.util.find_spec("PIL") is None:
             raise RuntimeError(
                 "pillow is required for vision embeddings. Install with: pip install pillow"
@@ -165,7 +163,9 @@ class MLXVisionEmbeddingBackend(VisionEmbeddingBackend):
 
             # Start worker subprocess
             self._process = await asyncio.create_subprocess_exec(
-                sys.executable, "-m", "r3lay.core.embeddings.mlx_vision_worker",
+                sys.executable,
+                "-m",
+                "r3lay.core.embeddings.mlx_vision_worker",
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.DEVNULL,
@@ -211,9 +211,7 @@ class MLXVisionEmbeddingBackend(VisionEmbeddingBackend):
                 if self._process.returncode is not None:
                     exit_code = self._process.returncode
                     await self._cleanup_process_state()
-                    raise RuntimeError(
-                        f"Worker process died during load (exit code: {exit_code})"
-                    )
+                    raise RuntimeError(f"Worker process died during load (exit code: {exit_code})")
 
                 # Yield to event loop
                 await asyncio.sleep(0.01)
@@ -244,10 +242,7 @@ class MLXVisionEmbeddingBackend(VisionEmbeddingBackend):
             # Wait for graceful shutdown
             if self._process.returncode is None:
                 try:
-                    await asyncio.wait_for(
-                        self._process.wait(),
-                        timeout=SHUTDOWN_TIMEOUT
-                    )
+                    await asyncio.wait_for(self._process.wait(), timeout=SHUTDOWN_TIMEOUT)
                 except asyncio.TimeoutError:
                     pass
 
@@ -299,11 +294,13 @@ class MLXVisionEmbeddingBackend(VisionEmbeddingBackend):
         logger.debug(f"Embedding {len(image_paths)} images")
 
         # Send embed command with absolute paths
-        await self._send_command({
-            "cmd": "embed",
-            "images": [str(p.absolute()) for p in image_paths],
-            "max_size": self._config.max_image_size,
-        })
+        await self._send_command(
+            {
+                "cmd": "embed",
+                "images": [str(p.absolute()) for p in image_paths],
+                "max_size": self._config.max_image_size,
+            }
+        )
 
         # Wait for response
         start_time = time.monotonic()
@@ -322,8 +319,7 @@ class MLXVisionEmbeddingBackend(VisionEmbeddingBackend):
                     if not data:
                         if self._late_interaction:
                             return np.zeros(
-                                (0, self._num_vectors, self._dimension),
-                                dtype=np.float32
+                                (0, self._num_vectors, self._dimension), dtype=np.float32
                             )
                         return np.zeros((0, self._dimension), dtype=np.float32)
 
@@ -346,15 +342,12 @@ class MLXVisionEmbeddingBackend(VisionEmbeddingBackend):
             # Check timeout
             elapsed = time.monotonic() - start_time
             if elapsed > EMBED_TIMEOUT:
-                raise RuntimeError(
-                    f"Timeout waiting for vision embeddings after {EMBED_TIMEOUT}s"
-                )
+                raise RuntimeError(f"Timeout waiting for vision embeddings after {EMBED_TIMEOUT}s")
 
             # Check if process died
             if self._process is not None and self._process.returncode is not None:
                 raise RuntimeError(
-                    f"Worker process died during embedding "
-                    f"(exit: {self._process.returncode})"
+                    f"Worker process died during embedding (exit: {self._process.returncode})"
                 )
 
             await asyncio.sleep(0)
@@ -384,10 +377,7 @@ class MLXVisionEmbeddingBackend(VisionEmbeddingBackend):
                 return json.loads(line.decode().strip())
 
             # Read more data (up to 1MB at a time)
-            data = await asyncio.wait_for(
-                self._process.stdout.read(1024 * 1024),
-                timeout=timeout
-            )
+            data = await asyncio.wait_for(self._process.stdout.read(1024 * 1024), timeout=timeout)
 
             if data:
                 self._read_buffer += data

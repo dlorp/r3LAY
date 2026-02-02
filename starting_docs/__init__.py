@@ -13,7 +13,7 @@ __version__ = "0.2.0"
 __author__ = "r3LAY"
 
 from .app import R3LayApp, R3LayState, main
-from .config import AppConfig, THEMES
+from .config import THEMES, AppConfig
 
 __all__ = [
     "R3LayApp",
