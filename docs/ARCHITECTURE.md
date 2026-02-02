@@ -103,9 +103,9 @@ Asymmetric thresholds: high bar (0.6) to switch TO vision, low bar (0.1) to STAY
 
 ## Natural Language Intent Pipeline
 
-1. **Command bypass** (0ms) — `/commands` pass through directly
-2. **Pattern matching** (~1ms) — Regex + keyword scoring
-3. **LLM fallback** (~500ms) — Only for ambiguous input
+1. **Command bypass** (0ms) - `/commands` pass through directly
+2. **Pattern matching** (~1ms) - Regex + keyword scoring
+3. **LLM fallback** (~500ms) - Only for ambiguous input
 
 Example:
 ```
