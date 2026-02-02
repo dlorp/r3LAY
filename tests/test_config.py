@@ -8,14 +8,9 @@ Covers:
 
 from __future__ import annotations
 
-import os
-import tempfile
 from pathlib import Path
 
-import pytest
-
 from r3lay.config import AppConfig, ModelRoles
-
 
 # ============================================================================
 # ModelRoles Tests
