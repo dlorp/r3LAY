@@ -6,6 +6,7 @@ Features:
 - Streaming LLM responses
 - Escape key to cancel generation
 - Command handling (/, /clear, /help, etc.)
+- Natural language model swapping ("swap model mistral", "use llama")
 """
 
 from __future__ import annotations
@@ -20,10 +21,14 @@ from textual.containers import Horizontal, Vertical
 from textual.events import Paste
 from textual.widgets import Button, Static, TextArea
 
+from ...core.intent.parser import IntentParser
+from ...core.intent.taxonomy import IntentType
+
 if TYPE_CHECKING:
     from ...core import R3LayState
     from ...core.axioms import Axiom
     from ...core.index import RetrievalResult
+    from ...core.intent.taxonomy import IntentResult
     from ...core.project_context import ProjectContext
     from ...core.router import RoutingDecision
     from ...core.sources import SourceType
@@ -34,6 +39,7 @@ logger = logging.getLogger(__name__)
 def _format_trust_badge(source_type: "SourceType") -> str:
     """Return a trust indicator badge for the source type."""
     from ...core.sources import SourceType
+
     badges = {
         SourceType.INDEXED_CURATED: "[MANUAL]",
         SourceType.INDEXED_DOCUMENT: "[DOC]",
@@ -124,6 +130,8 @@ class InputPane(Vertical):
         self._cancel_requested = False
         # Attachments for current message (future: file drop support)
         self._attachments: list[Path] = []
+        # Intent parser for natural language commands
+        self._intent_parser = IntentParser()
 
     def compose(self) -> ComposeResult:
         yield TextArea(id="input-area")
@@ -226,22 +234,26 @@ class InputPane(Vertical):
 
             # Log all available types for debugging
             available_types = pb.types()
-            logger.debug(f"Clipboard types available: {list(available_types) if available_types else 'None'}")
+            logger.debug(
+                f"Clipboard types available: {list(available_types) if available_types else 'None'}"
+            )
 
             # Image types to try, in order of preference
             # Browsers often provide multiple formats
             image_types = [
-                NSPasteboardTypePNG,      # public.png - preferred
-                NSPasteboardTypeTIFF,     # public.tiff - common fallback
-                "public.jpeg",            # JPEG format
-                "com.compuserve.gif",     # GIF format
-                "org.webmproject.webp",   # WebP format
+                NSPasteboardTypePNG,  # public.png - preferred
+                NSPasteboardTypeTIFF,  # public.tiff - common fallback
+                "public.jpeg",  # JPEG format
+                "com.compuserve.gif",  # GIF format
+                "org.webmproject.webp",  # WebP format
             ]
 
             for img_type in image_types:
                 data = pb.dataForType_(img_type)
                 if data is not None:
-                    logger.debug(f"Found clipboard image data as type: {img_type}, size: {data.length()} bytes")
+                    logger.debug(
+                        f"Found clipboard image data: {img_type}, size: {data.length()} bytes"
+                    )
 
                     # Determine file extension
                     ext_map = {
@@ -276,7 +288,15 @@ class InputPane(Vertical):
                     # Handle file:// URLs
                     if url_string.startswith("file://"):
                         path = Path(url_string[7:])  # Remove file:// prefix
-                        if path.exists() and path.suffix.lower() in {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.tiff'}:
+                        if path.exists() and path.suffix.lower() in {
+                            ".png",
+                            ".jpg",
+                            ".jpeg",
+                            ".gif",
+                            ".webp",
+                            ".bmp",
+                            ".tiff",
+                        }:
                             logger.info(f"Found image file in clipboard: {path}")
                             return path
 
@@ -308,19 +328,28 @@ class InputPane(Vertical):
             # Try to grab image from clipboard
             image = ImageGrab.grabclipboard()
 
-            logger.debug(f"PIL grabclipboard() returned: {type(image).__name__ if image else 'None'}")
+            logger.debug(
+                f"PIL grabclipboard() returned: {type(image).__name__ if image else 'None'}"
+            )
 
             if image is None:
                 return None
 
             # Check if it's actually an image (not a file list on some systems)
-            if not hasattr(image, 'save'):
+            if not hasattr(image, "save"):
                 # On macOS, grabclipboard can return file paths as a list
                 if isinstance(image, list) and len(image) > 0:
                     logger.debug(f"PIL returned file list: {image}")
                     # It's a list of file paths
                     path = Path(image[0])
-                    if path.exists() and path.suffix.lower() in {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'}:
+                    if path.exists() and path.suffix.lower() in {
+                        ".png",
+                        ".jpg",
+                        ".jpeg",
+                        ".gif",
+                        ".webp",
+                        ".bmp",
+                    }:
                         logger.info(f"Found image file from PIL clipboard: {path}")
                         return path
                 logger.debug(f"PIL returned non-image type: {type(image)}")
@@ -352,10 +381,10 @@ class InputPane(Vertical):
         """
         from ...core.router import IMAGE_EXTENSIONS
 
-        paste_text_preview = repr(event.text[:100] if event.text else '')
+        paste_text_preview = repr(event.text[:100] if event.text else "")
         logger.debug(f"on_paste called with text: {paste_text_preview}")
 
-        # ALWAYS check for clipboard image first (browser copies put both image AND url in clipboard)
+        # ALWAYS check clipboard image first (browser copies include both image AND url)
         clipboard_image = self._check_clipboard_for_image()
         if clipboard_image is not None:
             logger.info(f"Clipboard image detected and attached: {clipboard_image}")
@@ -377,7 +406,7 @@ class InputPane(Vertical):
 
         # SINGLE LINE CHECK: Detect single file path paste (most common case)
         # This handles Finder drag-drop or pasting a copied path
-        if '\n' not in text:
+        if "\n" not in text:
             # Clean up potential quotes or file:// prefix
             clean_path = text.replace("file://", "").strip("'\"")
             logger.debug(f"Single line paste, checking path: {repr(clean_path)}")
@@ -399,7 +428,9 @@ class InputPane(Vertical):
                         return
                     else:
                         # File exists but not an image - let it paste as text
-                        logger.debug(f"File is not an image (suffix: {path.suffix}), allowing paste as text")
+                        logger.debug(
+                            f"File is not an image (suffix: {path.suffix}), allowing paste as text"
+                        )
                 else:
                     logger.debug(f"Path does not exist or is not a file: {path}")
             except Exception as e:
@@ -465,9 +496,18 @@ class InputPane(Vertical):
 
         # Common path prefixes that indicate a file path, not a command
         path_prefixes = (
-            "/Users/", "/home/", "/tmp/", "/var/", "/etc/",
-            "/opt/", "/usr/", "/Library/", "/Applications/",
-            "/Volumes/", "/private/", "/System/"
+            "/Users/",
+            "/home/",
+            "/tmp/",
+            "/var/",
+            "/etc/",
+            "/opt/",
+            "/usr/",
+            "/Library/",
+            "/Applications/",
+            "/Volumes/",
+            "/private/",
+            "/System/",
         )
 
         # Also check for tilde expansion
@@ -492,11 +532,23 @@ class InputPane(Vertical):
             response_pane = screen.query_one("ResponsePane")
             response_pane.add_user(value)
 
-            # Check if this is a command (e.g., /help, /attach) vs a file path (e.g., /Users/...)
+            # Check if this is a command (e.g., /help, /attach) vs a file path
             if value.startswith("/") and not self._looks_like_path(value):
                 await self._handle_command(value, response_pane)
             else:
-                await self._handle_chat(value, response_pane)
+                # Parse intent to detect natural language commands
+                intent_result = self._intent_parser.parse_sync(value)
+
+                # Handle natural language model swap commands
+                if (
+                    intent_result.intent == IntentType.COMMAND
+                    and intent_result.subtype == "cmd.model"
+                    and intent_result.confidence >= 0.7
+                ):
+                    await self._handle_model_swap(intent_result, response_pane)
+                else:
+                    # Default: treat as chat
+                    await self._handle_chat(value, response_pane)
         finally:
             self.set_processing(False)
             self._cancel_requested = False
@@ -678,8 +730,7 @@ class InputPane(Vertical):
             sessions_dir = self.state.get_sessions_dir()
             session.save(sessions_dir)
             response_pane.add_system(
-                f"✓ Session saved: **{session.title or session.id}**\n\n"
-                f"ID: `{session.id}`"
+                f"✓ Session saved: **{session.title or session.id}**\n\nID: `{session.id}`"
             )
             # Refresh session panel if available
             self._refresh_session_panel()
@@ -721,8 +772,7 @@ class InputPane(Vertical):
 
         if matching_session is None:
             response_pane.add_system(
-                f"Session not found: `{name}`\n\n"
-                "Use `/sessions` to list available sessions."
+                f"Session not found: `{name}`\n\nUse `/sessions` to list available sessions."
             )
             return
 
@@ -784,6 +834,7 @@ class InputPane(Vertical):
         """Refresh the session panel to show updated sessions list."""
         try:
             from .session_panel import SessionPanel
+
             panel = self.app.query_one(SessionPanel)
             panel.refresh_sessions()
         except Exception:
@@ -817,10 +868,7 @@ class InputPane(Vertical):
             return
 
         # Filter to only image files
-        image_files = [
-            p for p in matches
-            if p.suffix.lower() in IMAGE_EXTENSIONS and p.is_file()
-        ]
+        image_files = [p for p in matches if p.suffix.lower() in IMAGE_EXTENSIONS and p.is_file()]
 
         if not image_files:
             response_pane.add_system(
@@ -911,13 +959,10 @@ class InputPane(Vertical):
                 badge = _format_trust_badge(result.source_type)
                 # Truncate content preview to 300 chars
                 content_preview = (
-                    result.content[:300] + "..."
-                    if len(result.content) > 300
-                    else result.content
+                    result.content[:300] + "..." if len(result.content) > 300 else result.content
                 )
                 output_lines.append(
-                    f"### {i}. {badge} {source} (score: {score:.2f})\n"
-                    f"```\n{content_preview}\n```\n"
+                    f"### {i}. {badge} {source} (score: {score:.2f})\n```\n{content_preview}\n```\n"
                 )
 
             response_pane.add_assistant("\n".join(output_lines))
@@ -1050,7 +1095,8 @@ class InputPane(Vertical):
                 status_icon = self._get_axiom_status_icon(ax)
                 conflict_lines.append(
                     f"- {status_icon} `{ax.id}`: {ax.statement[:80]}..."
-                    if len(ax.statement) > 80 else f"- {status_icon} `{ax.id}`: {ax.statement}"
+                    if len(ax.statement) > 80
+                    else f"- {status_icon} `{ax.id}`: {ax.statement}"
                 )
             conflict_lines.append(
                 "\n*Creating axiom anyway. Use `/dispute <axiom_id> <reason>` if needed.*"
@@ -1143,9 +1189,7 @@ class InputPane(Vertical):
             elif category_filter:
                 response_pane.add_system(f"No axioms found in category: {category_filter}")
             else:
-                response_pane.add_system(
-                    "No axioms yet. Create one with `/axiom <statement>`"
-                )
+                response_pane.add_system("No axioms yet. Create one with `/axiom <statement>`")
             return
 
         # Format as markdown
@@ -1164,22 +1208,20 @@ class InputPane(Vertical):
                 for ax in by_category[cat]:
                     status_icon = self._get_axiom_status_icon(ax)
                     confidence_pct = int(ax.confidence * 100)
-                    lines.append(
-                        f"- {status_icon} `{ax.id}` ({confidence_pct}%): {ax.statement}"
-                    )
+                    lines.append(f"- {status_icon} `{ax.id}` ({confidence_pct}%): {ax.statement}")
                 lines.append("")
         else:
             for ax in axioms:
                 status_icon = self._get_axiom_status_icon(ax)
                 confidence_pct = int(ax.confidence * 100)
-                lines.append(
-                    f"- {status_icon} `{ax.id}` ({confidence_pct}%): {ax.statement}"
-                )
+                lines.append(f"- {status_icon} `{ax.id}` ({confidence_pct}%): {ax.statement}")
 
         # Add stats
         stats = axiom_mgr.get_stats()
-        lines.append(f"\n*Total: {stats['total']} | Active: {stats['active']} | "
-                     f"Disputed: {stats['disputed']} | Pending: {stats['pending']}*")
+        lines.append(
+            f"\n*Total: {stats['total']} | Active: {stats['active']} | "
+            f"Disputed: {stats['disputed']} | Pending: {stats['pending']}*"
+        )
 
         response_pane.add_assistant("\n".join(lines))
 
@@ -1233,7 +1275,9 @@ class InputPane(Vertical):
                     for source in chain.get("sources", []):
                         signal = source.get("signal", {})
                         trans = source.get("transmission", {})
-                        lines.append(f"\n  **Source**: [{signal.get('type', 'unknown')}] {signal.get('title', 'Untitled')}")
+                        sig_type = signal.get("type", "unknown")
+                        sig_title = signal.get("title", "Untitled")
+                        lines.append(f"\n  **Source**: [{sig_type}] {sig_title}")
                         if signal.get("path"):
                             lines.append(f"    - Path: `{signal.get('path')}`")
                         if signal.get("url"):
@@ -1241,7 +1285,11 @@ class InputPane(Vertical):
                         lines.append(f"    - Location: {trans.get('location', 'N/A')}")
                         if trans.get("excerpt"):
                             excerpt = trans.get("excerpt", "")[:200]
-                            lines.append(f"    - Excerpt: \"{excerpt}...\"" if len(trans.get("excerpt", "")) > 200 else f"    - Excerpt: \"{excerpt}\"")
+                            lines.append(
+                                f'    - Excerpt: "{excerpt}..."'
+                                if len(trans.get("excerpt", "")) > 200
+                                else f'    - Excerpt: "{excerpt}"'
+                            )
                 else:
                     lines.append(f"- `{cit_id}` (citation data not found)")
         else:
@@ -1253,9 +1301,7 @@ class InputPane(Vertical):
 
         response_pane.add_assistant("\n".join(lines))
 
-    async def _handle_dispute_axiom(
-        self, axiom_id: str, reason: str, response_pane
-    ) -> None:
+    async def _handle_dispute_axiom(self, axiom_id: str, reason: str, response_pane) -> None:
         """Handle /dispute command - mark an axiom as disputed.
 
         Args:
@@ -1282,8 +1328,7 @@ class InputPane(Vertical):
 
         if axiom.is_disputed:
             response_pane.add_system(
-                f"Axiom `{axiom_id}` is already disputed.\n"
-                f"Current reason: {axiom.dispute_reason}"
+                f"Axiom `{axiom_id}` is already disputed.\nCurrent reason: {axiom.dispute_reason}"
             )
             return
 
@@ -1392,7 +1437,9 @@ class InputPane(Vertical):
 
                 elif event_type == "resolution_start":
                     block.append("\n### Resolution Cycle\n")
-                    block.append(f"Investigating contradiction `{data.get('contradiction_id', '')}`...\n")
+                    block.append(
+                        f"Investigating contradiction `{data.get('contradiction_id', '')}`...\n"
+                    )
 
                 elif event_type == "resolution_complete":
                     outcome = data.get("outcome", "unknown")
@@ -1404,9 +1451,7 @@ class InputPane(Vertical):
                     sources = data.get("sources", 0)
                     contradictions = data.get("contradictions", 0)
                     duration = data.get("duration", 0)
-                    block.append(
-                        f"\nCycle complete: {axioms} axioms, {sources} sources"
-                    )
+                    block.append(f"\nCycle complete: {axioms} axioms, {sources} sources")
                     if contradictions:
                         block.append(f", {contradictions} contradictions")
                     block.append(f" ({duration:.1f}s)\n")
@@ -1533,8 +1578,7 @@ class InputPane(Vertical):
 
             roles = app.config.model_roles
             target_model_name = (
-                roles.vision_model if decision.model_type == "vision"
-                else roles.text_model
+                roles.vision_model if decision.model_type == "vision" else roles.text_model
             )
 
             if not target_model_name:
@@ -1543,9 +1587,7 @@ class InputPane(Vertical):
 
             # Find ModelInfo in available models
             model_info = next(
-                (m for m in self.state.available_models
-                 if m.name == target_model_name),
-                None
+                (m for m in self.state.available_models if m.name == target_model_name), None
             )
 
             if not model_info:
@@ -1553,10 +1595,7 @@ class InputPane(Vertical):
                 return False
 
             # Execute switch with timeout (30 seconds)
-            await asyncio.wait_for(
-                self.state.load_model(model_info),
-                timeout=30.0
-            )
+            await asyncio.wait_for(self.state.load_model(model_info), timeout=30.0)
 
             logger.info(f"Switched to {decision.model_type}: {target_model_name}")
             return True
@@ -1566,6 +1605,126 @@ class InputPane(Vertical):
             return False
         except Exception as e:
             logger.error(f"Model switch failed: {e}")
+            return False
+
+    def _find_model_by_name(self, model_name: str):
+        """Find a model in available_models by exact or fuzzy name match.
+
+        Matching priority:
+        1. Exact match (case-insensitive)
+        2. Prefix match (model name starts with query)
+        3. Contains match (query is substring of model name)
+
+        Args:
+            model_name: User-provided model name (e.g., "mistral", "llama3")
+
+        Returns:
+            ModelInfo if found, None otherwise
+        """
+        if not self.state.available_models:
+            return None
+
+        model_name_lower = model_name.lower()
+
+        # Try exact match first (case-insensitive)
+        for model in self.state.available_models:
+            if model.name.lower() == model_name_lower:
+                return model
+
+        # Try prefix match (e.g., "mistral" matches "mistral-7b-v0.3")
+        for model in self.state.available_models:
+            if model.name.lower().startswith(model_name_lower):
+                return model
+
+        # Try contains match (e.g., "qwen" matches "qwen2.5-7b-instruct")
+        for model in self.state.available_models:
+            if model_name_lower in model.name.lower():
+                return model
+
+        return None
+
+    async def _handle_model_swap(self, intent_result: "IntentResult", response_pane) -> bool:
+        """Handle natural language model swap command.
+
+        Examples:
+        - "swap model mistral"
+        - "use llama"
+        - "load qwen2.5-7b"
+        - "switch to gemma"
+
+        Args:
+            intent_result: Parsed intent with model_name entity
+            response_pane: ResponsePane to display results
+
+        Returns:
+            True if model was swapped successfully, False otherwise
+        """
+        model_name = intent_result.entities.get("model_name")
+
+        if not model_name:
+            response_pane.add_system(
+                "**Model name not specified.**\n\n"
+                "Usage examples:\n"
+                "- `swap model mistral`\n"
+                "- `use llama`\n"
+                "- `load qwen2.5-7b`"
+            )
+            return False
+
+        # Check if any models are available
+        if not self.state.available_models:
+            response_pane.add_error(
+                "No models available. Check the **Models** tab to discover models."
+            )
+            return False
+
+        # Find matching model
+        model_info = self._find_model_by_name(model_name)
+
+        if not model_info:
+            # List available models for user
+            available_names = [m.name for m in self.state.available_models[:10]]
+            names_str = "\n".join(f"- `{n}`" for n in available_names)
+            more = (
+                f"\n- *...and {len(self.state.available_models) - 10} more*"
+                if len(self.state.available_models) > 10
+                else ""
+            )
+            response_pane.add_system(
+                f"**Model not found:** `{model_name}`\n\nAvailable models:\n{names_str}{more}"
+            )
+            return False
+
+        # Execute the model swap
+        self.set_status(f"Loading {model_info.name}...")
+        response_pane.add_system(f"Loading model: **{model_info.name}**...")
+
+        try:
+            await asyncio.wait_for(
+                self.state.load_model(model_info),
+                timeout=60.0,  # Longer timeout for model loading
+            )
+
+            # Success - show confirmation
+            response_pane.add_assistant(
+                f"**MODEL LOADED:** `{model_info.name}` "
+                "░░░░░░░░░░░░░░░░░░░░░░░░░░░ READY\n\n"
+                f"*{model_info.backend_type.value} backend • "
+                f"{'Vision capable' if model_info.is_vision_model else 'Text only'}*"
+            )
+            logger.info(f"Model swapped via conversation: {model_info.name}")
+            return True
+
+        except asyncio.TimeoutError:
+            response_pane.add_error(
+                f"Model load timed out: `{model_info.name}`\n\n"
+                "The model may still be loading. Check the **Models** tab."
+            )
+            logger.error(f"Model swap timed out: {model_info.name}")
+            return False
+        except Exception as e:
+            response_pane.add_error(f"Failed to load model: {e}")
+            logger.exception(f"Model swap failed: {model_info.name}")
             return False
 
     def _get_project_context(self) -> "ProjectContext | None":
@@ -1637,6 +1796,7 @@ class InputPane(Vertical):
         if session is None:
             # This shouldn't happen as R3LayState initializes session, but be safe
             from ...core.session import Session
+
             session = Session(project_path=self.state.project_path)
             self.state.session = session
 
@@ -1667,9 +1827,7 @@ class InputPane(Vertical):
 
         # Ensure system prompt with citation instructions is set
         # Only add if this is a new conversation (no existing system message)
-        has_system_prompt = any(
-            msg.role == "system" for msg in session.messages
-        )
+        has_system_prompt = any(msg.role == "system" for msg in session.messages)
         if not has_system_prompt:
             system_prompt = session.get_system_prompt_with_citations(
                 project_context=project_context,
