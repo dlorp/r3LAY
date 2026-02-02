@@ -23,8 +23,10 @@ from .config import AppConfig
 from .core import R3LayState
 from .ui.widgets import (
     AxiomPanel,
+    HistoryPanel,
     IndexPanel,
     InputPane,
+    MaintenancePanel,
     ModelPanel,
     ResponsePane,
     SessionPanel,
@@ -43,8 +45,10 @@ class MainScreen(Screen):
         Binding("ctrl+1", "tab_models", "Models", show=False),
         Binding("ctrl+2", "tab_index", "Index", show=False),
         Binding("ctrl+3", "tab_axioms", "Axioms", show=False),
-        Binding("ctrl+4", "tab_sessions", "Sessions", show=False),
-        Binding("ctrl+5", "tab_settings", "Settings", show=False),
+        Binding("ctrl+4", "tab_log", "Log", show=False),
+        Binding("ctrl+5", "tab_due", "Due", show=False),
+        Binding("ctrl+6", "tab_sessions", "Sessions", show=False),
+        Binding("ctrl+7", "tab_settings", "Settings", show=False),
     ]
 
     def __init__(self, state: R3LayState):
@@ -71,6 +75,13 @@ class MainScreen(Screen):
                         yield IndexPanel(self.state)
                     with TabPane("Axioms", id="tab-axioms"):
                         yield AxiomPanel(self.state)
+                    with TabPane("Log", id="tab-log"):
+                        yield HistoryPanel(self.state)
+                    with TabPane("⚠ Due", id="tab-due"):
+                        yield MaintenancePanel(
+                            project_path=self.state.project_path,
+                            current_mileage=None,
+                        )
                     with TabPane("Sessions", id="tab-sessions"):
                         yield SessionPanel(self.state)
                     with TabPane("Settings", id="tab-settings"):
@@ -96,6 +107,12 @@ class MainScreen(Screen):
 
     def action_tab_axioms(self) -> None:
         self.query_one("#control-tabs", TabbedContent).active = "tab-axioms"
+
+    def action_tab_log(self) -> None:
+        self.query_one("#control-tabs", TabbedContent).active = "tab-log"
+
+    def action_tab_due(self) -> None:
+        self.query_one("#control-tabs", TabbedContent).active = "tab-due"
 
     def action_tab_sessions(self) -> None:
         self.query_one("#control-tabs", TabbedContent).active = "tab-sessions"
@@ -170,9 +187,7 @@ class R3LayApp(App):
 
             # Init vision embedder if configured
             if roles.has_vision_embedder():
-                vision = await self.state.init_vision_embedder(
-                    model_name=roles.vision_embedder
-                )
+                vision = await self.state.init_vision_embedder(model_name=roles.vision_embedder)
                 if vision:
                     logger.info(f"Auto-loaded vision embedder: {roles.vision_embedder}")
 
