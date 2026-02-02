@@ -55,16 +55,16 @@ The most important fix was converting `config.py` from `pydantic.BaseModel` to `
 
 ### Files Created
 
-- `/Users/dperez/Documents/Programming/r3LAY/.dockerignore` (~40 lines):
+- `<project>/.dockerignore` (~40 lines):
   - Excludes .git, __pycache__, .venv, plans/, starting_docs/, etc.
   - Prevents unnecessary files from bloating Docker build context
 
-- `/Users/dperez/Documents/Programming/r3LAY/Dockerfile.nvidia` (~80 lines):
+- `<project>/Dockerfile.nvidia` (~80 lines):
   - Multi-stage build with CUDA 12.1
   - Compiles llama-cpp-python with CUDA support (`CMAKE_ARGS="-DGGML_CUDA=on"`)
   - Runtime stage uses nvidia/cuda:12.1-runtime for smaller image
 
-- `/Users/dperez/Documents/Programming/r3LAY/docs/docker.md` (~200 lines):
+- `<project>/docs/docker.md` (~200 lines):
   - Quick start for default, standalone, and NVIDIA profiles
   - Environment variable reference
   - Host Ollama connection guide
@@ -72,7 +72,7 @@ The most important fix was converting `config.py` from `pydantic.BaseModel` to `
   - SearXNG configuration
   - Production deployment tips
 
-- `/Users/dperez/Documents/Programming/r3LAY/docs/troubleshooting.md` (~180 lines):
+- `<project>/docs/troubleshooting.md` (~180 lines):
   - Model loading issues (OOM, not found, hangs)
   - Network issues (SearXNG, Ollama)
   - File/data issues (corrupted index, sessions)
@@ -81,42 +81,42 @@ The most important fix was converting `config.py` from `pydantic.BaseModel` to `
 
 ### Files Modified
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/config.py`:
+- `<project>/r3lay/config.py`:
   - Converted `AppConfig` from `BaseModel` to `BaseSettings`
   - Added `SettingsConfigDict(env_prefix="R3LAY_", ...)`
   - Added `searxng_endpoint` field
   - Removed hardcoded paths (now use `None` for auto-detection)
   - Fixed protected namespace warning with `protected_namespaces=()`
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/__init__.py`:
+- `<project>/r3lay/core/__init__.py`:
   - Added `_config` field to R3LayState dataclass
   - Added `config` property for lazy initialization
   - Modified `__post_init__` to use config values instead of hardcoded paths
   - Updated `init_research()` to use `config.searxng_endpoint`
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/session.py`:
+- `<project>/r3lay/core/session.py`:
   - Added error handling to `save()` with atomic writes via temp file
   - Added comprehensive error handling to `load()` with specific exceptions
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/signals.py`:
+- `<project>/r3lay/core/signals.py`:
   - Added logger
   - Added error handling to `_save()` with atomic writes for both files
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/research.py`:
+- `<project>/r3lay/core/research.py`:
   - Added error handling to `_save()` with atomic writes
 
-- `/Users/dperez/Documents/Programming/r3LAY/Dockerfile`:
+- `<project>/Dockerfile`:
   - Added `PYTHONUNBUFFERED=1` for proper logging
   - Added health check
   - Improved layer caching (copy pyproject.toml first)
 
-- `/Users/dperez/Documents/Programming/r3LAY/docker-compose.yaml`:
+- `<project>/docker-compose.yaml`:
   - Fixed environment variable names (`R3LAY_OLLAMA_ENDPOINT` not `R3LAY_MODELS__OLLAMA__ENDPOINT`)
   - Added `r3lay-nvidia` service with GPU reservation
   - Added health check for SearXNG
   - Added comprehensive comments and documentation
 
-- `/Users/dperez/Documents/Programming/r3LAY/README.md`:
+- `<project>/README.md`:
   - Updated version badge to 1.0.0
   - Added "Status: complete" badge
   - Expanded Features section with tables
@@ -302,14 +302,14 @@ Implemented Phase 6 (Signals & Axioms) - the provenance tracking and validated k
 
 ### Files Created
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/signals.py` (~544 lines):
+- `<project>/r3lay/core/signals.py` (~544 lines):
   - `SignalType` enum: DOCUMENT, CODE, USER, COMMUNITY, WEB, INFERENCE, SESSION
   - `Signal`, `Transmission`, `Citation` dataclasses
   - `ConfidenceCalculator` with type-based weights (0.50-0.95)
   - `SignalsManager` with YAML persistence to `.signals/`
   - `signal_type_from_source_type()` helper for SourceType mapping
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/axioms.py` (~500 lines):
+- `<project>/r3lay/core/axioms.py` (~500 lines):
   - `AxiomStatus` enum: PENDING, VALIDATED, REJECTED, DISPUTED, SUPERSEDED, RESOLVED, INVALIDATED
   - `AXIOM_CATEGORIES`: specifications, procedures, compatibility, diagnostics, history, safety
   - `Axiom` dataclass with enhanced fields (status, dispute_reason, superseded_by)
@@ -317,25 +317,25 @@ Implemented Phase 6 (Signals & Axioms) - the provenance tracking and validated k
 
 ### Files Modified
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/__init__.py`:
+- `<project>/r3lay/core/__init__.py`:
   - Added signals and axioms imports
   - Added `signals_manager` and `axiom_manager` fields to R3LayState
   - Added `init_signals()` and `init_axioms()` methods
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/ui/widgets/axiom_panel.py` (rewritten ~200 lines):
+- `<project>/r3lay/ui/widgets/axiom_panel.py` (rewritten ~200 lines):
   - Stats header with counts and avg confidence
   - Category and status filter dropdowns
   - Scrollable axiom list with color-coded status indicators
   - Validate/Dispute/Export action buttons
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/ui/widgets/input_pane.py`:
+- `<project>/r3lay/ui/widgets/input_pane.py`:
   - Added `/axiom [category:] <statement>` - Create axiom with conflict check
   - Added `/axioms [category] [--disputed]` - List axioms
   - Added `/cite <axiom_id>` - Show provenance chain
   - Added `/dispute <axiom_id> <reason>` - Mark as disputed
   - Updated `/help` with Knowledge Management section
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/session.py`:
+- `<project>/r3lay/core/session.py`:
   - Updated `get_system_prompt_with_citations()` to accept `axiom_manager`
   - Includes validated axiom context in LLM prompts
 
@@ -422,12 +422,12 @@ Completed Phase 5 (Model Routing System) by implementing Step 5.5 (Chat Flow Int
 
 ### Files Modified
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/ui/widgets/model_panel.py`:
+- `<project>/r3lay/ui/widgets/model_panel.py`:
   - Added model role saving in `_load_selected_model()` (lines 703-718)
   - Saves `text_model` or `vision_model` to config based on `_current_role`
   - Calls `app.config.save()` to persist
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/app.py`:
+- `<project>/r3lay/app.py`:
   - Added `logger` at module level (line 14)
   - Added `_auto_init_embedders()` async method (lines 147-171)
   - Added auto-init task in `on_mount()` (lines 144-145)
@@ -559,19 +559,19 @@ Completed Phase 4 of r3LAY's hybrid RAG system with full source attribution, mul
 
 ### Files Modified
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/ui/widgets/model_panel.py`:
+- `<project>/r3lay/ui/widgets/model_panel.py`:
   - Added backslash escaping for `\[LOADED]` badge in `_get_role_badges()` method
   - Added amber color styling (#E6A817) to loaded model badges
   - Added `refresh_welcome()` call after model load/unload operations
   - Fixed badge display by treating `[LOADED]` as literal text, not Rich markup
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/ui/widgets/response_pane.py`:
+- `<project>/r3lay/ui/widgets/response_pane.py`:
   - Added welcome block management with `_welcome_block` field
   - Implemented `refresh_welcome()` method to update dynamic welcome message
   - Fixed mount logic: changed from `mount(before=0)` to `mount(before=response_block)`
   - Integrated WelcomeMessage class for contextual state display
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/welcome.py` (NEW FILE):
+- `<project>/r3lay/core/welcome.py` (NEW FILE):
   - `ProjectDetector` class: detects project type from folder path
     - Supports 5 project types: automotive, electronics, software, workshop, home
     - Pattern matching for automotive (make/model/year detection)
@@ -585,18 +585,18 @@ Completed Phase 4 of r3LAY's hybrid RAG system with full source attribution, mul
     - Uses Markdown formatting with backticks for highlighting
     - Soft line breaks for compact display
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/ui/widgets/input_pane.py`:
+- `<project>/r3lay/ui/widgets/input_pane.py`:
   - Added `/status` command to show current system state (loaded model, index stats, project info)
   - Changed system message header from "* System" to "* r3LAY" for brand consistency
   - Updated layout to use auto height with min/max constraints instead of fixed percentage
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/ui/widgets/index_panel.py`:
+- `<project>/r3lay/ui/widgets/index_panel.py`:
   - Added `refresh_welcome()` call after reindex completes
   - Ensures welcome message reflects updated chunk counts immediately
 
 ### Files Created (Phase 4 Core)
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/index.py` (1800 lines):
+- `<project>/r3lay/core/index.py` (1800 lines):
   - `HybridIndex` class with BM25 + vector search
   - RRF fusion (k=60) with configurable weights (default: 0.7 vector, 0.3 BM25)
   - Code-aware tokenization (CamelCase/snake_case splitting)
@@ -604,7 +604,7 @@ Completed Phase 4 of r3LAY's hybrid RAG system with full source attribution, mul
   - Image indexing with vision embeddings and PDF extraction
   - JSON file persistence with backward compatibility
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/sources.py` (350 lines):
+- `<project>/r3lay/core/sources.py` (350 lines):
   - `SourceType` enum with 8 types and trust hierarchy (0.4-1.0)
   - Trust levels: INDEXED_CURATED (1.0), INDEXED_CODE (0.9), WEB_OE (0.85), WEB_TRUSTED (0.7), WEB_COMMUNITY (0.4)
   - `detect_source_type_from_path()` for auto-classification during indexing
@@ -612,25 +612,25 @@ Completed Phase 4 of r3LAY's hybrid RAG system with full source attribution, mul
   - `format_citation()` for trust-appropriate citation templates
   - Domain lists: OE_DOMAINS, TRUSTED_DOMAINS, COMMUNITY_DOMAINS
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/session.py` (390 lines):
+- `<project>/r3lay/core/session.py` (390 lines):
   - `Session` and `Message` dataclasses for conversation history
   - `get_system_prompt_with_citations()` for citation-aware LLM prompts
   - Trust-based citation guidelines (indexed > OE > trusted > community)
   - Project context integration for personalized references
   - JSON persistence for session save/load
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/router.py` (325 lines):
+- `<project>/r3lay/core/router.py` (325 lines):
   - `SmartRouter` with asymmetric thresholds (0.6 to switch, 0.1 to stay)
   - Vision need scoring based on attachments, keywords, RAG context
   - `RoutingDecision` with model_type, reason, vision_score
   - Backend management for text and vision models
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/project_context.py` (280 lines):
+- `<project>/r3lay/core/project_context.py` (280 lines):
   - `extract_project_context()` for automotive project detection
   - Vehicle make/model/year/nickname extraction from paths
   - Enables personalized citations like "your Impreza's service manual"
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/embeddings/` (subprocess-isolated):
+- `<project>/r3lay/core/embeddings/` (subprocess-isolated):
   - `mlx_text_worker.py`: subprocess worker with TERM=dumb, fd isolation
   - `mlx_text.py`: `MLXTextEmbeddingBackend` with asyncio subprocess management
   - `mlx_vision_worker.py`: vision embedding worker with CLIP fallback
@@ -823,7 +823,7 @@ Attempted to fix a critical UI bug where the [LOADED] badge fails to appear next
 
 ### Files Modified
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/ui/widgets/model_panel.py`:
+- `<project>/r3lay/ui/widgets/model_panel.py`:
   - Enhanced `_names_match()` with better string normalization (strip, -mlx handling, partial matching)
   - Added direct is_loaded check in `_add_role_section` as attempted workaround (lines ~180-185)
   - Removed all debug notifications after failed attempts (cleanup)
@@ -889,37 +889,37 @@ Completed Phase 4b (MLX Hybrid Search) with full vision embedding support and co
 
 ### Files Created
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/sources.py` - Source type classification with trust hierarchy (INDEXED_CURATED=1.0, WEB_OE=0.85, WEB_TRUSTED=0.7, WEB_COMMUNITY=0.4)
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/project_context.py` - Project context extraction for personalized citations (e.g., "your Impreza", "the Brighton")
+- `<project>/r3lay/core/sources.py` - Source type classification with trust hierarchy (INDEXED_CURATED=1.0, WEB_OE=0.85, WEB_TRUSTED=0.7, WEB_COMMUNITY=0.4)
+- `<project>/r3lay/core/project_context.py` - Project context extraction for personalized citations (e.g., "your Impreza", "the Brighton")
 
 ### Files Modified
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/embeddings/mlx_vision_worker.py` - Fixed MLXCLIPEmbedder exception handling:
+- `<project>/r3lay/core/embeddings/mlx_vision_worker.py` - Fixed MLXCLIPEmbedder exception handling:
   - Changed `except ImportError` to `except Exception` for proper fallback behavior
   - Now catches all exceptions during MLX CLIP model loading, not just ImportError
   - Ensures fallback to transformers CLIPEmbedder when MLX fails for any reason
   - Result: Vision embeddings now work via transformers CLIP (dim=512)
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/index.py` - Added source type tracking to chunks:
+- `<project>/r3lay/core/index.py` - Added source type tracking to chunks:
   - Added `source_type: SourceType` field to Chunk dataclass with default INDEXED_DOCUMENT
   - Added `source_type` field to RetrievalResult dataclass
   - Updated SemanticChunker to auto-detect source type from file path during chunking
   - Updated persistence (_load_from_disk/_save_to_disk) to save/load source_type
   - Updated search methods (_bm25_search, _vector_search) to include source_type in results
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/core/session.py` - Added citation-aware system prompts:
+- `<project>/r3lay/core/session.py` - Added citation-aware system prompts:
   - Added `get_system_prompt_with_citations()` method accepting project_context and source_types_present
   - Generates system prompt with citation guidelines based on trust levels (indexed > OE > trusted > community)
   - Customizes prompt for automotive projects with vehicle-specific references
   - Lists available source types in the prompt for LLM context
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/ui/widgets/input_pane.py` - Integrated source attribution into chat:
+- `<project>/r3lay/ui/widgets/input_pane.py` - Integrated source attribution into chat:
   - Added `_get_project_context()` method calling extract_project_context() from project_context.py
   - Added `_get_available_source_types()` method to scan index for unique source types
   - Updated `_handle_chat()` to add citation system prompt on first message of each session
   - Only adds system prompt once per conversation for efficiency
 
-- `/Users/dperez/Documents/Programming/r3LAY/r3lay/ui/widgets/model_panel.py` - Fixed model panel button state:
+- `<project>/r3lay/ui/widgets/model_panel.py` - Fixed model panel button state:
   - Updated `_unload_model()` to properly restore button label based on selected model type
   - Fixed issue where "Unload" button stayed visible after unloading LLM when embedder was selected
   - Now correctly shows "Set Vision Embedder" or "Set Embedder" for embedding models after unload

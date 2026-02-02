@@ -150,7 +150,7 @@ Draft and target models **must share identical tokenizers**. Effective pairs:
 **Goal**: MLX primary, llama.cpp fallback, hot-swappable models
 
 #### 2.1 HuggingFace Cache Scanner
-- [ ] Set custom cache path: `/Users/dperez/Documents/LLM`
+- [ ] Set custom cache path: `~/.cache/huggingface`
 - [ ] Scan `hub/models--{org}--{name}/snapshots/` structure
 - [ ] Detect model format (MLX vs GGUF vs safetensors)
 - [ ] Extract metadata (context length, quantization, size)
@@ -551,8 +551,8 @@ llama.cpp (fallback) → GGUF models, speculative decoding with -md flag
 **Critical**: dLLM (github.com/ZHZisZZ/dllm) is NOT speculative decoding — it's Diffusion LLMs. Use llama.cpp's native `-md` flag for draft+target speculative decoding.
 
 ### HuggingFace Cache
-- **Custom path**: `/Users/dperez/Documents/LLM`
-- **Set via**: `os.environ['HF_HOME'] = '/Users/dperez/Documents/LLM'`
+- **Custom path**: `~/.cache/huggingface`
+- **Set via**: `os.environ['HF_HOME'] = '~/.cache/huggingface'`
 - **Structure**: `hub/models--{org}--{name}/snapshots/{commit}/`
 
 ### CGRAG Patterns (Hybrid Search)

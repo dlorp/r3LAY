@@ -80,7 +80,7 @@ else:
 
 | Source | Path | Format |
 |--------|------|--------|
-| HuggingFace cache | `/Users/dperez/Documents/LLM/` | safetensors, GGUF |
+| HuggingFace cache | `~/.cache/huggingface/` | safetensors, GGUF |
 | GGUF drop folder | `~/.r3lay/models/` | .gguf files |
 | Ollama | `http://localhost:11434` | via API |
 
@@ -254,7 +254,7 @@ ruff check r3lay/
 
 **Primary development machine:**
 - Apple M4 Pro, 24GB unified memory
-- Models stored in `/Users/dperez/Documents/LLM/` (HF structure)
+- Models stored in `~/.cache/huggingface/` (HF structure)
 - Optimal: 7B models at 4-bit quantization (~6-8GB)
 
 **Secondary target:**
