@@ -12,8 +12,6 @@ from __future__ import annotations
 from typing import Generator
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from r3lay.ui.effects import (
     DARK_ORANGE,
     GRANITE_GRAY,
@@ -22,7 +20,6 @@ from r3lay.ui.effects import (
     TITANIUM_YELLOW,
     Effects,
 )
-
 
 # ============================================================================
 # Brand Color Constants Tests

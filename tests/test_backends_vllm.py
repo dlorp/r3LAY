@@ -10,8 +10,6 @@ Covers:
 
 from __future__ import annotations
 
-import base64
-import json
 import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -21,7 +19,6 @@ import pytest
 
 from r3lay.core.backends import GenerationError, ModelLoadError
 from r3lay.core.backends.vllm import VLLMBackend
-
 
 # ============================================================================
 # VLLMBackend Initialization Tests
@@ -464,7 +461,7 @@ class TestVLLMBackendAvailability:
             mock_client.__aexit__ = AsyncMock(return_value=None)
             MockClient.return_value = mock_client
 
-            result = await VLLMBackend.is_available(endpoint="http://custom:9000")
+            await VLLMBackend.is_available(endpoint="http://custom:9000")
             mock_client.get.assert_called_once()
             call_url = mock_client.get.call_args[0][0]
             assert "custom:9000" in call_url
