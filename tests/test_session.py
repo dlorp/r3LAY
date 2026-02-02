@@ -17,7 +17,6 @@ import pytest
 
 from r3lay.core.session import Message, Session
 
-
 # =============================================================================
 # Message Tests
 # =============================================================================
@@ -297,9 +296,7 @@ class TestSessionBasic:
         session = Session()
         session.add_user_message("No images here")
         session.add_assistant_message("Response", model="test")
-        session.add_user_message(
-            "With images", images=[Path("/a.png"), Path("/b.png")]
-        )
+        session.add_user_message("With images", images=[Path("/a.png"), Path("/b.png")])
         session.add_assistant_message("Another response", model="test")
 
         images = session.get_last_user_images()

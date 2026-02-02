@@ -120,9 +120,7 @@ class OpenClawBackend(InferenceBackend):
             ) from e
         except httpx.TimeoutException as e:
             await client.aclose()
-            raise ModelLoadError(
-                f"Timeout connecting to OpenClaw at {self._endpoint}"
-            ) from e
+            raise ModelLoadError(f"Timeout connecting to OpenClaw at {self._endpoint}") from e
 
     async def unload(self) -> None:
         """Close HTTP client.
@@ -162,9 +160,7 @@ class OpenClawBackend(InferenceBackend):
             GenerationError: If streaming request fails
         """
         if not self.is_loaded:
-            raise RuntimeError(
-                "OpenClawBackend not loaded. Call load() before generate_stream()"
-            )
+            raise RuntimeError("OpenClawBackend not loaded. Call load() before generate_stream()")
 
         assert self._client is not None
 
@@ -189,12 +185,12 @@ class OpenClawBackend(InferenceBackend):
                                 ".gif": "image/gif",
                                 ".webp": "image/webp",
                             }.get(suffix, "image/jpeg")
-                            encoded_images.append({
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:{media_type};base64,{img_data}"
+                            encoded_images.append(
+                                {
+                                    "type": "image_url",
+                                    "image_url": {"url": f"data:{media_type};base64,{img_data}"},
                                 }
-                            })
+                            )
                     except Exception as e:
                         logger.warning(f"Failed to read image {img_path}: {e}")
                 else:
@@ -275,13 +271,9 @@ class OpenClawBackend(InferenceBackend):
                                 break
 
         except httpx.ConnectError as e:
-            raise GenerationError(
-                f"Lost connection to OpenClaw at {self._endpoint}"
-            ) from e
+            raise GenerationError(f"Lost connection to OpenClaw at {self._endpoint}") from e
         except httpx.TimeoutException as e:
-            raise GenerationError(
-                "Timeout during generation - OpenClaw may be overloaded"
-            ) from e
+            raise GenerationError("Timeout during generation - OpenClaw may be overloaded") from e
 
     @classmethod
     async def is_available(cls, endpoint: str = "http://localhost:4444") -> bool:

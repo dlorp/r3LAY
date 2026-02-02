@@ -31,16 +31,44 @@ IMAGE_EXTENSIONS: set[str] = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", 
 # Keywords that suggest vision is needed
 VISION_KEYWORDS: set[str] = {
     # Explicit visual requests
-    "image", "picture", "photo", "screenshot", "diagram",
-    "chart", "graph", "figure", "illustration", "drawing",
+    "image",
+    "picture",
+    "photo",
+    "screenshot",
+    "diagram",
+    "chart",
+    "graph",
+    "figure",
+    "illustration",
+    "drawing",
     # Actions on visual content
-    "look", "see", "show", "display", "visualize",
-    "describe", "analyze", "examine", "inspect",
+    "look",
+    "see",
+    "show",
+    "display",
+    "visualize",
+    "describe",
+    "analyze",
+    "examine",
+    "inspect",
     # Visual elements
-    "color", "shape", "layout", "design", "ui", "interface",
-    "button", "icon", "logo", "text in", "ocr", "read the",
+    "color",
+    "shape",
+    "layout",
+    "design",
+    "ui",
+    "interface",
+    "button",
+    "icon",
+    "logo",
+    "text in",
+    "ocr",
+    "read the",
     # Document types
-    "pdf", "slide", "presentation", "document",
+    "pdf",
+    "slide",
+    "presentation",
+    "document",
 }
 
 
@@ -99,7 +127,7 @@ class SmartRouter:
 
     # Asymmetric thresholds
     THRESHOLD_SWITCH_TO_VISION: float = 0.6  # High bar to switch
-    THRESHOLD_STAY_ON_VISION: float = 0.1    # Low bar to stay
+    THRESHOLD_STAY_ON_VISION: float = 0.1  # Low bar to stay
 
     def __init__(
         self,

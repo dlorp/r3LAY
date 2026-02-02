@@ -309,9 +309,7 @@ class AxiomManager:
             ValueError: If category is invalid
         """
         if category not in AXIOM_CATEGORIES:
-            raise ValueError(
-                f"Invalid category: {category}. Must be one of {AXIOM_CATEGORIES}"
-            )
+            raise ValueError(f"Invalid category: {category}. Must be one of {AXIOM_CATEGORIES}")
 
         now = datetime.now().isoformat()
         axiom = Axiom(
@@ -527,17 +525,100 @@ class AxiomManager:
         """
         # Common stop words to filter out
         stop_words = {
-            "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
-            "have", "has", "had", "do", "does", "did", "will", "would", "could",
-            "should", "may", "might", "must", "shall", "can", "need", "dare",
-            "ought", "used", "to", "of", "in", "for", "on", "with", "at", "by",
-            "from", "up", "about", "into", "over", "after", "beneath", "under",
-            "above", "it", "its", "this", "that", "these", "those", "and", "or",
-            "but", "if", "while", "although", "because", "until", "unless",
-            "since", "when", "where", "which", "who", "whom", "what", "how",
-            "all", "each", "every", "both", "few", "more", "most", "other",
-            "some", "such", "no", "nor", "not", "only", "own", "same", "so",
-            "than", "too", "very", "just", "also", "now", "here", "there",
+            "a",
+            "an",
+            "the",
+            "is",
+            "are",
+            "was",
+            "were",
+            "be",
+            "been",
+            "being",
+            "have",
+            "has",
+            "had",
+            "do",
+            "does",
+            "did",
+            "will",
+            "would",
+            "could",
+            "should",
+            "may",
+            "might",
+            "must",
+            "shall",
+            "can",
+            "need",
+            "dare",
+            "ought",
+            "used",
+            "to",
+            "of",
+            "in",
+            "for",
+            "on",
+            "with",
+            "at",
+            "by",
+            "from",
+            "up",
+            "about",
+            "into",
+            "over",
+            "after",
+            "beneath",
+            "under",
+            "above",
+            "it",
+            "its",
+            "this",
+            "that",
+            "these",
+            "those",
+            "and",
+            "or",
+            "but",
+            "if",
+            "while",
+            "although",
+            "because",
+            "until",
+            "unless",
+            "since",
+            "when",
+            "where",
+            "which",
+            "who",
+            "whom",
+            "what",
+            "how",
+            "all",
+            "each",
+            "every",
+            "both",
+            "few",
+            "more",
+            "most",
+            "other",
+            "some",
+            "such",
+            "no",
+            "nor",
+            "not",
+            "only",
+            "own",
+            "same",
+            "so",
+            "than",
+            "too",
+            "very",
+            "just",
+            "also",
+            "now",
+            "here",
+            "there",
         }
 
         # Extract words, lowercase, filter
@@ -584,10 +665,7 @@ class AxiomManager:
 
             if overlap_ratio >= self.CONFLICT_THRESHOLD:
                 conflicts.append(axiom)
-                logger.debug(
-                    f"Potential conflict: {axiom.id} "
-                    f"(overlap={overlap_ratio:.2f})"
-                )
+                logger.debug(f"Potential conflict: {axiom.id} (overlap={overlap_ratio:.2f})")
 
         return conflicts
 
@@ -789,10 +867,7 @@ class AxiomManager:
         Returns:
             List of disputed Axioms
         """
-        return [
-            a for a in self._axioms.values()
-            if a.status == AxiomStatus.DISPUTED
-        ]
+        return [a for a in self._axioms.values() if a.status == AxiomStatus.DISPUTED]
 
     def get_pending_axioms(self) -> list[Axiom]:
         """Get all axioms in PENDING status.
@@ -802,10 +877,7 @@ class AxiomManager:
         Returns:
             List of pending Axioms
         """
-        return [
-            a for a in self._axioms.values()
-            if a.status == AxiomStatus.PENDING
-        ]
+        return [a for a in self._axioms.values() if a.status == AxiomStatus.PENDING]
 
     def get_superseded_by(self, axiom_id: str) -> list[Axiom]:
         """Get all axioms that supersede a given axiom.
@@ -926,9 +998,7 @@ class AxiomManager:
 
         active = sum(1 for a in self._axioms.values() if a.is_active)
         avg_confidence = (
-            sum(a.confidence for a in self._axioms.values()) / total
-            if total > 0
-            else 0.0
+            sum(a.confidence for a in self._axioms.values()) / total if total > 0 else 0.0
         )
 
         return {
@@ -965,9 +1035,7 @@ class AxiomManager:
             lines.append(f"## {cat.title()}")
             lines.append("")
 
-            for ax in sorted(
-                by_category[cat], key=lambda x: x.confidence, reverse=True
-            ):
+            for ax in sorted(by_category[cat], key=lambda x: x.confidence, reverse=True):
                 # Status indicator
                 status_icons = {
                     AxiomStatus.VALIDATED: "[OK]",

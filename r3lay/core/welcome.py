@@ -32,14 +32,42 @@ class ProjectDetector:
     HOME_KEYWORDS = {"home", "hvac", "plumbing", "diy", "house", "renovation"}
 
     VEHICLE_MAKES = {
-        "subaru", "toyota", "honda", "ford", "chevy", "chevrolet", "bmw",
-        "mercedes", "audi", "vw", "volkswagen", "mazda", "nissan", "jeep",
-        "dodge", "ram", "gmc", "hyundai", "kia", "tesla", "lexus", "acura"
+        "subaru",
+        "toyota",
+        "honda",
+        "ford",
+        "chevy",
+        "chevrolet",
+        "bmw",
+        "mercedes",
+        "audi",
+        "vw",
+        "volkswagen",
+        "mazda",
+        "nissan",
+        "jeep",
+        "dodge",
+        "ram",
+        "gmc",
+        "hyundai",
+        "kia",
+        "tesla",
+        "lexus",
+        "acura",
     }
 
     BOARD_TYPES = {
-        "esp32", "esp8266", "arduino", "raspberry", "rpi", "pico",
-        "stm32", "teensy", "feather", "wemos", "nodemcu"
+        "esp32",
+        "esp8266",
+        "arduino",
+        "raspberry",
+        "rpi",
+        "pico",
+        "stm32",
+        "teensy",
+        "feather",
+        "wemos",
+        "nodemcu",
     }
 
     def detect(self, path: Path) -> WelcomeProjectContext:
@@ -70,12 +98,7 @@ class ProjectDetector:
             return self._detect_home(path, parts)
 
         # Default to general
-        return WelcomeProjectContext(
-            path=path,
-            project_type="general",
-            name=path.name,
-            metadata={}
-        )
+        return WelcomeProjectContext(path=path, project_type="general", name=path.name, metadata={})
 
     def _detect_automotive(self, path: Path, parts: list[str]) -> WelcomeProjectContext:
         """Extract vehicle metadata from path."""
@@ -89,7 +112,7 @@ class ProjectDetector:
                 break
 
         # Find year (4 digits, 1980-2030 range)
-        year_pattern = re.compile(r'\b(19[89]\d|20[0-3]\d)\b')
+        year_pattern = re.compile(r"\b(19[89]\d|20[0-3]\d)\b")
         for part in parts:
             match = year_pattern.search(part)
             if match:
@@ -103,11 +126,11 @@ class ProjectDetector:
             if part in self.AUTOMOTIVE_KEYWORDS | self.VEHICLE_MAKES:
                 continue
             # Skip year-only segments
-            if re.match(r'^\d{4}$', part):
+            if re.match(r"^\d{4}$", part):
                 continue
             # Clean up model name
-            cleaned = re.sub(r'^\d{4}_?', '', part)  # Remove leading year
-            cleaned = re.sub(r'_', ' ', cleaned)
+            cleaned = re.sub(r"^\d{4}_?", "", part)  # Remove leading year
+            cleaned = re.sub(r"_", " ", cleaned)
             if cleaned:
                 model_candidates.append(cleaned)
 
@@ -126,10 +149,7 @@ class ProjectDetector:
         name = " ".join(name_parts) if name_parts else path.name
 
         return WelcomeProjectContext(
-            path=path,
-            project_type="automotive",
-            name=name,
-            metadata=metadata
+            path=path, project_type="automotive", name=name, metadata=metadata
         )
 
     def _detect_electronics(self, path: Path, parts: list[str]) -> WelcomeProjectContext:
@@ -148,10 +168,7 @@ class ProjectDetector:
         name = path.name.replace("_", " ").replace("-", " ").title()
 
         return WelcomeProjectContext(
-            path=path,
-            project_type="electronics",
-            name=name,
-            metadata=metadata
+            path=path, project_type="electronics", name=name, metadata=metadata
         )
 
     def _detect_software(self, path: Path, parts: list[str]) -> WelcomeProjectContext:
@@ -172,10 +189,7 @@ class ProjectDetector:
             metadata["language"] = "Java"
 
         return WelcomeProjectContext(
-            path=path,
-            project_type="software",
-            name=path.name,
-            metadata=metadata
+            path=path, project_type="software", name=path.name, metadata=metadata
         )
 
     def _detect_workshop(self, path: Path, parts: list[str]) -> WelcomeProjectContext:
@@ -194,7 +208,7 @@ class ProjectDetector:
             path=path,
             project_type="workshop",
             name=path.name.replace("_", " ").title(),
-            metadata=metadata
+            metadata=metadata,
         )
 
     def _detect_home(self, path: Path, parts: list[str]) -> WelcomeProjectContext:
@@ -213,7 +227,7 @@ class ProjectDetector:
             path=path,
             project_type="home",
             name=path.name.replace("_", " ").title(),
-            metadata=metadata
+            metadata=metadata,
         )
 
     def _matches_keywords(self, parts: list[str], keywords: set[str]) -> bool:
@@ -228,7 +242,7 @@ class ProjectDetector:
             for board in self.BOARD_TYPES:
                 # Match as complete word, not substring
                 # This prevents 'tmppicokx7p' from matching 'pico'
-                if re.search(rf'\b{re.escape(board)}\b', part):
+                if re.search(rf"\b{re.escape(board)}\b", part):
                     return True
         return False
 

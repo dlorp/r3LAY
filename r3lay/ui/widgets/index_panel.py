@@ -232,6 +232,7 @@ class IndexPanel(Vertical):
                     self._update_progress(f"Text embeddings failed: {e}")
                     self.refresh()
                     import asyncio
+
                     await asyncio.sleep(1)  # Show error briefly
 
             # Generate vision embeddings for images if available
@@ -269,7 +270,9 @@ class IndexPanel(Vertical):
                         vision_embeddings_generated = True
                         logger.info(f"Added {images_added} images with vision embeddings")
                     else:
-                        self._update_progress(f"Found {image_count} images (vision embedder not available)")
+                        self._update_progress(
+                            f"Found {image_count} images (vision embedder not available)"
+                        )
                         self.refresh()
                         logger.info(f"Found {image_count} images but no vision embedder available")
 
@@ -278,6 +281,7 @@ class IndexPanel(Vertical):
                     self._update_progress(f"Vision embeddings failed: {e}")
                     self.refresh()
                     import asyncio
+
                     await asyncio.sleep(1)
 
             # Final status

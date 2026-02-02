@@ -57,9 +57,7 @@ class VisionEmbeddingResult:
                     f"got shape {self.vectors.shape}"
                 )
             if self.dimension != self.vectors.shape[1]:
-                raise ValueError(
-                    f"Dimension mismatch: {self.dimension} != {self.vectors.shape[1]}"
-                )
+                raise ValueError(f"Dimension mismatch: {self.dimension} != {self.vectors.shape[1]}")
         elif self.embedding_type == "multi":
             if len(self.vectors.shape) != 3:
                 raise ValueError(
@@ -67,9 +65,7 @@ class VisionEmbeddingResult:
                     f"got shape {self.vectors.shape}"
                 )
             if self.dimension != self.vectors.shape[2]:
-                raise ValueError(
-                    f"Dimension mismatch: {self.dimension} != {self.vectors.shape[2]}"
-                )
+                raise ValueError(f"Dimension mismatch: {self.dimension} != {self.vectors.shape[2]}")
             if self.num_vectors_per_image != self.vectors.shape[1]:
                 raise ValueError(
                     f"num_vectors_per_image mismatch: {self.num_vectors_per_image} "
