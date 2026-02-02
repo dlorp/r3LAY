@@ -8,7 +8,7 @@
 
 > *The manual says one thing, but the forums know the truth.*
 
-A TUI research assistant for hobbyists who wrench on their own stuff. Whether you're maintaining a fleet of motorcycles, restoring vintage gear, or keeping your homelab alive — r³LAY helps you track what you did, find what you need, and discover what the community actually knows.
+A TUI research assistant for hobbyists who wrench on their own stuff. Whether you're maintaining a fleet of motorcycles, restoring vintage gear, or keeping your homelab alive - r³LAY helps you track what you did, find what you need, and discover what the community actually knows.
 
 <p align="center">
   <img src="docs/screenshot.png" alt="r³LAY TUI showing maintenance tracking and research interface" width="700">
@@ -24,11 +24,11 @@ A TUI research assistant for hobbyists who wrench on their own stuff. Whether yo
 - Forgetting when you last changed that oil/filter/belt
 
 **r³LAY gives you:**
-- 🔧 **Maintenance Tracking** — Log services, track intervals, get overdue alerts
-- 💬 **Natural Language Input** — "logged oil change at 98k" just works
-- 🧠 **Local LLM Inference** — MLX (Apple Silicon), llama.cpp, or Ollama
-- 🔍 **Hybrid RAG Search** — BM25 + vector search with source attribution
-- 📚 **Deep Research (R³)** — Multi-cycle expeditions with contradiction detection
+- 🔧 **Maintenance Tracking** - Log services, track intervals, get overdue alerts
+- 💬 **Natural Language Input** - "logged oil change at 98k" just works
+- 🧠 **Local LLM Inference** - MLX (Apple Silicon), llama.cpp, or Ollama
+- 🔍 **Hybrid RAG Search** - BM25 + vector search with source attribution
+- 📚 **Deep Research (R³)** - Multi-cycle expeditions with contradiction detection
 
 No cloud. No subscriptions. Your data stays on your machine.
 
@@ -142,7 +142,7 @@ ruff check r3lay/
 
 ## License
 
-[PolyForm Noncommercial 1.0.0](LICENSE) — Free for personal and non-commercial use.
+[PolyForm Noncommercial 1.0.0](LICENSE) - Free for personal and non-commercial use.
 
 ---
 
