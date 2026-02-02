@@ -403,7 +403,7 @@ all measured metrics and validates our hypothesis about the system performance.
         """Markdown chunks include their heading."""
         md_content = """# Important Section
 
-This section contains very important information that should be preserved with its heading for context and understanding.
+This section contains important information that should be preserved with its heading.
 """
         md_file = temp_dir / "heading.md"
         md_file.write_text(md_content)
