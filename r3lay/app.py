@@ -2,16 +2,49 @@
 
 import asyncio
 import logging
+import os
 import signal
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-# Configure logging to file for debugging
-logging.basicConfig(
-    filename="/tmp/r3lay.log",
-    level=logging.DEBUG,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger(__name__)
+
+def _setup_logging() -> logging.Logger:
+    """Configure secure logging with rotation.
+
+    Logs are written to ~/.r3lay/logs/ with proper permissions.
+    Uses INFO level by default; set R3LAY_DEBUG=1 for DEBUG level.
+    """
+    # Create log directory in user's home (not world-readable /tmp)
+    log_dir = Path.home() / ".r3lay" / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    # Restrict directory permissions to owner only (700)
+    log_dir.chmod(0o700)
+
+    log_file = log_dir / "r3lay.log"
+
+    # Use INFO by default, DEBUG only if explicitly requested
+    log_level = logging.DEBUG if os.environ.get("R3LAY_DEBUG") else logging.INFO
+
+    # Configure rotating file handler (5MB max, keep 3 backups)
+    handler = RotatingFileHandler(
+        log_file,
+        maxBytes=5 * 1024 * 1024,  # 5 MB
+        backupCount=3,
+        encoding="utf-8",
+    )
+    handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    )
+
+    # Configure root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(log_level)
+    root_logger.addHandler(handler)
+
+    return logging.getLogger(__name__)
+
+
+logger = _setup_logging()
 
 from textual.app import App, ComposeResult  # noqa: E402
 from textual.binding import Binding  # noqa: E402
