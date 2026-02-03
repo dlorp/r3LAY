@@ -876,7 +876,7 @@ class AxiomManager:
         Returns:
             List of Axioms in the supersession chain
         """
-        chain = []
+        chain: list[Axiom] = []
         current = self._axioms.get(axiom_id)
 
         # Go back to the original
