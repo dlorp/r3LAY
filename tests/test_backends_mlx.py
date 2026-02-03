@@ -416,21 +416,24 @@ class TestProcessManagement:
 
     @pytest.mark.asyncio
     async def test_cleanup_process_state(self, backend: MLXBackend, mock_process: MagicMock):
-        """Test _cleanup_process_state closes pipes and clears process."""
+        """Test _cleanup_process_state closes stdin and clears process.
+
+        Note: stdout is a StreamReader which doesn't have close() - it closes
+        automatically when the process terminates.
+        """
         backend._process = mock_process
 
         await backend._cleanup_process_state()
 
         mock_process.stdin.close.assert_called()
-        mock_process.stdout.close.assert_called()
+        # stdout.close() is not called - StreamReader has no close method
         assert backend._process is None
 
     @pytest.mark.asyncio
     async def test_cleanup_handles_close_errors(self, backend: MLXBackend, mock_process: MagicMock):
-        """Test _cleanup_process_state handles errors when closing pipes."""
+        """Test _cleanup_process_state handles errors when closing stdin."""
         backend._process = mock_process
         mock_process.stdin.close = MagicMock(side_effect=Exception("Already closed"))
-        mock_process.stdout.close = MagicMock(side_effect=Exception("Already closed"))
 
         await backend._cleanup_process_state()  # Should not raise
         assert backend._process is None
