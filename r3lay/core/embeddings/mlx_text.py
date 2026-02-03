@@ -349,11 +349,8 @@ class MLXTextEmbeddingBackend(EmbeddingBackend):
                     self._process.stdin.close()
                 except Exception:
                     pass
-            if self._process.stdout:
-                try:
-                    self._process.stdout.close()
-                except Exception:
-                    pass
+            # Note: stdout is a StreamReader which doesn't have close()
+            # It closes automatically when the process terminates
         self._process = None
         self._dimension = 0
         self._read_buffer = b""  # Clear buffer on cleanup

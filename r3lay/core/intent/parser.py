@@ -260,6 +260,9 @@ class IntentParser:
         """
         import json
 
+        if self.llm_backend is None:
+            raise RuntimeError("LLM backend not available")
+
         prompt = LLM_INTENT_PROMPT.format(
             project_context=self.project_context,
             message=text,
