@@ -623,13 +623,13 @@ class HybridIndex:
             try:
                 data = json.loads(self._image_chunks_file.read_text())
                 for chunk_data in data.get("image_chunks", []):
-                    chunk = ImageChunk(
+                    img_chunk = ImageChunk(
                         path=Path(chunk_data["path"]),
                         metadata=chunk_data.get("metadata", {}),
                         chunk_id=chunk_data["chunk_id"],
                     )
-                    self._image_chunks.append(chunk)
-                    self._image_chunk_ids.append(chunk.id)
+                    self._image_chunks.append(img_chunk)
+                    self._image_chunk_ids.append(img_chunk.id)
 
                 # Load image vectors if they exist
                 if self._image_vectors_file.exists():

@@ -247,6 +247,9 @@ def main() -> None:
                         gen_kwargs["temp"] = temperature
 
                     # Stream tokens
+                    if stream_generate is None:
+                        send_response({"type": "error", "message": "stream_generate not loaded"})
+                        continue
                     for response in stream_generate(model, tokenizer, **gen_kwargs):
                         if stop_requested:
                             break

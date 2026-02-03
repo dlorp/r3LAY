@@ -13,7 +13,7 @@ import base64
 import json
 import logging
 from pathlib import Path
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 
 import httpx
 
@@ -167,7 +167,7 @@ class OllamaBackend(InferenceBackend):
 
         # Process images for vision models (llava, etc.)
         # Ollama expects images as base64 encoded strings in the message
-        api_messages = list(messages)  # Shallow copy to avoid modifying original
+        api_messages: list[dict[str, Any]] = list(messages)  # Shallow copy
 
         if images:
             logger.info(f"Vision request with {len(images)} images")

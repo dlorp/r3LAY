@@ -87,6 +87,7 @@ if TYPE_CHECKING:
     from ..config import AppConfig, ModelRoles
     from .backends import InferenceBackend
     from .embeddings import EmbeddingBackend
+    from .embeddings.base_vision import VisionEmbeddingBackend
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +157,7 @@ class R3LayState:
 
     # Embedding backends for hybrid search
     text_embedder: "EmbeddingBackend | None" = field(default=None, repr=False)
-    vision_embedder: "EmbeddingBackend | None" = field(default=None, repr=False)
+    vision_embedder: "VisionEmbeddingBackend | None" = field(default=None, repr=False)
 
     # Session management (Phase B)
     session: Session | None = field(default=None, repr=False)
@@ -258,16 +259,18 @@ class R3LayState:
                     text_model=model_info.name,  # Use as text too (vision handles text fine)
                     vision_model=model_info.name,
                 )
-                self.router.vision_backend = backend
-                self.router.current_model_type = "vision"
+                if self.router is not None:
+                    self.router.vision_backend = backend
+                    self.router.current_model_type = "vision"
                 logger.info(f"Router initialized with vision model: {model_info.name}")
             else:
                 self.init_router(
                     text_model=model_info.name,
                     vision_model=None,
                 )
-                self.router.text_backend = backend
-                self.router.current_model_type = "text"
+                if self.router is not None:
+                    self.router.text_backend = backend
+                    self.router.current_model_type = "text"
                 logger.info(f"Router initialized with text model: {model_info.name}")
         else:
             # Update existing router with new model
@@ -396,7 +399,7 @@ class R3LayState:
     async def init_vision_embedder(
         self,
         model_name: str | None = None,
-    ) -> "EmbeddingBackend | None":
+    ) -> "VisionEmbeddingBackend | None":
         """Initialize the vision embedding backend if available.
 
         Vision embeddings use CLIP, SigLIP, or ColQwen2.5 models for image embedding.
