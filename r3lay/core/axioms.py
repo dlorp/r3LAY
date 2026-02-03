@@ -97,6 +97,117 @@ AXIOM_CATEGORIES: list[str] = [
     "safety",  # Safety-critical info (warnings, limits, hazards)
 ]
 
+# Stop words for keyword extraction (filtered during conflict detection)
+STOP_WORDS: frozenset[str] = frozenset(
+    {
+        # Articles and determiners
+        "a",
+        "an",
+        "the",
+        "this",
+        "that",
+        "these",
+        "those",
+        # Pronouns
+        "it",
+        "its",
+        "who",
+        "whom",
+        "what",
+        "which",
+        "how",
+        # Conjunctions
+        "and",
+        "or",
+        "but",
+        "if",
+        "while",
+        "although",
+        "because",
+        "until",
+        "unless",
+        "since",
+        "when",
+        "where",
+        # Prepositions
+        "to",
+        "of",
+        "in",
+        "for",
+        "on",
+        "with",
+        "at",
+        "by",
+        "from",
+        "up",
+        "about",
+        "into",
+        "over",
+        "after",
+        "beneath",
+        "under",
+        "above",
+        # Verbs (common)
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "have",
+        "has",
+        "had",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "could",
+        "should",
+        "may",
+        "might",
+        "must",
+        "shall",
+        "can",
+        "need",
+        "dare",
+        "ought",
+        "used",
+        # Quantifiers and modifiers
+        "all",
+        "each",
+        "every",
+        "both",
+        "few",
+        "more",
+        "most",
+        "other",
+        "some",
+        "such",
+        "no",
+        "nor",
+        "not",
+        "only",
+        "own",
+        "same",
+        "so",
+        "than",
+        "too",
+        "very",
+        "just",
+        "also",
+        # Adverbs
+        "now",
+        "here",
+        "there",
+    }
+)
+
+# Confidence boost when multiple citations corroborate (max boost)
+CITATION_CONFIDENCE_BOOST: float = 0.05  # Per additional citation
+MAX_CITATION_CONFIDENCE: float = 0.99  # Ceiling for confidence
+
 
 # ============================================================================
 # Data Models
@@ -516,114 +627,17 @@ class AxiomManager:
         """Extract meaningful keywords from text.
 
         Filters out common stop words and returns lowercase keywords.
+        Uses the module-level STOP_WORDS constant for filtering.
 
         Args:
             text: The text to extract keywords from
 
         Returns:
-            Set of lowercase keywords
+            Set of lowercase keywords (minimum 3 characters)
         """
-        # Common stop words to filter out
-        stop_words = {
-            "a",
-            "an",
-            "the",
-            "is",
-            "are",
-            "was",
-            "were",
-            "be",
-            "been",
-            "being",
-            "have",
-            "has",
-            "had",
-            "do",
-            "does",
-            "did",
-            "will",
-            "would",
-            "could",
-            "should",
-            "may",
-            "might",
-            "must",
-            "shall",
-            "can",
-            "need",
-            "dare",
-            "ought",
-            "used",
-            "to",
-            "of",
-            "in",
-            "for",
-            "on",
-            "with",
-            "at",
-            "by",
-            "from",
-            "up",
-            "about",
-            "into",
-            "over",
-            "after",
-            "beneath",
-            "under",
-            "above",
-            "it",
-            "its",
-            "this",
-            "that",
-            "these",
-            "those",
-            "and",
-            "or",
-            "but",
-            "if",
-            "while",
-            "although",
-            "because",
-            "until",
-            "unless",
-            "since",
-            "when",
-            "where",
-            "which",
-            "who",
-            "whom",
-            "what",
-            "how",
-            "all",
-            "each",
-            "every",
-            "both",
-            "few",
-            "more",
-            "most",
-            "other",
-            "some",
-            "such",
-            "no",
-            "nor",
-            "not",
-            "only",
-            "own",
-            "same",
-            "so",
-            "than",
-            "too",
-            "very",
-            "just",
-            "also",
-            "now",
-            "here",
-            "there",
-        }
-
-        # Extract words, lowercase, filter
+        # Extract words, lowercase, filter using module constant
         words = re.findall(r"\b[a-zA-Z0-9]+\b", text.lower())
-        return {w for w in words if w not in stop_words and len(w) > 2}
+        return {w for w in words if w not in STOP_WORDS and len(w) > 2}
 
     def find_conflicts(
         self,
@@ -689,12 +703,21 @@ class AxiomManager:
             self._save()
         return axiom
 
-    def add_citation(self, axiom_id: str, citation_id: str) -> Axiom | None:
+    def add_citation(
+        self,
+        axiom_id: str,
+        citation_id: str,
+        boost_confidence: bool = False,
+    ) -> Axiom | None:
         """Add a citation to an axiom.
+
+        When multiple independent sources corroborate an axiom,
+        confidence can be boosted automatically.
 
         Args:
             axiom_id: The axiom ID to update
             citation_id: Signal ID to add
+            boost_confidence: If True, boost confidence per CITATION_CONFIDENCE_BOOST
 
         Returns:
             Updated Axiom if found, None otherwise
@@ -702,8 +725,42 @@ class AxiomManager:
         axiom = self._axioms.get(axiom_id)
         if axiom and citation_id not in axiom.citation_ids:
             axiom.citation_ids.append(citation_id)
+
+            # Boost confidence when corroborated by multiple sources
+            if boost_confidence and len(axiom.citation_ids) > 1:
+                new_confidence = min(
+                    axiom.confidence + CITATION_CONFIDENCE_BOOST,
+                    MAX_CITATION_CONFIDENCE,
+                )
+                axiom.confidence = new_confidence
+                logger.debug(
+                    f"Boosted axiom {axiom_id} confidence to {new_confidence:.2f} "
+                    f"({len(axiom.citation_ids)} citations)"
+                )
+
             self._save()
         return axiom
+
+    def corroborate(
+        self,
+        axiom_id: str,
+        citation_id: str,
+    ) -> Axiom | None:
+        """Corroborate an axiom with additional evidence.
+
+        Adds a citation and boosts confidence. This is a convenience wrapper
+        around add_citation with boost_confidence=True.
+
+        Use this when a new source independently confirms an existing axiom.
+
+        Args:
+            axiom_id: The axiom ID to corroborate
+            citation_id: Signal ID of corroborating source
+
+        Returns:
+            Updated Axiom if found, None otherwise
+        """
+        return self.add_citation(axiom_id, citation_id, boost_confidence=True)
 
     def add_tag(self, axiom_id: str, tag: str) -> Axiom | None:
         """Add a tag to an axiom.
@@ -901,7 +958,7 @@ class AxiomManager:
         Returns:
             List of Axioms in the supersession chain
         """
-        chain = []
+        chain: list[Axiom] = []
         current = self._axioms.get(axiom_id)
 
         # Go back to the original

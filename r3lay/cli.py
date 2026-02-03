@@ -576,7 +576,7 @@ def create_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def run_cli(args: list[str] | None = None) -> int:
+def run_cli(args: list[str] | None = None) -> int | None:
     """Run the CLI.
 
     Args:
