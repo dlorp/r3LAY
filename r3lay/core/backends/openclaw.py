@@ -12,7 +12,7 @@ import base64
 import json
 import logging
 from pathlib import Path
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 
 import httpx
 
@@ -165,7 +165,7 @@ class OpenClawBackend(InferenceBackend):
         assert self._client is not None
 
         # Process images for vision models
-        api_messages = list(messages)
+        api_messages: list[dict[str, Any]] = list(messages)
 
         if images:
             logger.info(f"Vision request with {len(images)} images")
