@@ -1,6 +1,6 @@
 [project]
 name = "r3lay"
-version = "0.5.0"
+version = "0.6.0"
 description = "r³LAY: Retrospective Recursive Research, Linked Archive Yield — A TUI research assistant bridging official documentation with real world community knowledge"
 readme = "README.md"
 requires-python = ">=3.11"
