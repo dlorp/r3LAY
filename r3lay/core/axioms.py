@@ -98,29 +98,111 @@ AXIOM_CATEGORIES: list[str] = [
 ]
 
 # Stop words for keyword extraction (filtered during conflict detection)
-STOP_WORDS: frozenset[str] = frozenset({
-    # Articles and determiners
-    "a", "an", "the", "this", "that", "these", "those",
-    # Pronouns
-    "it", "its", "who", "whom", "what", "which", "how",
-    # Conjunctions
-    "and", "or", "but", "if", "while", "although", "because",
-    "until", "unless", "since", "when", "where",
-    # Prepositions
-    "to", "of", "in", "for", "on", "with", "at", "by", "from",
-    "up", "about", "into", "over", "after", "beneath", "under", "above",
-    # Verbs (common)
-    "is", "are", "was", "were", "be", "been", "being",
-    "have", "has", "had", "do", "does", "did",
-    "will", "would", "could", "should", "may", "might",
-    "must", "shall", "can", "need", "dare", "ought", "used",
-    # Quantifiers and modifiers
-    "all", "each", "every", "both", "few", "more", "most",
-    "other", "some", "such", "no", "nor", "not", "only",
-    "own", "same", "so", "than", "too", "very", "just", "also",
-    # Adverbs
-    "now", "here", "there",
-})
+STOP_WORDS: frozenset[str] = frozenset(
+    {
+        # Articles and determiners
+        "a",
+        "an",
+        "the",
+        "this",
+        "that",
+        "these",
+        "those",
+        # Pronouns
+        "it",
+        "its",
+        "who",
+        "whom",
+        "what",
+        "which",
+        "how",
+        # Conjunctions
+        "and",
+        "or",
+        "but",
+        "if",
+        "while",
+        "although",
+        "because",
+        "until",
+        "unless",
+        "since",
+        "when",
+        "where",
+        # Prepositions
+        "to",
+        "of",
+        "in",
+        "for",
+        "on",
+        "with",
+        "at",
+        "by",
+        "from",
+        "up",
+        "about",
+        "into",
+        "over",
+        "after",
+        "beneath",
+        "under",
+        "above",
+        # Verbs (common)
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "have",
+        "has",
+        "had",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "could",
+        "should",
+        "may",
+        "might",
+        "must",
+        "shall",
+        "can",
+        "need",
+        "dare",
+        "ought",
+        "used",
+        # Quantifiers and modifiers
+        "all",
+        "each",
+        "every",
+        "both",
+        "few",
+        "more",
+        "most",
+        "other",
+        "some",
+        "such",
+        "no",
+        "nor",
+        "not",
+        "only",
+        "own",
+        "same",
+        "so",
+        "than",
+        "too",
+        "very",
+        "just",
+        "also",
+        # Adverbs
+        "now",
+        "here",
+        "there",
+    }
+)
 
 # Confidence boost when multiple citations corroborate (max boost)
 CITATION_CONFIDENCE_BOOST: float = 0.05  # Per additional citation
