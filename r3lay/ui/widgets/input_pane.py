@@ -297,6 +297,9 @@ class InputPane(Vertical):
                             ".bmp",
                             ".tiff",
                         }:
+                            if not self._is_path_allowed(path.resolve()):
+                                logger.warning(f"Clipboard file outside allowed dirs: {path}")
+                                return None
                             logger.info(f"Found image file in clipboard: {path}")
                             return path
 
@@ -350,6 +353,9 @@ class InputPane(Vertical):
                         ".webp",
                         ".bmp",
                     }:
+                        if not self._is_path_allowed(path.resolve()):
+                            logger.warning(f"Clipboard file outside allowed dirs: {path}")
+                            return None
                         logger.info(f"Found image file from PIL clipboard: {path}")
                         return path
                 logger.debug(f"PIL returned non-image type: {type(image)}")
@@ -941,20 +947,27 @@ class InputPane(Vertical):
             )
             return
 
-        # Add to attachments
+        # Add to attachments (with security check)
+        added_files = []
         for img in image_files:
-            if img not in self._attachments:
-                self._attachments.append(img)
+            resolved_img = img.resolve()
+            if not self._is_path_allowed(resolved_img):
+                response_pane.add_system(f"Rejected: `{img.name}` (outside allowed directories)")
+                continue
+            if resolved_img not in self._attachments:
+                self._attachments.append(resolved_img)
+                added_files.append(img)
 
         # Update status to show attachment count
         self._update_attachment_status()
 
         # Show confirmation
-        names = [p.name for p in image_files]
-        response_pane.add_system(
-            f"Attached {len(image_files)} image(s): {', '.join(names)}\n"
-            f"Total attachments: {len(self._attachments)}"
-        )
+        if added_files:
+            names = [p.name for p in added_files]
+            response_pane.add_system(
+                f"Attached {len(added_files)} image(s): {', '.join(names)}\n"
+                f"Total attachments: {len(self._attachments)}"
+            )
 
     def _show_attachments(self, response_pane) -> None:
         """Handle /attachments command - list current attachments."""
