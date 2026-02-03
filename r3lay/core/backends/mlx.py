@@ -235,11 +235,8 @@ class MLXBackend(InferenceBackend):
                     self._process.stdin.close()
                 except Exception:
                     pass
-            if self._process.stdout:
-                try:
-                    self._process.stdout.close()
-                except Exception:
-                    pass
+            # Note: stdout is a StreamReader which doesn't have close()
+            # It closes automatically when the process terminates
         self._process = None
 
     async def _send_command(self, cmd: dict) -> None:
@@ -320,7 +317,7 @@ class MLXBackend(InferenceBackend):
 
                 if response is None:
                     # Check if process died
-                    if self._process.returncode is not None:
+                    if self._process is not None and self._process.returncode is not None:
                         code = self._process.returncode
                         raise GenerationError(
                             f"Worker process died during generation (exit: {code})"

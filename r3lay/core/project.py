@@ -203,23 +203,25 @@ class ProjectManager:
         state.last_updated = datetime.now()
 
         # Convert to YAML-friendly dict
-        data = {
-            "profile": {
-                "year": state.profile.year,
-                "make": state.profile.make,
-                "model": state.profile.model,
-            },
-            "current_mileage": state.current_mileage,
-            "last_updated": state.last_updated.isoformat(),
+        profile_data: dict[str, Any] = {
+            "year": state.profile.year,
+            "make": state.profile.make,
+            "model": state.profile.model,
         }
 
         # Add optional profile fields
         if state.profile.engine:
-            data["profile"]["engine"] = state.profile.engine
+            profile_data["engine"] = state.profile.engine
         if state.profile.vin:
-            data["profile"]["vin"] = state.profile.vin
+            profile_data["vin"] = state.profile.vin
         if state.profile.nickname:
-            data["profile"]["nickname"] = state.profile.nickname
+            profile_data["nickname"] = state.profile.nickname
+
+        data: dict[str, Any] = {
+            "profile": profile_data,
+            "current_mileage": state.current_mileage,
+            "last_updated": state.last_updated.isoformat(),
+        }
 
         # Atomic write
         temp_file = self.state_file.with_suffix(".yaml.tmp")

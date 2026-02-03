@@ -865,12 +865,12 @@ class ResearchOrchestrator:
             for q in queries:
                 try:
                     rag_results = self.index.search(q, n_results=3)
-                    for result in rag_results:
+                    for rag_result in rag_results:
                         all_content.append(
                             {
-                                "title": result.metadata.get("source", "Local document"),
-                                "content": result.content,
-                                "score": result.final_score,
+                                "title": rag_result.metadata.get("source", "Local document"),
+                                "content": rag_result.content,
+                                "score": rag_result.final_score,
                                 "source_type": "rag",
                             }
                         )
@@ -891,7 +891,9 @@ class ResearchOrchestrator:
 
             for item in extracted:
                 # Check for contradictions before creating axiom
-                signal_ids = [c.get("signal_id") for c in all_content if c.get("signal_id")]
+                signal_ids: list[str] = [
+                    str(c.get("signal_id")) for c in all_content if c.get("signal_id") is not None
+                ]
                 contradictions = self.contradiction_detector.check_finding(
                     statement=item["statement"],
                     category=item.get("category", "specifications"),
@@ -981,12 +983,12 @@ class ResearchOrchestrator:
             for q in queries:
                 try:
                     rag_results = self.index.search(q, n_results=3)
-                    for result in rag_results:
+                    for rag_result in rag_results:
                         all_content.append(
                             {
-                                "title": result.metadata.get("source", "Local"),
-                                "content": result.content,
-                                "score": result.final_score,
+                                "title": rag_result.metadata.get("source", "Local"),
+                                "content": rag_result.content,
+                                "score": rag_result.final_score,
                             }
                         )
                 except Exception:
@@ -1127,11 +1129,11 @@ class ResearchOrchestrator:
         # Get existing axioms for deduplication
         existing_context = ""
         if existing_axiom_ids:
-            existing_axioms = [
+            existing_axioms_raw = [
                 self.axioms.get(aid)
                 for aid in existing_axiom_ids[-10:]  # Last 10
             ]
-            existing_axioms = [a for a in existing_axioms if a]
+            existing_axioms = [a for a in existing_axioms_raw if a is not None]
             if existing_axioms:
                 existing_context = "Existing knowledge (avoid duplicates):\n" + "\n".join(
                     f"- {a.statement[:100]}" for a in existing_axioms
@@ -1172,8 +1174,8 @@ class ResearchOrchestrator:
     async def _synthesize(self, expedition: Expedition) -> str:
         """Generate final synthesis report."""
         # Gather axioms
-        axiom_objs = [self.axioms.get(aid) for aid in expedition.axiom_ids]
-        axiom_objs = [a for a in axiom_objs if a]
+        axiom_objs_raw = [self.axioms.get(aid) for aid in expedition.axiom_ids]
+        axiom_objs = [a for a in axiom_objs_raw if a is not None]
 
         axiom_text = "\n".join(
             [f"- [{a.category}] {a.statement} ({a.confidence:.0%} confidence)" for a in axiom_objs]
@@ -1382,7 +1384,7 @@ The following contradictions require manual review:
 
     def list_expeditions(self, limit: int = 20) -> list[dict[str, Any]]:
         """List recent expeditions."""
-        expeditions = []
+        expeditions: list[dict[str, Any]] = []
 
         if not self.research_path.exists():
             return expeditions
