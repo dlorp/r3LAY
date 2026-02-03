@@ -113,11 +113,15 @@ def vision_embeddings_available() -> bool:
     Returns:
         True if required dependencies are installed.
     """
-    has_image_lib = importlib.util.find_spec("PIL") is not None
-    has_embedder = (
-        importlib.util.find_spec("transformers") is not None
-        or importlib.util.find_spec("sentence_transformers") is not None
-    )
+    try:
+        has_image_lib = importlib.util.find_spec("PIL") is not None
+        has_embedder = (
+            importlib.util.find_spec("transformers") is not None
+            or importlib.util.find_spec("sentence_transformers") is not None
+        )
+    except ValueError:
+        # PIL can raise ValueError if __spec__ is not set (known quirk)
+        return False
     return has_image_lib and has_embedder
 
 
