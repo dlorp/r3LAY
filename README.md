@@ -91,9 +91,14 @@ PROJECT_PATH=/path/to/project docker compose run r3lay
 | Key | Action |
 |-----|--------|
 | `Tab` | Cycle panes |
-| `Ctrl+M` | Models panel |
-| `Ctrl+I` | Index panel |
-| `Ctrl+A` | Axioms panel |
+| `Ctrl+1` | Models panel |
+| `Ctrl+2` | Index panel |
+| `Ctrl+3` | Axioms panel |
+| `Ctrl+4` | Log panel |
+| `Ctrl+5` | Due panel |
+| `Ctrl+6` | Sessions panel |
+| `Ctrl+7` | Settings panel |
+| `Ctrl+N` | New session |
 | `Ctrl+R` | Reindex |
 | `Ctrl+Q` | Quit |
 
