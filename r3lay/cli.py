@@ -8,6 +8,8 @@ Commands:
     r3lay log repair    - Log a repair
     r3lay log mod       - Log a modification
     r3lay mileage       - Update current mileage
+    r3lay status        - Show maintenance status
+    r3lay history       - Show maintenance history
 """
 
 from __future__ import annotations
