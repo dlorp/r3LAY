@@ -412,9 +412,20 @@ class InputPane(Vertical):
             logger.debug(f"Single line paste, checking path: {repr(clean_path)}")
 
             try:
-                path = Path(clean_path).expanduser()
+                path = Path(clean_path).expanduser().resolve()
                 if path.exists() and path.is_file():
                     logger.debug(f"Path exists as file: {path}, suffix: {path.suffix.lower()}")
+                    # Security check: ensure path is within allowed directories
+                    if not self._is_path_allowed(path):
+                        logger.warning(
+                            f"Rejected file attachment outside allowed directories: {path}"
+                        )
+                        self.notify(
+                            "Cannot attach files outside allowed directories",
+                            severity="warning",
+                        )
+                        event.stop()
+                        return
                     if path.suffix.lower() in IMAGE_EXTENSIONS:
                         # It's an image file - attach it!
                         if path not in self._attachments:
@@ -448,13 +459,21 @@ class InputPane(Vertical):
         attached_count = 0
         non_file_lines = []
 
+        rejected_count = 0
         for line in lines:
             # Clean up potential file:// prefix or quotes
             clean_path = line.replace("file://", "").strip("'\"")
 
             try:
-                path = Path(clean_path).expanduser()
+                path = Path(clean_path).expanduser().resolve()
                 if path.exists() and path.is_file():
+                    # Security check: ensure path is within allowed directories
+                    if not self._is_path_allowed(path):
+                        logger.warning(
+                            f"Rejected file attachment outside allowed directories: {path}"
+                        )
+                        rejected_count += 1
+                        continue
                     if path.suffix.lower() in IMAGE_EXTENSIONS:
                         if path not in self._attachments:
                             self._attachments.append(path)
@@ -474,6 +493,12 @@ class InputPane(Vertical):
             self._update_attachment_status()
             self.notify(f"Attached {attached_count} image(s)", severity="information")
             logger.info(f"Attached {attached_count} image(s) from multi-line paste")
+
+        if rejected_count > 0:
+            self.notify(
+                f"Rejected {rejected_count} file(s) outside allowed directories",
+                severity="warning",
+            )
 
         if non_file_lines:
             # Allow non-file text to be pasted into TextArea
@@ -515,6 +540,46 @@ class InputPane(Vertical):
             return True
 
         return text.startswith(path_prefixes)
+
+    def _is_path_allowed(self, path: Path) -> bool:
+        """Check if a path is within allowed directories for security.
+
+        Prevents path traversal attacks where users could attach sensitive
+        system files (e.g., /etc/passwd) by pasting arbitrary paths.
+
+        Args:
+            path: The path to validate (should already be resolved).
+
+        Returns:
+            True if the path is within allowed directories, False otherwise.
+        """
+        allowed_dirs = [
+            Path.home(),  # User's home directory
+            Path.cwd(),   # Current working directory
+        ]
+
+        # Add common user media directories if they exist
+        pictures_dir = Path.home() / "Pictures"
+        downloads_dir = Path.home() / "Downloads"
+        desktop_dir = Path.home() / "Desktop"
+        documents_dir = Path.home() / "Documents"
+
+        for extra_dir in [pictures_dir, downloads_dir, desktop_dir, documents_dir]:
+            if extra_dir.exists():
+                allowed_dirs.append(extra_dir)
+
+        try:
+            resolved_path = path.resolve()
+            for allowed_dir in allowed_dirs:
+                try:
+                    if resolved_path.is_relative_to(allowed_dir.resolve()):
+                        return True
+                except (ValueError, OSError):
+                    continue
+            return False
+        except (ValueError, OSError) as e:
+            logger.warning(f"Path resolution failed for {path}: {e}")
+            return False
 
     async def submit(self) -> None:
         if self._processing:
