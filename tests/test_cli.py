@@ -469,6 +469,127 @@ class TestStatus:
 
 
 # =============================================================================
+# history Tests
+# =============================================================================
+
+
+class TestHistory:
+    """Tests for 'history' command."""
+
+    def test_history_with_entries(self, project_with_history: Path):
+        """Test history display with entries."""
+        args = argparse.Namespace(
+            project_path=str(project_with_history),
+            limit=20,
+            type=None,
+        )
+
+        result = show_history(args)
+
+        assert result == 0
+
+    def test_history_with_limit(self, project_with_history: Path):
+        """Test history with limit."""
+        args = argparse.Namespace(
+            project_path=str(project_with_history),
+            limit=1,
+            type=None,
+        )
+
+        result = show_history(args)
+
+        assert result == 0
+
+    def test_history_with_type_filter(self, project_with_history: Path):
+        """Test history filtered by type."""
+        args = argparse.Namespace(
+            project_path=str(project_with_history),
+            limit=20,
+            type="oil_change",
+        )
+
+        result = show_history(args)
+
+        assert result == 0
+
+    def test_history_type_filter_no_matches(self, project_with_history: Path):
+        """Test history filter with no matching entries."""
+        args = argparse.Namespace(
+            project_path=str(project_with_history),
+            limit=20,
+            type="timing_belt",  # Not in history
+        )
+
+        result = show_history(args)
+
+        assert result == 0
+
+    def test_history_no_project(self, tmp_path: Path):
+        """Test history when no project exists."""
+        args = argparse.Namespace(
+            project_path=str(tmp_path),
+            limit=20,
+            type=None,
+        )
+
+        result = show_history(args)
+
+        assert result == 0  # Still succeeds, shows message
+
+    def test_history_empty(self, project_with_vehicle: Path):
+        """Test history when no entries exist."""
+        args = argparse.Namespace(
+            project_path=str(project_with_vehicle),
+            limit=20,
+            type=None,
+        )
+
+        result = show_history(args)
+
+        assert result == 0
+
+
+# =============================================================================
+# Parser history Tests
+# =============================================================================
+
+
+class TestParserHistory:
+    """Tests for 'history' command parsing."""
+
+    def test_parser_history(self):
+        """Test parsing 'history' command."""
+        parser = create_parser()
+        args = parser.parse_args(["history"])
+
+        assert args.command == "history"
+        assert args.limit == 20  # Default
+        assert args.type is None
+
+    def test_parser_history_with_limit(self):
+        """Test parsing 'history' with limit."""
+        parser = create_parser()
+        args = parser.parse_args(["history", "-n", "5"])
+
+        assert args.limit == 5
+
+    def test_parser_history_with_type(self):
+        """Test parsing 'history' with type filter."""
+        parser = create_parser()
+        args = parser.parse_args(["history", "-t", "oil_change"])
+
+        assert args.type == "oil_change"
+
+    def test_parser_history_with_all_options(self):
+        """Test parsing 'history' with all options."""
+        parser = create_parser()
+        args = parser.parse_args(["history", "-n", "10", "-t", "brake_pads"])
+
+        assert args.limit == 10
+        assert args.type == "brake_pads"
+
+
+# =============================================================================
 # Integration Tests
 # =============================================================================
 
@@ -511,6 +632,32 @@ class TestCLIIntegration:
                 "--project",
                 str(project_with_vehicle),
                 "status",
+            ]
+        )
+
+        assert result == 0
+
+    def test_run_cli_history(self, project_with_history: Path):
+        """Test running CLI for history."""
+        result = run_cli(
+            [
+                "--project",
+                str(project_with_history),
+                "history",
+            ]
+        )
+
+        assert result == 0
+
+    def test_run_cli_history_with_filter(self, project_with_history: Path):
+        """Test running CLI for history with type filter."""
+        result = run_cli(
+            [
+                "--project",
+                str(project_with_history),
+                "history",
+                "-t",
+                "oil_change",
             ]
         )
 

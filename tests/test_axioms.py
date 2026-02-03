@@ -970,3 +970,592 @@ class TestAxiomManagerExport:
         assert "Export test" in export
         assert "[OK]" in export
         assert "tag1" in export
+
+
+# ============================================================================
+# Additional Edge Case Tests
+# ============================================================================
+
+
+class TestAxiomEdgeCases:
+    """Tests for edge cases and boundary conditions."""
+
+    def test_axiom_with_empty_statement(self, manager):
+        """Can create axiom with empty statement (unusual but valid)."""
+        axiom = manager.create(statement="", category="specifications")
+        assert axiom.statement == ""
+
+    def test_axiom_with_unicode_statement(self, manager):
+        """Can create axiom with unicode characters."""
+        axiom = manager.create(
+            statement="トルク仕様: 50 ft-lb • 68 N·m ≈ 70 Nm",
+            category="specifications",
+        )
+        assert "トルク" in axiom.statement
+        assert "≈" in axiom.statement
+
+    def test_axiom_with_very_long_statement(self, manager):
+        """Can create axiom with very long statement."""
+        long_statement = "A" * 10000
+        axiom = manager.create(statement=long_statement, category="specifications")
+        assert len(axiom.statement) == 10000
+
+    def test_metadata_persists(self, temp_project):
+        """Custom metadata persists across manager instances."""
+        manager1 = AxiomManager(temp_project)
+        axiom = manager1.create(
+            statement="With metadata",
+            category="specifications",
+            custom_field="custom_value",
+            nested={"key": "value"},
+        )
+        axiom_id = axiom.id
+
+        manager2 = AxiomManager(temp_project)
+        loaded = manager2.get(axiom_id)
+        assert loaded.metadata.get("custom_field") == "custom_value"
+        assert loaded.metadata.get("nested") == {"key": "value"}
+
+
+class TestExtractKeywords:
+    """Tests for _extract_keywords method."""
+
+    def test_extract_keywords_basic(self, manager):
+        """Extracts meaningful keywords from text."""
+        keywords = manager._extract_keywords("The timing belt interval is 105000 miles")
+        assert "timing" in keywords
+        assert "belt" in keywords
+        assert "interval" in keywords
+        assert "105000" in keywords
+        assert "miles" in keywords
+
+    def test_extract_keywords_filters_stop_words(self, manager):
+        """Stop words are filtered out."""
+        keywords = manager._extract_keywords("The quick brown fox jumps over the lazy dog")
+        assert "the" not in keywords
+        assert "over" not in keywords
+        assert "quick" in keywords
+        assert "brown" in keywords
+        assert "fox" in keywords
+
+    def test_extract_keywords_lowercase(self, manager):
+        """Keywords are lowercase."""
+        keywords = manager._extract_keywords("UPPERCASE Keywords Mixed")
+        assert "uppercase" in keywords
+        assert "UPPERCASE" not in keywords
+        assert "keywords" in keywords
+        assert "mixed" in keywords
+
+    def test_extract_keywords_filters_short_words(self, manager):
+        """Words with 2 or fewer characters are filtered."""
+        keywords = manager._extract_keywords("An A I do it to be or")
+        # All should be filtered (too short or stop words)
+        assert "an" not in keywords
+        assert "do" not in keywords
+        assert "it" not in keywords
+
+    def test_extract_keywords_empty_string(self, manager):
+        """Empty string returns empty set."""
+        keywords = manager._extract_keywords("")
+        assert keywords == set()
+
+    def test_extract_keywords_only_stop_words(self, manager):
+        """Text with only stop words returns empty set."""
+        keywords = manager._extract_keywords("the and or but if")
+        assert keywords == set()
+
+    def test_extract_keywords_with_numbers(self, manager):
+        """Numbers are included as keywords."""
+        keywords = manager._extract_keywords("Engine displacement 2457cc 2.5L")
+        assert "engine" in keywords
+        assert "displacement" in keywords
+        assert "2457cc" in keywords
+
+
+class TestConflictDetectionEdgeCases:
+    """Tests for conflict detection edge cases."""
+
+    def test_find_conflicts_empty_statement(self, manager):
+        """Empty statement returns no conflicts."""
+        manager.create(
+            statement="Timing belt spec",
+            category="specifications",
+            auto_validate=True,
+        )
+        conflicts = manager.find_conflicts(statement="", category="specifications")
+        assert conflicts == []
+
+    def test_find_conflicts_all_stop_words(self, manager):
+        """Statement with only stop words returns no conflicts."""
+        manager.create(
+            statement="Timing belt spec",
+            category="specifications",
+            auto_validate=True,
+        )
+        conflicts = manager.find_conflicts(
+            statement="the and or but",
+            category="specifications",
+        )
+        assert conflicts == []
+
+    def test_find_conflicts_below_threshold(self, manager):
+        """Low keyword overlap doesn't trigger conflict."""
+        manager.create(
+            statement="Engine oil capacity is five quarts synthetic blend",
+            category="specifications",
+            auto_validate=True,
+        )
+        # Only one overlapping keyword (engine)
+        conflicts = manager.find_conflicts(
+            statement="Engine timing belt replacement procedure",
+            category="specifications",
+        )
+        # Should not conflict - overlap ratio below 30%
+        assert len(conflicts) == 0
+
+    def test_find_conflicts_skips_non_active(self, manager):
+        """Non-active axioms are skipped in conflict detection."""
+        ax1 = manager.create(
+            statement="Timing belt interval 100k",
+            category="specifications",
+            auto_validate=True,
+        )
+        manager.create(
+            statement="Timing belt interval 105k",
+            category="specifications",
+        )  # pending, not active
+        ax3 = manager.create(
+            statement="Timing belt interval 110k",
+            category="specifications",
+            auto_validate=True,
+        )
+        manager.invalidate(ax3.id)  # now terminal, not active
+
+        conflicts = manager.find_conflicts(
+            statement="Timing belt interval check",
+            category="specifications",
+        )
+        # Only ax1 should be in conflicts
+        assert len(conflicts) == 1
+        assert conflicts[0].id == ax1.id
+
+
+class TestSearchCombinedFilters:
+    """Tests for search with combined filters."""
+
+    def test_search_query_and_category(self, manager):
+        """Search with both query and category."""
+        manager.create(statement="Timing belt spec", category="specifications")
+        manager.create(statement="Timing belt procedure", category="procedures")
+        manager.create(statement="Oil filter spec", category="specifications")
+
+        results = manager.search(query="timing", category="specifications")
+        assert len(results) == 1
+        assert "timing" in results[0].statement.lower()
+        assert results[0].category == "specifications"
+
+    def test_search_validated_only(self, manager):
+        """Search with validated_only filter."""
+        manager.create(statement="Pending", category="specifications")
+        manager.create(
+            statement="Validated",
+            category="specifications",
+            auto_validate=True,
+        )
+
+        results = manager.search(validated_only=True)
+        assert len(results) == 1
+        assert results[0].is_validated is True
+
+    def test_search_all_filters_combined(self, manager):
+        """Search with all filters combined."""
+        # Create variety of axioms
+        manager.create(
+            statement="Timing belt spec low",
+            category="specifications",
+            tags=["maintenance"],
+            confidence=0.5,
+        )
+        target = manager.create(
+            statement="Timing belt spec high",
+            category="specifications",
+            tags=["maintenance", "critical"],
+            confidence=0.9,
+            auto_validate=True,
+        )
+        manager.create(
+            statement="Timing procedure",
+            category="procedures",
+            tags=["maintenance"],
+            confidence=0.9,
+            auto_validate=True,
+        )
+
+        results = manager.search(
+            query="timing",
+            category="specifications",
+            tags=["critical"],
+            min_confidence=0.8,
+            active_only=True,
+        )
+        assert len(results) == 1
+        assert results[0].id == target.id
+
+
+class TestGetSupersededBy:
+    """Tests for get_superseded_by method."""
+
+    def test_get_superseded_by(self, manager):
+        """get_superseded_by returns axioms that supersede given axiom."""
+        ax1 = manager.create(
+            statement="Original",
+            category="specifications",
+            auto_validate=True,
+        )
+        ax2 = manager.supersede(ax1.id, new_statement="Replacement")
+
+        result = manager.get_superseded_by(ax1.id)
+        assert len(result) == 1
+        assert result[0].id == ax2.id
+
+    def test_get_superseded_by_no_results(self, manager):
+        """get_superseded_by returns empty for non-superseded axiom."""
+        axiom = manager.create(
+            statement="Never superseded",
+            category="specifications",
+        )
+        result = manager.get_superseded_by(axiom.id)
+        assert result == []
+
+
+class TestSupersessionChainEdgeCases:
+    """Tests for supersession chain edge cases."""
+
+    def test_get_supersession_chain_single_axiom(self, manager):
+        """Chain with single axiom returns just that axiom."""
+        axiom = manager.create(
+            statement="Standalone",
+            category="specifications",
+        )
+        chain = manager.get_supersession_chain(axiom.id)
+        assert len(chain) == 1
+        assert chain[0].id == axiom.id
+
+    def test_get_supersession_chain_nonexistent(self, manager):
+        """Chain for nonexistent axiom returns empty."""
+        chain = manager.get_supersession_chain("axiom_doesnotexist")
+        assert chain == []
+
+    def test_get_supersession_chain_from_middle(self, manager):
+        """Chain retrieval from middle axiom gets full chain."""
+        ax1 = manager.create(statement="V1", category="specifications", auto_validate=True)
+        ax2 = manager.supersede(ax1.id, new_statement="V2")
+        ax3 = manager.supersede(ax2.id, new_statement="V3")
+        ax4 = manager.supersede(ax3.id, new_statement="V4")
+
+        # Get chain starting from middle
+        chain = manager.get_supersession_chain(ax2.id)
+        assert len(chain) == 4
+        assert chain[0].id == ax1.id
+        assert chain[-1].id == ax4.id
+
+
+class TestExportMarkdownEdgeCases:
+    """Tests for export_markdown edge cases."""
+
+    def test_export_markdown_with_disputed(self, manager):
+        """Export includes dispute information."""
+        axiom = manager.create(
+            statement="Disputed fact",
+            category="specifications",
+            auto_validate=True,
+        )
+        manager.dispute(axiom.id, reason="Conflicting evidence found")
+
+        export = manager.export_markdown()
+        assert "[!!]" in export  # Disputed indicator
+        assert "Conflicting evidence found" in export
+
+    def test_export_markdown_with_supersession(self, manager):
+        """Export includes supersession information."""
+        ax1 = manager.create(
+            statement="Old fact",
+            category="specifications",
+            auto_validate=True,
+        )
+        ax2 = manager.supersede(ax1.id, new_statement="New fact")
+
+        export = manager.export_markdown()
+        assert "[->]" in export  # Superseded indicator
+        assert ax2.id in export
+
+    def test_export_markdown_all_statuses(self, manager):
+        """Export handles all status types."""
+        # Create axioms in various states
+        manager.create(statement="Pending", category="specifications")
+        manager.create(
+            statement="Validated",
+            category="specifications",
+            auto_validate=True,
+        )
+        ax_rej = manager.create(statement="Rejected", category="procedures")
+        manager.reject(ax_rej.id)
+
+        ax_inv = manager.create(
+            statement="Invalidated",
+            category="diagnostics",
+            auto_validate=True,
+        )
+        manager.invalidate(ax_inv.id)
+
+        export = manager.export_markdown()
+        assert "[??]" in export  # Pending
+        assert "[OK]" in export  # Validated
+        assert "[XX]" in export  # Rejected or Invalidated
+
+    def test_export_markdown_empty(self, manager):
+        """Export on empty manager produces minimal output."""
+        export = manager.export_markdown()
+        assert "# Knowledge Base Axioms" in export
+        # Should still have header but no category sections
+
+    def test_export_markdown_categories_ordered(self, manager):
+        """Export groups axioms by category in correct order."""
+        # Create in reverse order
+        manager.create(statement="Safety item", category="safety", auto_validate=True)
+        manager.create(statement="Spec item", category="specifications", auto_validate=True)
+        manager.create(statement="Proc item", category="procedures", auto_validate=True)
+
+        export = manager.export_markdown()
+        # Check category order matches AXIOM_CATEGORIES
+        spec_pos = export.find("Specifications")
+        proc_pos = export.find("Procedures")
+        safe_pos = export.find("Safety")
+        assert spec_pos < proc_pos < safe_pos
+
+
+class TestGetContextForLLMEdgeCases:
+    """Tests for get_context_for_llm edge cases."""
+
+    def test_context_filters_by_tags(self, manager):
+        """Context can be filtered by tags."""
+        manager.create(
+            statement="Tagged fact",
+            category="specifications",
+            tags=["engine"],
+            confidence=0.9,
+            auto_validate=True,
+        )
+        manager.create(
+            statement="Other fact",
+            category="specifications",
+            tags=["transmission"],
+            confidence=0.9,
+            auto_validate=True,
+        )
+
+        context = manager.get_context_for_llm(tags=["engine"])
+        assert "Tagged fact" in context
+        assert "Other fact" not in context
+
+    def test_context_filters_by_category(self, manager):
+        """Context can be filtered by category."""
+        manager.create(
+            statement="Spec fact",
+            category="specifications",
+            confidence=0.9,
+            auto_validate=True,
+        )
+        manager.create(
+            statement="Safety fact",
+            category="safety",
+            confidence=0.9,
+            auto_validate=True,
+        )
+
+        context = manager.get_context_for_llm(category="specifications")
+        assert "Spec fact" in context
+        assert "Safety fact" not in context
+
+    def test_context_filters_low_confidence(self, manager):
+        """Context excludes low confidence axioms."""
+        manager.create(
+            statement="High confidence",
+            category="specifications",
+            confidence=0.9,
+            auto_validate=True,
+        )
+        manager.create(
+            statement="Low confidence",
+            category="specifications",
+            confidence=0.5,
+            auto_validate=True,
+        )
+
+        context = manager.get_context_for_llm()
+        # Default min_confidence is 0.7
+        assert "High confidence" in context
+        assert "Low confidence" not in context
+
+    def test_context_respects_max_axioms(self, manager):
+        """Context respects max_axioms parameter."""
+        for i in range(10):
+            manager.create(
+                statement=f"Fact {i}",
+                category="specifications",
+                confidence=0.9,
+                auto_validate=True,
+            )
+
+        context = manager.get_context_for_llm(max_axioms=3)
+        # Count how many facts appear
+        fact_count = sum(1 for i in range(10) if f"Fact {i}" in context)
+        assert fact_count == 3
+
+
+class TestStatsEdgeCases:
+    """Tests for get_stats edge cases."""
+
+    def test_stats_empty_manager(self, manager):
+        """Stats on empty manager."""
+        stats = manager.get_stats()
+        assert stats["total"] == 0
+        assert stats["active"] == 0
+        assert stats["disputed"] == 0
+        assert stats["pending"] == 0
+        assert stats["avg_confidence"] == 0.0
+        assert stats["by_status"] == {}
+        assert stats["by_category"] == {}
+
+    def test_stats_avg_confidence_calculation(self, manager):
+        """Average confidence is calculated correctly."""
+        manager.create(statement="A", category="specifications", confidence=0.8)
+        manager.create(statement="B", category="specifications", confidence=0.6)
+        manager.create(statement="C", category="specifications", confidence=1.0)
+
+        stats = manager.get_stats()
+        assert stats["avg_confidence"] == 0.8  # (0.8 + 0.6 + 1.0) / 3
+
+
+class TestUpdateOperationsEdgeCases:
+    """Tests for update operation edge cases."""
+
+    def test_update_confidence_nonexistent(self, manager):
+        """update_confidence on nonexistent axiom returns None."""
+        result = manager.update_confidence("axiom_doesnotexist", 0.9)
+        assert result is None
+
+    def test_update_confidence_negative_clamped(self, manager):
+        """Negative confidence clamped to 0."""
+        axiom = manager.create(statement="Test", category="specifications")
+        manager.update_confidence(axiom.id, -0.5)
+        assert axiom.confidence == 0.0
+
+    def test_add_citation_nonexistent(self, manager):
+        """add_citation on nonexistent axiom returns None."""
+        result = manager.add_citation("axiom_doesnotexist", "sig_1")
+        assert result is None
+
+    def test_add_tag_nonexistent(self, manager):
+        """add_tag on nonexistent axiom returns None."""
+        result = manager.add_tag("axiom_doesnotexist", "new_tag")
+        assert result is None
+
+    def test_remove_tag_nonexistent_axiom(self, manager):
+        """remove_tag on nonexistent axiom returns None."""
+        result = manager.remove_tag("axiom_doesnotexist", "tag")
+        assert result is None
+
+    def test_remove_tag_nonexistent_tag(self, manager):
+        """remove_tag with tag not on axiom does nothing."""
+        axiom = manager.create(
+            statement="Test",
+            category="specifications",
+            tags=["existing"],
+        )
+        result = manager.remove_tag(axiom.id, "nonexistent")
+        assert result is not None
+        assert axiom.tags == ["existing"]
+
+    def test_add_tag_no_duplicates(self, manager):
+        """add_tag doesn't add duplicate tags."""
+        axiom = manager.create(
+            statement="Test",
+            category="specifications",
+            tags=["existing"],
+        )
+        manager.add_tag(axiom.id, "existing")
+        assert axiom.tags.count("existing") == 1
+
+
+class TestSupersedeCases:
+    """Tests for supersede operation edge cases."""
+
+    def test_supersede_nonexistent(self, manager):
+        """supersede on nonexistent axiom returns None."""
+        result = manager.supersede("axiom_doesnotexist", new_statement="New")
+        assert result is None
+
+    def test_supersede_inherits_category(self, manager):
+        """New axiom inherits category from old."""
+        old = manager.create(
+            statement="Old",
+            category="diagnostics",
+            auto_validate=True,
+        )
+        new = manager.supersede(old.id, new_statement="New")
+        assert new.category == "diagnostics"
+
+    def test_supersede_with_custom_confidence(self, manager):
+        """Can override confidence in superseding axiom."""
+        old = manager.create(
+            statement="Old",
+            category="specifications",
+            confidence=0.5,
+            auto_validate=True,
+        )
+        new = manager.supersede(old.id, new_statement="New", confidence=0.95)
+        assert new.confidence == 0.95
+
+
+class TestResolveDisputeEdgeCases:
+    """Tests for resolve_dispute edge cases."""
+
+    def test_resolve_dispute_non_disputed(self, manager):
+        """resolve_dispute on non-disputed axiom does nothing."""
+        axiom = manager.create(
+            statement="Not disputed",
+            category="specifications",
+            auto_validate=True,
+        )
+        original_status = axiom.status
+        result = manager.resolve_dispute(axiom.id, resolution="confirmed")
+        assert result is not None
+        assert result.status == original_status
+
+    def test_resolve_dispute_unknown_resolution(self, manager):
+        """Unknown resolution type doesn't change status."""
+        axiom = manager.create(
+            statement="Disputed",
+            category="specifications",
+            auto_validate=True,
+        )
+        manager.dispute(axiom.id, reason="Test")
+        original_status = axiom.status
+
+        result = manager.resolve_dispute(axiom.id, resolution="unknown_type")
+        assert result.status == original_status
+
+    def test_resolve_dispute_superseded_without_new_id(self, manager):
+        """Superseded resolution without new_axiom_id doesn't change status."""
+        axiom = manager.create(
+            statement="Disputed",
+            category="specifications",
+            auto_validate=True,
+        )
+        manager.dispute(axiom.id, reason="Test")
+        original_status = axiom.status
+
+        result = manager.resolve_dispute(axiom.id, resolution="superseded")
+        # Without new_axiom_id, should not change
+        assert result.status == original_status
