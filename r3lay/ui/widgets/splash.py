@@ -94,19 +94,19 @@ class SplashScreen(ModalScreen[None]):
 
     def __init__(
         self,
-        animate: bool = True,
+        run_animation: bool = True,
         duration: float = 2.0,
         name: str | None = None,
     ) -> None:
         """Initialize splash screen.
 
         Args:
-            animate: Whether to run the typewriter effect (False for instant).
+            run_animation: Whether to run the typewriter effect (False for instant).
             duration: Target duration for the animation (seconds).
             name: Optional screen name.
         """
         super().__init__(name=name)
-        self.animate = animate
+        self._run_animation_enabled = run_animation
         self.duration = duration
         self._animation_task: asyncio.Task | None = None
 
@@ -118,8 +118,8 @@ class SplashScreen(ModalScreen[None]):
 
     async def on_mount(self) -> None:
         """Start animation on mount."""
-        if self.animate:
-            self._animation_task = asyncio.create_task(self._run_animation())
+        if self._run_animation_enabled:
+            self._animation_task = asyncio.create_task(self._do_animation())
         else:
             # Quick show then dismiss
             splash_widget = self.query_one("#splash-text", Static)
@@ -127,7 +127,7 @@ class SplashScreen(ModalScreen[None]):
             await asyncio.sleep(0.5)
             self.dismiss()
 
-    async def _run_animation(self) -> None:
+    async def _do_animation(self) -> None:
         """Run the typewriter animation effect.
 
         Uses simple character-by-character reveal for reliability.
@@ -161,14 +161,14 @@ class SplashScreen(ModalScreen[None]):
             await asyncio.sleep(0.5)
         finally:
             # Auto-dismiss after animation
-            if not self._animation_task.cancelled():
+            if self._animation_task is None or not self._animation_task.cancelled():
                 self.dismiss()
 
-    def action_dismiss(self) -> None:
+    def action_dismiss(self, result: None = None) -> None:  # type: ignore[override]
         """Handle dismiss action (skip animation)."""
         if self._animation_task and not self._animation_task.done():
             self._animation_task.cancel()
-        self.dismiss()
+        self.dismiss(result)
 
 
 async def show_splash(app: "App", animate: bool = True, duration: float = 2.0) -> None:
@@ -181,4 +181,4 @@ async def show_splash(app: "App", animate: bool = True, duration: float = 2.0) -
         animate: Whether to animate the splash.
         duration: Target animation duration.
     """
-    await app.push_screen(SplashScreen(animate=animate, duration=duration))
+    await app.push_screen(SplashScreen(run_animation=animate, duration=duration))
