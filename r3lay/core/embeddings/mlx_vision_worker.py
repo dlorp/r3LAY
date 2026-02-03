@@ -161,7 +161,10 @@ class ColQwen2Embedder(VisionEmbedder):
                 self.model = ColQwen2.from_pretrained(model_name)
 
                 # Get dimension from model config
-                self.dimension = self.model.config.hidden_size
+                if self.model is not None and hasattr(self.model, "config"):
+                    self.dimension = self.model.config.hidden_size
+                else:
+                    self.dimension = 768  # Default
                 self.num_vectors = 256  # Typical for ColQwen2
 
                 return True
@@ -182,7 +185,11 @@ class ColQwen2Embedder(VisionEmbedder):
                 )
 
                 # Get dimension
-                if hasattr(self.model.config, "hidden_size"):
+                if (
+                    self.model is not None
+                    and hasattr(self.model, "config")
+                    and hasattr(self.model.config, "hidden_size")
+                ):
                     self.dimension = self.model.config.hidden_size
                 else:
                     self.dimension = 768  # Default
@@ -298,13 +305,14 @@ class CLIPEmbedder(VisionEmbedder):
 
             # Use MPS on Apple Silicon
             device = "mps" if _mps_available() else "cpu"
-            self.model = SentenceTransformer(model_name, device=device)
+            model = SentenceTransformer(model_name, device=device)
+            self.model = model
 
             # Get dimension by encoding a test image
             from PIL import Image
 
             test_img = Image.new("RGB", (64, 64), color="white")
-            test_emb = self.model.encode([test_img])
+            test_emb = model.encode([test_img])
             self.dimension = test_emb.shape[-1]
 
             self._use_sentence_transformers = True
@@ -320,11 +328,12 @@ class CLIPEmbedder(VisionEmbedder):
 
             device = "mps" if _mps_available() else "cpu"
             self.processor = CLIPProcessor.from_pretrained(model_name)
-            self.model = CLIPModel.from_pretrained(model_name).to(device)
-            self.model.eval()
+            model = CLIPModel.from_pretrained(model_name).to(device)
+            model.eval()
+            self.model = model
 
             # Get dimension
-            self.dimension = self.model.config.projection_dim
+            self.dimension = model.config.projection_dim
 
             self.backend_name = "transformers_clip"
             return True
@@ -404,15 +413,17 @@ class MLXCLIPEmbedder(VisionEmbedder):
             # Try mlx-vlm first
             from mlx_vlm import load as load_vlm
 
-            self.model, self.processor = load_vlm(model_name)
+            model, processor = load_vlm(model_name)
+            self.model = model
+            self.processor = processor
 
             # Try to determine dimension
             self.dimension = 768  # Default for CLIP
-            if hasattr(self.model, "config"):
-                if hasattr(self.model.config, "projection_dim"):
-                    self.dimension = self.model.config.projection_dim
-                elif hasattr(self.model.config, "hidden_size"):
-                    self.dimension = self.model.config.hidden_size
+            if hasattr(model, "config"):
+                if hasattr(model.config, "projection_dim"):
+                    self.dimension = model.config.projection_dim
+                elif hasattr(model.config, "hidden_size"):
+                    self.dimension = model.config.hidden_size
 
             self.backend_name = "mlx_vlm"
             return True
@@ -426,8 +437,9 @@ class MLXCLIPEmbedder(VisionEmbedder):
         try:
             import mlx_clip
 
-            self.model = mlx_clip.load(model_name)
-            self.dimension = self.model.vision_model.config.hidden_size
+            model = mlx_clip.load(model_name)
+            self.model = model
+            self.dimension = model.vision_model.config.hidden_size
             self.backend_name = "mlx_clip"
             return True
 
@@ -642,7 +654,7 @@ def main() -> None:
 
             try:
                 # Load and preprocess images
-                images = []
+                images: list["Image.Image"] = []
                 for path in image_paths:
                     if not Path(path).exists():
                         send_response({"type": "error", "message": f"Image not found: {path}"})

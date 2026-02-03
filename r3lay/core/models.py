@@ -99,7 +99,7 @@ class ModelInfo(BaseModel):
 
     model_config = {"arbitrary_types_allowed": True}
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def display_name(self) -> str:
         """Human-readable display name with source tag.
@@ -115,7 +115,7 @@ class ModelInfo(BaseModel):
         tag = tags.get(self.source, "??")
         return f"[{tag}] {self.name}"
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def size_human(self) -> str:
         """Human-readable size string.

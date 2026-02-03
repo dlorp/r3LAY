@@ -355,6 +355,89 @@ def show_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def show_history(args: argparse.Namespace) -> int:
+    """Show maintenance history.
+
+    Args:
+        args: Parsed arguments (limit, type filter)
+
+    Returns:
+        Exit code (0 for success)
+    """
+    project_path = Path(args.project_path).resolve()
+    pm = ProjectManager(project_path)
+
+    state = pm.load()
+    if not state:
+        console.print("[yellow]No project found.[/yellow] Run r3lay in TUI mode to set up.")
+        return 0
+
+    log = MaintenanceLog(project_path)
+    entries = log.entries
+
+    if not entries:
+        console.print("[dim]No maintenance history yet.[/dim]")
+        return 0
+
+    # Filter by type if specified
+    if args.type:
+        filter_type = args.type.lower().replace(" ", "_")
+        entries = [e for e in entries if e.service_type.lower() == filter_type]
+        if not entries:
+            console.print(f"[yellow]No entries found for type '{args.type}'.[/yellow]")
+            return 0
+
+    # Sort by date descending (most recent first)
+    entries = sorted(entries, key=lambda e: e.date, reverse=True)
+
+    # Apply limit
+    limit = args.limit or 20
+    entries = entries[:limit]
+
+    # Vehicle info
+    console.print(f"[bold]{state.profile.display_name}[/bold]")
+    console.print(f"Current mileage: {state.current_mileage:,} mi")
+    console.print()
+
+    # Create table
+    table = Table(title="Maintenance History")
+    table.add_column("Date", style="dim")
+    table.add_column("Service", style="cyan")
+    table.add_column("Mileage", justify="right")
+    table.add_column("Cost", justify="right")
+    table.add_column("Shop/Notes", style="dim")
+
+    for entry in entries:
+        date_str = entry.date.strftime("%Y-%m-%d")
+        service = entry.service_type.replace("_", " ").title()
+        mileage = f"{entry.mileage:,}"
+        cost = f"${entry.cost:,.2f}" if entry.cost else "-"
+
+        # Combine shop and notes for last column
+        details = []
+        if entry.shop:
+            details.append(entry.shop)
+        if entry.notes:
+            # Truncate notes
+            note_preview = entry.notes[:30] + "..." if len(entry.notes) > 30 else entry.notes
+            note_preview = note_preview.replace("\n", " ")
+            details.append(note_preview)
+
+        notes_str = " | ".join(details) if details else "-"
+
+        table.add_row(date_str, service, mileage, cost, notes_str)
+
+    console.print(table)
+
+    # Show totals if we have cost data
+    total_cost = sum(e.cost for e in entries if e.cost)
+    if total_cost > 0:
+        console.print()
+        console.print(f"[bold]Total cost:[/bold] ${total_cost:,.2f}")
+
+    return 0
+
+
 def create_parser() -> argparse.ArgumentParser:
     """Create the CLI argument parser.
 
@@ -470,10 +553,28 @@ def create_parser() -> argparse.ArgumentParser:
     status_parser = subparsers.add_parser("status", help="Show maintenance status")
     status_parser.set_defaults(func=show_status)
 
+    # =========================================================================
+    # history command
+    # =========================================================================
+    history_parser = subparsers.add_parser("history", help="Show maintenance history")
+    history_parser.add_argument(
+        "--limit",
+        "-n",
+        type=int,
+        default=20,
+        help="Maximum entries to show (default: 20)",
+    )
+    history_parser.add_argument(
+        "--type",
+        "-t",
+        help="Filter by service type (e.g., 'oil_change', 'repair')",
+    )
+    history_parser.set_defaults(func=show_history)
+
     return parser
 
 
-def run_cli(args: list[str] | None = None) -> int:
+def run_cli(args: list[str] | None = None) -> int | None:
     """Run the CLI.
 
     Args:
@@ -515,4 +616,5 @@ __all__ = [
     "log_mod",
     "update_mileage",
     "show_status",
+    "show_history",
 ]
