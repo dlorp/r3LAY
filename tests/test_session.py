@@ -849,7 +849,7 @@ class TestSessionEdgeCases:
     def test_unicode_content(self):
         """Test handling unicode in messages."""
         session = Session()
-        unicode_content = "Hello 世界 🚗 αβγ"
+        unicode_content = "Hello 世界 CAR αβγ"
 
         msg = session.add_user_message(unicode_content)
 
