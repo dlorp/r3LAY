@@ -297,3 +297,7 @@ id_ecdsa*
 # Token files
 *.token
 *_token*
+AGENTS.md
+.editorconfig
+.gitattributes
+axioms/
