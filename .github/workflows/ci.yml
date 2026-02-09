@@ -48,6 +48,10 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Check version consistency
+        run: |
+          bash scripts/check-version-sync.sh
+
       - name: Install linters
         run: |
           python -m pip install --upgrade pip
