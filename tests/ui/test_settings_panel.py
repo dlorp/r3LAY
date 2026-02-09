@@ -24,6 +24,7 @@ class TestSettingsPanel:
         """Create a mock R3LayState."""
         state = MagicMock()
         state.project_path = tmp_path
+        state.available_models = []  # Empty list for basic testing
         return state
 
     def test_initialization(self, mock_state: MagicMock) -> None:
@@ -35,16 +36,20 @@ class TestSettingsPanel:
         """Test that SettingsPanel has DEFAULT_CSS defined."""
         assert SettingsPanel.DEFAULT_CSS is not None
         assert "SettingsPanel" in SettingsPanel.DEFAULT_CSS
-        assert "#settings-info" in SettingsPanel.DEFAULT_CSS
+        # Updated to check for new expanded settings structure
+        assert "#settings-header" in SettingsPanel.DEFAULT_CSS
 
-    def test_compose_yields_static(self, mock_state: MagicMock) -> None:
-        """Test that compose yields a Static widget with info."""
+    def test_compose_yields_widgets(self, mock_state: MagicMock) -> None:
+        """Test that compose yields multiple widgets for expanded settings."""
+        mock_state.available_models = []  # Empty model list for testing
         panel = SettingsPanel(state=mock_state)
         widgets = list(panel.compose())
 
-        assert len(widgets) == 1
+        # The new settings panel yields multiple widgets (header, sections, buttons, etc.)
+        assert len(widgets) > 1
         from textual.widgets import Static
 
+        # First widget should be the header
         assert isinstance(widgets[0], Static)
 
     def test_compose_info_contains_version(self, mock_state: MagicMock) -> None:
@@ -74,23 +79,26 @@ class TestSettingsPanel:
         Note: Since we can't easily inspect Static content after creation,
         we verify the CSS and structure are correct instead.
         """
+        mock_state.available_models = []  # Empty model list for testing
         panel = SettingsPanel(state=mock_state)
         widgets = list(panel.compose())
 
-        # Verify a Static widget is yielded
+        # Verify Static widgets are yielded (multiple in expanded settings)
         from textual.widgets import Static
 
-        assert len(widgets) == 1
+        assert len(widgets) > 1
+        # First widget should be the header
         assert isinstance(widgets[0], Static)
-        assert widgets[0].id == "settings-info"
+        assert widgets[0].id == "settings-header"
 
-    def test_static_has_correct_id(self, mock_state: MagicMock) -> None:
-        """Test that the Static widget has the correct ID."""
+    def test_header_has_correct_id(self, mock_state: MagicMock) -> None:
+        """Test that the header Static widget has the correct ID."""
+        mock_state.available_models = []  # Empty model list for testing
         panel = SettingsPanel(state=mock_state)
         widgets = list(panel.compose())
 
-        static = widgets[0]
-        assert static.id == "settings-info"
+        header = widgets[0]
+        assert header.id == "settings-header"
 
 
 class TestSettingsPanelExports:
