@@ -91,7 +91,7 @@ class TestEffectsFallback:
 
             assert len(frames) == 1
             assert "Warning message" in frames[0]
-            assert "⚠" in frames[0]
+            assert "!" in frames[0]
 
     def test_quick_reveal_fallback(self):
         """quick_reveal yields text when TTE unavailable."""

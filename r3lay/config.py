@@ -14,6 +14,7 @@ Environment Variables:
 """
 
 from pathlib import Path
+from typing import Optional
 
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -32,13 +33,13 @@ class ModelRoles(BaseModel):
         vision_embedder: Model for vision embedding (optional)
     """
 
-    text_model: str | None = None
-    vision_model: str | None = None
-    text_embedder: str | None = Field(
+    text_model: Optional[str] = None
+    vision_model: Optional[str] = None
+    text_embedder: Optional[str] = Field(
         default="mlx-community/all-MiniLM-L6-v2-4bit",
         description="Default embedding model for RAG",
     )
-    vision_embedder: str | None = None
+    vision_embedder: Optional[str] = None
 
     def has_text_model(self) -> bool:
         """Check if a text model is configured."""
@@ -84,8 +85,8 @@ class AppConfig(BaseSettings):
     theme: str = "default"
 
     # Model discovery paths - None means auto-detect
-    hf_cache_path: Path | None = None
-    mlx_folder: Path | None = None
+    hf_cache_path: Optional[Path] = None
+    mlx_folder: Optional[Path] = None
     gguf_folder: Path = Field(default_factory=lambda: Path("~/.r3lay/models/").expanduser())
     ollama_endpoint: str = "http://localhost:11434"
 
