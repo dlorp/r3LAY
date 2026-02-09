@@ -111,7 +111,7 @@ class MainScreen(Screen):
                         yield AxiomPanel(self.state)
                     with TabPane("Log", id="tab-log"):
                         yield HistoryPanel(self.state)
-                    with TabPane("⚠ Due", id="tab-due"):
+                    with TabPane("Due", id="tab-due"):
                         yield MaintenancePanel(
                             project_path=self.state.project_path,
                             current_mileage=None,
