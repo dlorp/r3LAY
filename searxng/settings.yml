@@ -4,7 +4,7 @@
 use_default_settings: true
 
 server:
-  secret_key: "r3lay-searxng-secret-key"
+  secret_key: "${SEARXNG_SECRET_KEY:-changeme}"
   limiter: false  # Disable rate limiting for local use
 
 search:
