@@ -110,7 +110,7 @@ class Effects:
         Yields:
             String frames with ANSI escape codes.
         """
-        text = f"⚠ {message} ⚠"
+        text = f"! {message} !"
 
         tte = _get_tte_classes()
         if tte is None:
