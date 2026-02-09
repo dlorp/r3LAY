@@ -12,11 +12,27 @@
  */
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   CSS Variables - Theme tokens
+   ───────────────────────────────────────────────────────────────────────────── */
+
+* {
+    $primary: #F4E409;        /* Titanium Yellow - headers, active states */
+    $secondary: #50D8D7;      /* Medium Turquoise - info, links */
+    $accent: #FB8B24;         /* Dark Orange (amber) - warnings, glows */
+    $focus: #3B60E4;          /* Royal Blue Light - primary actions, focus */
+    $muted: #636764;          /* Granite Gray - borders, muted text */
+    
+    $bg-dark: #0d0d0d;        /* Darkest background */
+    $bg-base: #1a1a1a;        /* Base background */
+    $text-light: #ffffff;     /* Light text */
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    Root / App styling
    ───────────────────────────────────────────────────────────────────────────── */
 
 Screen {
-    background: #1a1a1a;
+    background: $bg-base;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -24,24 +40,24 @@ Screen {
    ───────────────────────────────────────────────────────────────────────────── */
 
 Header {
-    background: #0d0d0d;
-    color: #F4E409;
+    background: $bg-dark;
+    color: $primary;
     dock: top;
     height: 3;
-    border-bottom: solid #636764;
+    border-bottom: solid $muted;
 }
 
 Header > HeaderTitle {
-    color: #F4E409;
+    color: $primary;
     text-style: bold;
 }
 
 Header > HeaderIcon {
-    color: #50D8D7;
+    color: $secondary;
 }
 
 HeaderClock {
-    color: #636764;
+    color: $muted;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -49,35 +65,35 @@ HeaderClock {
    ───────────────────────────────────────────────────────────────────────────── */
 
 Footer {
-    background: #0d0d0d;
-    color: #636764;
+    background: $bg-dark;
+    color: $muted;
     dock: bottom;
     height: 1;
-    border-top: solid #636764;
+    border-top: solid $muted;
 }
 
 FooterKey {
     background: transparent;
-    color: #636764;
+    color: $muted;
 }
 
 FooterKey > .footer-key--key {
-    background: #3B60E4;
-    color: #0d0d0d;
+    background: $focus;
+    color: $bg-dark;
     text-style: bold;
     padding: 0 1;
 }
 
 FooterKey > .footer-key--description {
-    color: #50D8D7;
+    color: $secondary;
 }
 
 FooterKey:hover {
-    background: #1a1a1a;
+    background: $bg-base;
 }
 
 FooterKey:hover > .footer-key--key {
-    background: #50D8D7;
+    background: $secondary;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -87,13 +103,13 @@ FooterKey:hover > .footer-key--key {
 #main-layout {
     width: 100%;
     height: 100%;
-    background: #1a1a1a;
+    background: $bg-base;
 }
 
 #right-column {
     width: 40%;
     height: 100%;
-    border-left: solid #636764;
+    border-left: solid $muted;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -103,51 +119,53 @@ FooterKey:hover > .footer-key--key {
 #control-tabs {
     width: 100%;
     height: 1fr;
-    background: #1a1a1a;
+    background: $bg-base;
 }
 
 TabbedContent > ContentSwitcher {
     height: 1fr;
-    background: #1a1a1a;
+    background: $bg-base;
 }
 
 /* Tab bar styling */
 Tabs {
-    background: #0d0d0d;
+    background: $bg-dark;
     dock: top;
     height: 3;
 }
 
 Tab {
     background: transparent;
-    color: #636764;
+    color: $muted;
     padding: 0 2;
 }
 
 Tab:hover {
-    background: #1a1a1a;
-    color: #50D8D7;
+    background: $bg-base;
+    color: $secondary;
 }
 
 Tab.-active {
-    background: #1a1a1a;
-    color: #F4E409;
+    background: $bg-base;
+    color: $primary;
     text-style: bold;
-    border-bottom: solid #F4E409;
+    border-bottom: solid $primary;
 }
 
 Tab:focus {
     text-style: bold;
+    text-style: bold;
+    border: solid $accent;
 }
 
 Underline {
-    color: #F4E409;
+    color: $primary;
 }
 
 TabPane {
     padding: 0;
     height: 100%;
-    background: #1a1a1a;
+    background: $bg-base;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -156,7 +174,7 @@ TabPane {
 
 ModelPanel, IndexPanel, AxiomPanel, SessionPanel, SettingsPanel, HistoryPanel, MaintenancePanel {
     height: 100%;
-    background: #1a1a1a;
+    background: $bg-base;
     padding: 1;
 }
 
@@ -165,8 +183,8 @@ ModelPanel, IndexPanel, AxiomPanel, SessionPanel, SettingsPanel, HistoryPanel, M
    ───────────────────────────────────────────────────────────────────────────── */
 
 #response-pane {
-    background: #0d0d0d;
-    border: round #636764;
+    background: $bg-dark;
+    border: round $muted;
     padding: 1 2;
 }
 
@@ -181,8 +199,8 @@ ResponsePane {
 #input-pane {
     height: auto;
     max-height: 12;
-    background: #0d0d0d;
-    border: round #636764;
+    background: $bg-dark;
+    border: round $muted;
     margin: 1;
     padding: 0 1;
 }
@@ -196,42 +214,44 @@ InputPane {
    ───────────────────────────────────────────────────────────────────────────── */
 
 Input {
-    background: #0d0d0d;
-    color: #F4E409;
-    border: solid #636764;
+    background: $bg-dark;
+    color: $primary;
+    border: solid $muted;
     padding: 0 1;
 }
 
 Input:focus {
-    border: solid #3B60E4;
+    border: solid $accent;
+    border-title-color: $accent;
 }
 
 Input.-invalid {
-    border: solid #FB8B24;
+    border: solid $accent;
 }
 
 Input > .input--cursor {
-    background: #F4E409;
-    color: #0d0d0d;
+    background: $primary;
+    color: $bg-dark;
 }
 
 Input > .input--placeholder {
-    color: #636764;
+    color: $muted;
 }
 
 TextArea {
-    background: #0d0d0d;
-    color: #F4E409;
-    border: solid #636764;
+    background: $bg-dark;
+    color: $primary;
+    border: solid $muted;
 }
 
 TextArea:focus {
-    border: solid #3B60E4;
+    border: solid $accent;
+    border-title-color: $accent;
 }
 
 TextArea > .text-area--cursor {
-    background: #F4E409;
-    color: #0d0d0d;
+    background: $primary;
+    color: $bg-dark;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -239,49 +259,49 @@ TextArea > .text-area--cursor {
    ───────────────────────────────────────────────────────────────────────────── */
 
 Button {
-    background: #3B60E4;
-    color: #ffffff;
+    background: $focus;
+    color: $text-light;
     border: none;
     padding: 0 2;
     text-style: bold;
 }
 
 Button:hover {
-    background: #50D8D7;
-    color: #0d0d0d;
+    background: $secondary;
+    color: $bg-dark;
 }
 
 Button:focus {
-    background: #3B60E4;
-    border: solid #F4E409;
+    background: $focus;
+    border: solid $accent;
 }
 
 Button.-primary {
-    background: #3B60E4;
+    background: $focus;
 }
 
 Button.-primary:hover {
-    background: #50D8D7;
+    background: $secondary;
 }
 
 Button.-warning {
-    background: #FB8B24;
-    color: #0d0d0d;
+    background: $accent;
+    color: $bg-dark;
 }
 
 Button.-warning:hover {
-    background: #F4E409;
-    color: #0d0d0d;
+    background: $primary;
+    color: $bg-dark;
 }
 
 Button.-success {
-    background: #50D8D7;
-    color: #0d0d0d;
+    background: $secondary;
+    color: $bg-dark;
 }
 
 Button:disabled {
-    background: #636764;
-    color: #1a1a1a;
+    background: $muted;
+    color: $bg-base;
     text-style: none;
 }
 
@@ -290,67 +310,67 @@ Button:disabled {
    ───────────────────────────────────────────────────────────────────────────── */
 
 ListView {
-    background: #0d0d0d;
-    border: solid #636764;
+    background: $bg-dark;
+    border: solid $muted;
 }
 
 ListItem {
     background: transparent;
-    color: #50D8D7;
+    color: $secondary;
     padding: 0 1;
 }
 
 ListItem:hover {
-    background: #1a1a1a;
+    background: $bg-base;
 }
 
 ListItem.-selected {
-    background: #3B60E4;
-    color: #ffffff;
+    background: $focus;
+    color: $text-light;
 }
 
 ListItem.-selected:hover {
-    background: #50D8D7;
-    color: #0d0d0d;
+    background: $secondary;
+    color: $bg-dark;
 }
 
 OptionList {
-    background: #0d0d0d;
-    border: solid #636764;
+    background: $bg-dark;
+    border: solid $muted;
 }
 
 OptionList > .option-list--option {
-    color: #50D8D7;
+    color: $secondary;
     padding: 0 1;
 }
 
 OptionList > .option-list--option-highlighted {
-    background: #1a1a1a;
-    color: #F4E409;
+    background: $bg-base;
+    color: $primary;
 }
 
 OptionList > .option-list--option-highlighted-selected {
-    background: #3B60E4;
-    color: #ffffff;
+    background: $focus;
+    color: $text-light;
 }
 
 Select {
-    background: #0d0d0d;
-    border: solid #636764;
+    background: $bg-dark;
+    border: solid $muted;
 }
 
 Select:focus {
-    border: solid #3B60E4;
+    border: solid $accent;
 }
 
 SelectCurrent {
-    background: #0d0d0d;
-    color: #F4E409;
+    background: $bg-dark;
+    color: $primary;
 }
 
 SelectOverlay {
-    background: #0d0d0d;
-    border: solid #636764;
+    background: $bg-dark;
+    border: solid $muted;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -358,23 +378,23 @@ SelectOverlay {
    ───────────────────────────────────────────────────────────────────────────── */
 
 DataTable {
-    background: #0d0d0d;
-    color: #50D8D7;
+    background: $bg-dark;
+    color: $secondary;
 }
 
 DataTable > .datatable--header {
-    background: #1a1a1a;
-    color: #F4E409;
+    background: $bg-base;
+    color: $primary;
     text-style: bold;
 }
 
 DataTable > .datatable--cursor {
-    background: #3B60E4;
-    color: #ffffff;
+    background: $focus;
+    color: $text-light;
 }
 
 DataTable > .datatable--hover {
-    background: #1a1a1a;
+    background: $bg-base;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -386,19 +406,19 @@ ProgressBar {
 }
 
 ProgressBar > .bar--bar {
-    color: #3B60E4;
+    color: $focus;
 }
 
 ProgressBar > .bar--complete {
-    color: #50D8D7;
+    color: $accent;
 }
 
 ProgressBar > .bar--indeterminate {
-    color: #F4E409;
+    color: $accent;
 }
 
 LoadingIndicator {
-    color: #F4E409;
+    color: $accent;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -406,19 +426,19 @@ LoadingIndicator {
    ───────────────────────────────────────────────────────────────────────────── */
 
 ScrollBar > .scrollbar--bar {
-    background: #636764;
+    background: $muted;
 }
 
 ScrollBar > .scrollbar--bar:hover {
-    background: #50D8D7;
+    background: $secondary;
 }
 
 ScrollBar > .scrollbar--bar-active {
-    background: #3B60E4;
+    background: $focus;
 }
 
 ScrollBar > .scrollbar--grabber {
-    background: #F4E409;
+    background: $primary;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -427,41 +447,41 @@ ScrollBar > .scrollbar--grabber {
 
 Static {
     background: transparent;
-    color: #50D8D7;
+    color: $secondary;
 }
 
 Label {
-    color: #636764;
+    color: $muted;
 }
 
 .title {
     text-style: bold;
-    color: #F4E409;
+    color: $primary;
 }
 
 .subtitle {
-    color: #50D8D7;
+    color: $secondary;
 }
 
 .muted {
-    color: #636764;
+    color: $muted;
 }
 
 .warning {
-    color: #FB8B24;
+    color: $accent;
 }
 
 .error {
-    color: #FB8B24;
+    color: $accent;
     text-style: bold;
 }
 
 .success {
-    color: #50D8D7;
+    color: $secondary;
 }
 
 .info {
-    color: #3B60E4;
+    color: $focus;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -482,13 +502,13 @@ Horizontal {
 
 /* Box-drawing aesthetic for panels */
 .panel {
-    border: round #636764;
-    background: #0d0d0d;
+    border: round $muted;
+    background: $bg-dark;
     padding: 1;
 }
 
 .panel-title {
-    color: #F4E409;
+    color: $primary;
     text-style: bold;
     padding: 0 1;
 }
@@ -502,42 +522,42 @@ Markdown {
 }
 
 MarkdownH1 {
-    color: #F4E409;
+    color: $primary;
     text-style: bold;
-    border-bottom: solid #636764;
+    border-bottom: solid $muted;
     padding-bottom: 1;
     margin-bottom: 1;
 }
 
 MarkdownH2 {
-    color: #F4E409;
+    color: $primary;
     text-style: bold;
     margin-top: 1;
 }
 
 MarkdownH3 {
-    color: #50D8D7;
+    color: $secondary;
     text-style: bold;
 }
 
 MarkdownBlockQuote {
-    border-left: outer #636764;
-    color: #636764;
+    border-left: outer $muted;
+    color: $muted;
     padding-left: 2;
 }
 
 MarkdownFence {
-    background: #0d0d0d;
-    border: solid #636764;
+    background: $bg-dark;
+    border: solid $muted;
     padding: 1;
 }
 
 MarkdownBulletList {
-    color: #50D8D7;
+    color: $secondary;
 }
 
 MarkdownOrderedList {
-    color: #50D8D7;
+    color: $secondary;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -546,26 +566,33 @@ MarkdownOrderedList {
 
 #splash-screen {
     align: center middle;
-    background: #0d0d0d;
+    background: $bg-dark;
 }
 
 #splash-container {
     width: auto;
     height: auto;
     padding: 2 4;
-    border: double #636764;
-    background: #0d0d0d;
+    border: double $muted;
+    background: $bg-dark;
 }
 
 #splash-text {
-    color: #F4E409;
+    color: $primary;
     text-align: center;
 }
 
 #splash-version {
-    color: #636764;
+    color: $muted;
     text-align: center;
     margin-top: 1;
+}
+
+#splash-prompt {
+    color: $accent;
+    text-align: center;
+    margin-top: 2;
+    text-style: bold;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -573,22 +600,22 @@ MarkdownOrderedList {
    ───────────────────────────────────────────────────────────────────────────── */
 
 Toast {
-    background: #1a1a1a;
-    border: solid #636764;
-    color: #50D8D7;
+    background: $bg-base;
+    border: solid $muted;
+    color: $secondary;
 }
 
 Toast.-information {
-    border-left: outer #3B60E4;
+    border-left: outer $focus;
 }
 
 Toast.-warning {
-    border-left: outer #FB8B24;
+    border-left: outer $accent;
 }
 
 Toast.-error {
-    border-left: outer #FB8B24;
-    color: #FB8B24;
+    border-left: outer $accent;
+    color: $accent;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -605,38 +632,38 @@ ModalScreen {
    ───────────────────────────────────────────────────────────────────────────── */
 
 Tree {
-    background: #0d0d0d;
-    border: solid #636764;
+    background: $bg-dark;
+    border: solid $muted;
 }
 
 Tree > .tree--guides {
-    color: #636764;
+    color: $muted;
 }
 
 Tree > .tree--guides-hover {
-    color: #50D8D7;
+    color: $secondary;
 }
 
 Tree > .tree--guides-selected {
-    color: #3B60E4;
+    color: $focus;
 }
 
 Tree > .tree--cursor {
-    background: #3B60E4;
-    color: #ffffff;
+    background: $focus;
+    color: $text-light;
 }
 
 Tree > .tree--highlight {
-    background: #1a1a1a;
+    background: $bg-base;
 }
 
 TreeNode {
-    color: #50D8D7;
+    color: $secondary;
 }
 
 TreeNode.-selected {
-    background: #3B60E4;
-    color: #ffffff;
+    background: $focus;
+    color: $text-light;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -645,27 +672,27 @@ TreeNode.-selected {
 
 Checkbox {
     background: transparent;
-    color: #50D8D7;
+    color: $secondary;
 }
 
 Checkbox:hover {
-    color: #F4E409;
+    color: $primary;
 }
 
 Checkbox.-on > .toggle--button {
-    color: #3B60E4;
+    color: $focus;
 }
 
 Switch {
-    background: #636764;
+    background: $muted;
 }
 
 Switch.-on {
-    background: #3B60E4;
+    background: $focus;
 }
 
 Switch > .switch--slider {
-    background: #F4E409;
+    background: $primary;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -673,14 +700,14 @@ Switch > .switch--slider {
    ───────────────────────────────────────────────────────────────────────────── */
 
 RichLog {
-    background: #0d0d0d;
-    border: solid #636764;
+    background: $bg-dark;
+    border: solid $muted;
     padding: 0 1;
 }
 
 Log {
-    background: #0d0d0d;
-    color: #50D8D7;
+    background: $bg-dark;
+    color: $secondary;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

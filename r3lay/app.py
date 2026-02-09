@@ -76,6 +76,8 @@ class MainScreen(Screen):
         Binding("ctrl+n", "new_session", "New"),
         Binding("ctrl+q", "quit", "Quit"),
         Binding("ctrl+r", "reindex", "Reindex", show=True),
+        Binding("ctrl+h", "toggle_sessions", "Sessions", show=True),
+        Binding("ctrl+comma", "open_settings", "Settings", show=True),
         Binding("ctrl+1", "tab_models", "Models", show=False),
         Binding("ctrl+2", "tab_index", "Index", show=False),
         Binding("ctrl+3", "tab_axioms", "Axioms", show=False),
@@ -158,6 +160,40 @@ class MainScreen(Screen):
         """Switch to Index tab (user can click Reindex button)."""
         tabs = self.query_one("#control-tabs", TabbedContent)
         tabs.active = "tab-index"
+
+    def action_toggle_sessions(self) -> None:
+        """Toggle session history visibility (Ctrl+H).
+
+        Switches to the Sessions tab or back to previous tab.
+        """
+        tabs = self.query_one("#control-tabs", TabbedContent)
+        if tabs.active == "tab-sessions":
+            # Toggle back to previous (default to Models)
+            tabs.active = "tab-models"
+        else:
+            tabs.active = "tab-sessions"
+
+    def action_open_settings(self) -> None:
+        """Open settings panel (Ctrl+,).
+
+        Switches to the Settings tab.
+        """
+        tabs = self.query_one("#control-tabs", TabbedContent)
+        tabs.active = "tab-settings"
+
+    def on_model_panel_role_assigned(self, message: ModelPanel.RoleAssigned) -> None:
+        """Forward model changes from ModelPanel to GarageHeader.
+
+        This wires up the model display in the header to update whenever
+        a model is loaded in the ModelPanel.
+
+        Args:
+            message: RoleAssigned message from ModelPanel
+        """
+        # Only update display for text models (the current active model shown in header)
+        if message.role == "text" and message.model_name:
+            garage_header = self.query_one("#garage-header", GarageHeader)
+            garage_header.post_message(GarageHeader.ModelChanged(message.model_name))
 
 
 class R3LayApp(App):
