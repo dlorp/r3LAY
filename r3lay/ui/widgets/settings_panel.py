@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Button, Label, RadioButton, RadioSet, Slider, Static
+from textual.widgets import Button, Input, Label, RadioButton, RadioSet, Static
 
 from ... import __version__
 
@@ -109,18 +109,16 @@ class SettingsPanel(Vertical):
                         id=f"model-{model_name.replace('/', '-')}",
                     )
 
-        # Temperature slider section
+        # Temperature input section
         with Vertical(classes="settings-section"):
-            yield Static("Temperature (LLM sampling)", classes="settings-label")
+            yield Static("Temperature (LLM sampling: 0.0-2.0)", classes="settings-label")
             with Horizontal(id="temperature-row"):
-                yield Slider(
-                    value=self._temperature,
-                    minimum=0.0,
-                    maximum=2.0,
-                    step=0.1,
-                    id="temperature-slider",
+                yield Input(
+                    value=f"{self._temperature:.1f}",
+                    placeholder="0.0 - 2.0",
+                    id="temperature-input",
                 )
-                yield Static(f"{self._temperature:.1f}", id="temperature-value")
+                yield Static("", id="temperature-value")
 
         # Buttons section
         with Horizontal(id="button-row", classes="settings-section"):
@@ -153,11 +151,18 @@ class SettingsPanel(Vertical):
         elif event.button.id == "reset-button":
             await self._reset_settings()
 
-    async def on_slider_changed(self, event: Slider.Changed) -> None:
-        """Update temperature value display and internal state."""
-        if event.slider.id == "temperature-slider":
-            self._temperature = event.slider.value
-            self.query_one("#temperature-value", Static).update(f"{self._temperature:.1f}")
+    async def on_input_changed(self, event: Input.Changed) -> None:
+        """Update temperature value from input field."""
+        if event.input.id == "temperature-input":
+            try:
+                temp_value = float(event.value)
+                if 0.0 <= temp_value <= 2.0:
+                    self._temperature = temp_value
+                    self.query_one("#temperature-value", Static).update("✓")
+                else:
+                    self.query_one("#temperature-value", Static).update("⚠")
+            except ValueError:
+                self.query_one("#temperature-value", Static).update("✗")
 
     async def _save_settings(self) -> None:
         """Save current settings to config."""
@@ -183,8 +188,8 @@ class SettingsPanel(Vertical):
     async def _reset_settings(self) -> None:
         """Reset settings to defaults."""
         self._temperature = 0.7
-        self.query_one("#temperature-slider", Slider).value = self._temperature
-        self.query_one("#temperature-value", Static).update(f"{self._temperature:.1f}")
+        self.query_one("#temperature-input", Input).value = f"{self._temperature:.1f}"
+        self.query_one("#temperature-value", Static).update("✓")
         self.app.notify("Settings reset to defaults")
 
 
