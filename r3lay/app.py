@@ -105,22 +105,22 @@ class MainScreen(Screen):
 
                 # Bottom right: Tabbed pane
                 with TabbedContent(id="control-tabs"):
-                    with TabPane("Models 🔧", id="tab-models"):
+                    with TabPane("Models", id="tab-models"):
                         yield ModelPanel(self.state)
-                    with TabPane("Index 🔍", id="tab-index"):
+                    with TabPane("Index", id="tab-index"):
                         yield IndexPanel(self.state)
-                    with TabPane("Axioms 📖", id="tab-axioms"):
+                    with TabPane("Axioms", id="tab-axioms"):
                         yield AxiomPanel(self.state)
-                    with TabPane("Log 📝", id="tab-log"):
+                    with TabPane("Log", id="tab-log"):
                         yield HistoryPanel(self.state)
-                    with TabPane("⚠ Due", id="tab-due"):
+                    with TabPane("Due", id="tab-due"):
                         yield MaintenancePanel(
                             project_path=self.state.project_path,
                             current_mileage=None,
                         )
-                    with TabPane("Sessions 📊", id="tab-sessions"):
+                    with TabPane("Sessions", id="tab-sessions"):
                         yield SessionPanel(self.state)
-                    with TabPane("Settings ⚙️", id="tab-settings"):
+                    with TabPane("Settings", id="tab-settings"):
                         yield SettingsPanel(self.state)
 
         yield Footer()
