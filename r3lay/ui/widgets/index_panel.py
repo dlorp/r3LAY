@@ -55,6 +55,8 @@ class IndexPanel(Vertical):
         self.state = state
         self._is_indexing = False
         self._embedder_loaded = False
+        self._clear_confirm = False
+        self._clear_reset_timer = None
 
     def compose(self) -> ComposeResult:
         yield Label("Knowledge Base", id="index-header")
@@ -140,10 +142,7 @@ class IndexPanel(Vertical):
             if not self._is_indexing:
                 await self._do_reindex_sync()
         elif event.button.id == "clear-button":
-            if self.state.index is not None:
-                self.state.index.clear()
-                self._refresh_stats()
-                self.app.notify("Index cleared")
+            await self._handle_clear_button()
 
     def _update_progress(self, text: str) -> None:
         """Update progress indicator."""
@@ -154,6 +153,58 @@ class IndexPanel(Vertical):
         btn = self.query_one("#reindex-button", Button)
         btn.label = label
         btn.disabled = disabled
+
+    async def _handle_clear_button(self) -> None:
+        """Handle clear button with two-click confirmation."""
+        import asyncio
+
+        try:
+            clear_btn = self.query_one("#clear-button", Button)
+        except Exception:
+            # Widget not mounted yet, fallback to simple clear (for testing)
+            if self.state.index is not None:
+                self.state.index.clear()
+                self._refresh_stats()
+                try:
+                    self.app.notify("Index cleared")
+                except Exception:
+                    pass
+            return
+
+        if not self._clear_confirm:
+            # First click - show confirmation
+            if self.state.index is not None:
+                stats = self.state.index.get_stats()
+                doc_count = stats.get("count", 0)
+                clear_btn.label = f"Confirm clear {doc_count} docs?"
+            else:
+                clear_btn.label = "Confirm clear?"
+
+            self._clear_confirm = True
+
+            # Auto-reset after 5 seconds
+            async def reset_clear():
+                await asyncio.sleep(5)
+                if self._clear_confirm:
+                    self._clear_confirm = False
+                    clear_btn.label = "Clear"
+
+            if self._clear_reset_timer:
+                self._clear_reset_timer.cancel()
+            self._clear_reset_timer = asyncio.create_task(reset_clear())
+
+        else:
+            # Second click - actually clear
+            if self.state.index is not None:
+                self.state.index.clear()
+                self._refresh_stats()
+                self.app.notify("Index cleared")
+
+            # Reset button
+            self._clear_confirm = False
+            if self._clear_reset_timer:
+                self._clear_reset_timer.cancel()
+            clear_btn.label = "Clear"
 
     async def _do_reindex_sync(self) -> None:
         """Reindex with optional embedding generation.
