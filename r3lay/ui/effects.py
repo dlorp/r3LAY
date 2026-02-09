@@ -166,3 +166,60 @@ class Effects:
         for i in range(0, len(text) + 1, chars_per_frame):
             yield text[:i]
         yield text
+
+    @staticmethod
+    def retro_progress_bar(
+        percent: float, width: int = 20
+    ) -> Generator[str, None, None]:
+        """Retro progress bar using block characters.
+
+        Args:
+            percent: Progress percentage (0-100)
+            width: Width of the progress bar in characters
+
+        Yields:
+            Progress bar string with filled/empty blocks
+        """
+        filled_count = int((percent / 100) * width)
+        empty_count = width - filled_count
+        
+        bar = "█" * filled_count + "░" * empty_count
+        yield f"[{bar}] {percent:.0f}%"
+
+    @staticmethod
+    def amber_pulse(text: str, frames: int = 10) -> Generator[str, None, None]:
+        """Pulsing glow effect with amber accent.
+
+        Args:
+            text: Text to pulse
+            frames: Number of frames to generate
+
+        Yields:
+            String frames with ANSI codes creating a pulse effect
+        """
+        tte = _get_tte_classes()
+        if tte is None:
+            yield text
+            return
+
+        try:
+            # Use Beams effect with amber colors for pulse effect
+            effect = tte["Beams"](text)
+            effect.effect_config.beam_row_symbols = [text]
+            effect.effect_config.final_gradient_stops = [DARK_ORANGE, TITANIUM_YELLOW]
+            effect.effect_config.beam_gradient_stops = [DARK_ORANGE, TITANIUM_YELLOW]
+            effect.effect_config.beam_row_speed_range = (10, 20)
+
+            count = 0
+            for frame in effect:
+                yield frame
+                count += 1
+                if count >= frames:
+                    break
+
+            # Ensure we yield the final text
+            if count < frames:
+                yield text
+        except Exception:
+            # Fallback to static text
+            yield text
