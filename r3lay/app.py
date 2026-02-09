@@ -128,6 +128,12 @@ class MainScreen(Screen):
         # Focus input
         self.query_one(InputPane).focus_input()
 
+    def on_model_panel_role_assigned(self, message: ModelPanel.RoleAssigned) -> None:
+        """Forward model assignment to GarageHeader."""
+        if message.role == "text" and message.model_name:
+            header = self.query_one(GarageHeader)
+            header.active_model = message.model_name
+
     async def action_new_session(self) -> None:
         """Start a new session."""
         self.query_one(ResponsePane).clear()
