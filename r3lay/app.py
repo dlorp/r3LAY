@@ -83,6 +83,8 @@ class MainScreen(Screen):
         Binding("ctrl+5", "tab_due", "Due", show=False),
         Binding("ctrl+6", "tab_sessions", "Sessions", show=False),
         Binding("ctrl+7", "tab_settings", "Settings", show=False),
+        Binding("ctrl+h", "tab_sessions", "History", show=False),
+        Binding("ctrl+comma", "tab_settings", "Settings", show=False),
     ]
 
     def __init__(self, state: R3LayState):
