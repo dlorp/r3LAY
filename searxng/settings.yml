@@ -1,0 +1,29 @@
+# SearXNG settings for r3LAY
+# Enables JSON API for programmatic access
+
+use_default_settings: true
+
+server:
+  secret_key: "${SEARXNG_SECRET_KEY:-changeme}"
+  limiter: false  # Disable rate limiting for local use
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  default_lang: "en"
+  formats:
+    - html
+    - json  # Enable JSON API
+
+general:
+  debug: false
+  instance_name: "r3LAY Search"
+
+# Disable bot protection for API access
+server:
+  method: "GET"
+
+# Allow JSON format requests
+outgoing:
+  request_timeout: 10.0
+  max_request_timeout: 30.0
