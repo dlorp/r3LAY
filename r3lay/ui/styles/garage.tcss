@@ -8,8 +8,17 @@
  *   #F4E409 - Titanium Yellow (highlights, active states, headers)
  *   #50D8D7 - Medium Turquoise (info, links, secondary actions)
  *   #3B60E4 - Royal Blue Light (primary actions, focus)
+ * 
+ * Amber Accent Palette (for focus and highlights):
+ *   $amber: #FB8B24 (main amber accent)
+ *   $amber-dim: #E67E22 (dimmed amber)
+ *   $amber-bright: #FFA500 (bright amber highlight)
  * ═══════════════════════════════════════════════════════════════════════════
  */
+
+$amber: #FB8B24;
+$amber-dim: #E67E22;
+$amber-bright: #FFA500;
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Root / App styling
@@ -739,4 +748,121 @@ Log {
 #init-button {
     margin-top: 1;
     width: 100%;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   GarageHeader - Custom header widget
+   ───────────────────────────────────────────────────────────────────────────── */
+
+GarageHeader {
+    height: 3;
+    background: #0d0d0d;
+    border-bottom: solid $amber;
+    padding: 0 2;
+}
+
+GarageHeader Static {
+    height: 1;
+    content-align: center middle;
+}
+
+GarageHeader .project-name {
+    text-style: bold;
+    color: #F4E409;
+}
+
+GarageHeader .model-info {
+    color: #50D8D7;
+}
+
+GarageHeader .mileage-info {
+    color: $amber;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Settings Panel - Expanded controls
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.settings-section {
+    border: round #636764;
+    background: #0d0d0d;
+    padding: 1;
+    margin: 1 0;
+}
+
+.settings-section .section-title {
+    color: #F4E409;
+    text-style: bold;
+    padding-bottom: 1;
+    border-bottom: solid #636764;
+    margin-bottom: 1;
+}
+
+#temperature-row {
+    layout: horizontal;
+    height: auto;
+    margin: 1 0;
+}
+
+#temperature-row Label {
+    width: 20;
+    color: #50D8D7;
+}
+
+#temperature-row Input {
+    width: 1fr;
+}
+
+#button-row {
+    layout: horizontal;
+    height: auto;
+    margin-top: 2;
+}
+
+#button-row Button {
+    width: 1fr;
+    margin: 0 1;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Response Block Styling - Amber left edge accent
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.response-block {
+    border-left: outer $amber;
+    padding-left: 2;
+    margin: 1 0;
+}
+
+.response-header {
+    color: $amber;
+    text-style: bold;
+}
+
+.response-header::before {
+    content: "▸ ";
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Splash Screen Prompt
+   ───────────────────────────────────────────────────────────────────────────── */
+
+#splash-prompt {
+    color: $amber-dim;
+    text-align: center;
+    margin-top: 2;
+    text-style: italic;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Focus Glow Effect - Amber accent
+   ───────────────────────────────────────────────────────────────────────────── */
+
+Input:focus, TextArea:focus, Select:focus, Button:focus {
+    border: solid $amber-bright;
+    text-style: bold;
+}
+
+ListView:focus, DataTable:focus, Tree:focus, OptionList:focus {
+    border: solid $amber-bright;
 }
