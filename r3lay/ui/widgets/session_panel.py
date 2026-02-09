@@ -12,6 +12,14 @@ if TYPE_CHECKING:
     from ...core import R3LayState
 
 
+class SessionItem(Static):
+    """A clickable session list item with proper session_id attribute."""
+
+    def __init__(self, session_id: str, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.session_id = session_id
+
+
 class SessionPanel(Vertical):
     """Panel for session history and management."""
 
@@ -76,7 +84,7 @@ class SessionPanel(Vertical):
 
     def on_static_click(self, event: Static.Clicked) -> None:
         """Handle session item click."""
-        if hasattr(event.static, "session_id"):
+        if isinstance(event.static, SessionItem):
             self._load_session(event.static.session_id)
 
     def refresh_sessions(self) -> None:
@@ -123,14 +131,14 @@ class SessionPanel(Vertical):
             if session.id == self._selected_session_id:
                 item_classes += " session-item-selected"
 
-            item = Static(
+            item = SessionItem(
+                session.id,
                 f"[bold]{title}[/bold]\n"
                 f"[dim]{msg_count} msgs • {updated}[/dim]\n"
                 f"[dim]ID: {short_id}[/dim]",
                 classes=item_classes,
                 markup=True,
             )
-            item.session_id = session.id  # Store for click handling
             session_list.mount(item)
 
     def _load_session(self, session_id: str) -> None:
@@ -174,4 +182,4 @@ class SessionPanel(Vertical):
             self.notify(f"Failed to load session: {e}", severity="error")
 
 
-__all__ = ["SessionPanel"]
+__all__ = ["SessionPanel", "SessionItem"]

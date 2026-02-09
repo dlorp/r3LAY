@@ -84,6 +84,101 @@ class TestSettingsPanel:
         assert hasattr(panel, "temperature")
         assert panel.temperature == "1.0"
 
+    def test_save_settings_valid_temperature(self, mock_state: MagicMock) -> None:
+        """Test saving valid temperature values."""
+        panel = SettingsPanel(state=mock_state)
+        panel.notify = MagicMock()  # Mock notify method
+
+        # Mock the temperature input widget
+        mock_input = MagicMock()
+        mock_input.value = "1.5"
+        panel.query_one = MagicMock(return_value=mock_input)
+
+        panel._save_settings()
+
+        assert panel.temperature == "1.5"
+        panel.notify.assert_called_once_with("Settings saved")
+
+    def test_save_settings_temperature_below_range(self, mock_state: MagicMock) -> None:
+        """Test that temperature below 0.0 is rejected."""
+        panel = SettingsPanel(state=mock_state)
+        panel.notify = MagicMock()
+        original_temp = panel.temperature
+
+        mock_input = MagicMock()
+        mock_input.value = "-0.5"
+        panel.query_one = MagicMock(return_value=mock_input)
+
+        panel._save_settings()
+
+        # Temperature should not change
+        assert panel.temperature == original_temp
+        panel.notify.assert_called_once_with(
+            "Temperature must be between 0.0 and 2.0", severity="error"
+        )
+
+    def test_save_settings_temperature_above_range(self, mock_state: MagicMock) -> None:
+        """Test that temperature above 2.0 is rejected."""
+        panel = SettingsPanel(state=mock_state)
+        panel.notify = MagicMock()
+        original_temp = panel.temperature
+
+        mock_input = MagicMock()
+        mock_input.value = "2.5"
+        panel.query_one = MagicMock(return_value=mock_input)
+
+        panel._save_settings()
+
+        # Temperature should not change
+        assert panel.temperature == original_temp
+        panel.notify.assert_called_once_with(
+            "Temperature must be between 0.0 and 2.0", severity="error"
+        )
+
+    def test_save_settings_temperature_boundary_lower(self, mock_state: MagicMock) -> None:
+        """Test that temperature 0.0 (lower boundary) is accepted."""
+        panel = SettingsPanel(state=mock_state)
+        panel.notify = MagicMock()
+
+        mock_input = MagicMock()
+        mock_input.value = "0.0"
+        panel.query_one = MagicMock(return_value=mock_input)
+
+        panel._save_settings()
+
+        assert panel.temperature == "0.0"
+        panel.notify.assert_called_once_with("Settings saved")
+
+    def test_save_settings_temperature_boundary_upper(self, mock_state: MagicMock) -> None:
+        """Test that temperature 2.0 (upper boundary) is accepted."""
+        panel = SettingsPanel(state=mock_state)
+        panel.notify = MagicMock()
+
+        mock_input = MagicMock()
+        mock_input.value = "2.0"
+        panel.query_one = MagicMock(return_value=mock_input)
+
+        panel._save_settings()
+
+        assert panel.temperature == "2.0"
+        panel.notify.assert_called_once_with("Settings saved")
+
+    def test_save_settings_invalid_temperature_format(self, mock_state: MagicMock) -> None:
+        """Test that non-numeric temperature input is rejected."""
+        panel = SettingsPanel(state=mock_state)
+        panel.notify = MagicMock()
+        original_temp = panel.temperature
+
+        mock_input = MagicMock()
+        mock_input.value = "not_a_number"
+        panel.query_one = MagicMock(return_value=mock_input)
+
+        panel._save_settings()
+
+        # Temperature should not change
+        assert panel.temperature == original_temp
+        panel.notify.assert_called_once_with("Invalid temperature value", severity="error")
+
 
 class TestSettingsPanelExports:
     """Tests for module exports."""
