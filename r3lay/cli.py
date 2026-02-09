@@ -84,7 +84,7 @@ def log_oil(args: argparse.Namespace) -> int:
     if state and mileage > state.current_mileage:
         pm.update_mileage(mileage)
 
-    console.print(f"[green]✓[/green] Logged oil change at {mileage:,} mi")
+    console.print(f"[green]OK[/green] Logged oil change at {mileage:,} mi")
 
     # Show next due
     interval = log.get_interval("oil_change")
@@ -144,7 +144,7 @@ def log_service(args: argparse.Namespace) -> int:
     if state and mileage > state.current_mileage:
         pm.update_mileage(mileage)
 
-    console.print(f"[green]✓[/green] Logged {service_type} at {mileage:,} mi")
+    console.print(f"[green]OK[/green] Logged {service_type} at {mileage:,} mi")
 
     # Show next due if interval exists
     interval = log.get_interval(service_type)
@@ -202,7 +202,7 @@ def log_repair(args: argparse.Namespace) -> int:
     if state and mileage > state.current_mileage:
         pm.update_mileage(mileage)
 
-    console.print(f"[green]✓[/green] Logged repair at {mileage:,} mi: {description}")
+    console.print(f"[green]OK[/green] Logged repair at {mileage:,} mi: {description}")
 
     return 0
 
@@ -254,7 +254,7 @@ def log_mod(args: argparse.Namespace) -> int:
     if state and mileage > state.current_mileage:
         pm.update_mileage(mileage)
 
-    console.print(f"[green]✓[/green] Logged mod at {mileage:,} mi: {description}")
+    console.print(f"[green]OK[/green] Logged mod at {mileage:,} mi: {description}")
 
     return 0
 
@@ -284,14 +284,14 @@ def update_mileage(args: argparse.Namespace) -> int:
         console.print(f"[red]Error:[/red] {e}")
         return 1
 
-    console.print(f"[green]✓[/green] Mileage updated: {old_mileage:,} → {args.value:,} mi")
+    console.print(f"[green]OK[/green] Mileage updated: {old_mileage:,} → {args.value:,} mi")
 
     # Check for overdue services
     log = MaintenanceLog(project_path)
     overdue = log.get_overdue(args.value)
     if overdue:
         console.print()
-        console.print("[yellow]⚠ Overdue services:[/yellow]")
+        console.print("[yellow]WARNING: Overdue services:[/yellow]")
         for sd in overdue[:5]:  # Show max 5
             miles_over = abs(sd.miles_until_due or 0)
             console.print(f"  • {sd.interval.service_type}: {miles_over:,} mi overdue")

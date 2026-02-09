@@ -183,7 +183,7 @@ class IndexPanel(Vertical):
 
                 if items:
                     items_str = " + ".join(items)
-                    confirmation_msg = f"⚠ Will delete {items_str}. Click again to confirm."
+                    confirmation_msg = f"WARNING: Will delete {items_str}. Click again to confirm."
                 else:
                     confirmation_msg = "Index is empty. Click again to confirm deletion."
 
@@ -221,7 +221,7 @@ class IndexPanel(Vertical):
         if self.state.index is not None:
             self.state.index.clear()
             self._refresh_stats()
-            self.app.notify("Index cleared ✓")
+            self.app.notify("Index cleared")
 
         # Reset confirmation state
         self._confirm_clear_pending = False

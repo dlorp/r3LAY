@@ -832,7 +832,7 @@ class InputPane(Vertical):
             sessions_dir = self.state.get_sessions_dir()
             session.save(sessions_dir)
             response_pane.add_system(
-                f"✓ Session saved: **{session.title or session.id}**\n\nID: `{session.id}`"
+                f"Session saved: **{session.title or session.id}**\n\nID: `{session.id}`"
             )
             # Refresh session panel if available
             self._refresh_session_panel()
@@ -882,7 +882,7 @@ class InputPane(Vertical):
         self.state.session = matching_session
         response_pane.clear()
         response_pane.add_system(
-            f"✓ Loaded session: **{matching_session.title or matching_session.id}**\n\n"
+            f"Loaded session: **{matching_session.title or matching_session.id}**\n\n"
             f"Messages: {len(matching_session.messages)}"
         )
 
