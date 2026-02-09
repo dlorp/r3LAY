@@ -9,6 +9,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Label, Static
 
@@ -31,6 +32,7 @@ class IndexPanel(Vertical):
     - Lazy loads embedder only when reindexing
     - Falls back to BM25-only if embedding dependencies unavailable
     - Shows hybrid status in stats
+    - Confirmation dialog before clearing index
 
     Keybindings:
     - Ctrl+R triggers reindexing from anywhere in the app
@@ -55,6 +57,8 @@ class IndexPanel(Vertical):
         self.state = state
         self._is_indexing = False
         self._embedder_loaded = False
+        self._confirm_clear_pending = False
+        self._clear_timer: int | None = None
 
     def compose(self) -> ComposeResult:
         yield Label("Knowledge Base", id="index-header")
@@ -140,10 +144,7 @@ class IndexPanel(Vertical):
             if not self._is_indexing:
                 await self._do_reindex_sync()
         elif event.button.id == "clear-button":
-            if self.state.index is not None:
-                self.state.index.clear()
-                self._refresh_stats()
-                self.app.notify("Index cleared")
+            await self._confirm_and_clear()
 
     def _update_progress(self, text: str) -> None:
         """Update progress indicator."""
@@ -154,6 +155,82 @@ class IndexPanel(Vertical):
         btn = self.query_one("#reindex-button", Button)
         btn.label = label
         btn.disabled = disabled
+
+    async def _confirm_and_clear(self) -> None:
+        """Show confirmation dialog before clearing the index.
+
+        Uses a two-click confirmation:
+        1. First click shows the confirmation with document count
+        2. Second click (within 5 seconds) actually clears the index
+        """
+        if self.state.index is None:
+            self.app.notify("No index to clear")
+            return
+
+        try:
+            # If not yet pending confirmation, show the prompt
+            if not self._confirm_clear_pending:
+                stats = self.state.index.get_stats()
+                doc_count = stats.get("count", 0)
+                image_count = stats.get("image_count", 0)
+
+                # Build confirmation message
+                items = []
+                if doc_count > 0:
+                    items.append(f"{doc_count} text chunks")
+                if image_count > 0:
+                    items.append(f"{image_count} images")
+
+                if items:
+                    items_str = " + ".join(items)
+                    confirmation_msg = f"⚠ Will delete {items_str}. Click again to confirm."
+                else:
+                    confirmation_msg = "Index is empty. Click again to confirm deletion."
+
+                # Update button to show confirmation state
+                clear_btn = self.query_one("#clear-button", Button)
+                clear_btn.label = "Confirm?"
+                clear_btn.variant = "error"
+
+                self.app.notify(confirmation_msg)
+                self._confirm_clear_pending = True
+
+                # Reset confirmation after 5 seconds
+                async def reset_confirmation() -> None:
+                    import asyncio
+
+                    await asyncio.sleep(5)
+                    if self._confirm_clear_pending:
+                        self._confirm_clear_pending = False
+                        clear_btn = self.query_one("#clear-button", Button)
+                        clear_btn.label = "Clear"
+                        clear_btn.variant = "warning"
+
+                import asyncio
+
+                asyncio.create_task(reset_confirmation())
+            else:
+                # Confirmation confirmed - actually clear
+                self._do_clear_index()
+
+        except Exception as e:
+            self.app.notify(f"Error: {e}", severity="error")
+
+    def _do_clear_index(self) -> None:
+        """Actually clear the index (after confirmation)."""
+        if self.state.index is not None:
+            self.state.index.clear()
+            self._refresh_stats()
+            self.app.notify("Index cleared ✓")
+
+        # Reset confirmation state
+        self._confirm_clear_pending = False
+        try:
+            clear_btn = self.query_one("#clear-button", Button)
+            clear_btn.label = "Clear"
+            clear_btn.variant = "warning"
+        except Exception:
+            pass
 
     async def _do_reindex_sync(self) -> None:
         """Reindex with optional embedding generation.

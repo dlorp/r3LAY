@@ -85,7 +85,10 @@ class InputPane(Vertical):
     - Streaming LLM responses
     - Escape key to cancel generation
     - Command handling (/, /clear, /help, etc.)
+    - Placeholder text for helpful guidance
     """
+
+    PLACEHOLDER = "Ask about automotive, electronics, software, or home projects..."
 
     DEFAULT_CSS = """
     InputPane {
@@ -139,17 +142,45 @@ class InputPane(Vertical):
             yield Static("Ready", id="input-status")
             yield Button("Send", id="send-button", variant="primary")
 
+    def on_mount(self) -> None:
+        """Initialize placeholder text on mount."""
+        text_area = self.query_one("#input-area", TextArea)
+        text_area.text = self.PLACEHOLDER
+        self._has_user_content = False
+        # Apply dim styling for placeholder
+        self._update_placeholder_style()
+
     def focus_input(self) -> None:
-        self.query_one("#input-area", TextArea).focus()
+        text_area = self.query_one("#input-area", TextArea)
+        text_area.focus()
+        # Clear placeholder on first focus if still showing it
+        if not self._has_user_content and text_area.text == self.PLACEHOLDER:
+            text_area.text = ""
+
+    def _update_placeholder_style(self) -> None:
+        """Apply dim styling when showing placeholder, normal when user has content."""
+        # This would need CSS support, for now we rely on the text content itself
+        pass
 
     def set_value(self, value: str) -> None:
-        self.query_one("#input-area", TextArea).text = value
+        text_area = self.query_one("#input-area", TextArea)
+        text_area.text = value
+        self._has_user_content = bool(value.strip())
 
     def get_value(self) -> str:
-        return self.query_one("#input-area", TextArea).text
+        text_area = self.query_one("#input-area", TextArea)
+        text = text_area.text
+        # Return empty if still showing placeholder
+        if text == self.PLACEHOLDER:
+            return ""
+        return text
 
     def clear(self) -> None:
-        self.query_one("#input-area", TextArea).text = ""
+        text_area = self.query_one("#input-area", TextArea)
+        text_area.text = ""
+        self._has_user_content = False
+        # Show placeholder again when cleared
+        text_area.text = self.PLACEHOLDER
 
     def set_status(self, status: str) -> None:
         self.query_one("#input-status", Static).update(status)
