@@ -136,8 +136,16 @@ class InputPane(Vertical):
     def compose(self) -> ComposeResult:
         yield TextArea(id="input-area")
         with Horizontal(id="input-controls"):
-            yield Static("Ready", id="input-status")
+            yield Static("Ask about automotive, electronics, software, or home projects...", id="input-status")
             yield Button("Send", id="send-button", variant="primary")
+
+    def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        """Update placeholder status when text changes."""
+        if event.text_area.id == "input-area":
+            if event.text_area.text.strip():
+                self.set_status("Ready")
+            else:
+                self.set_status("Ask about automotive, electronics, software, or home projects...")
 
     def focus_input(self) -> None:
         self.query_one("#input-area", TextArea).focus()
