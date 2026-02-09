@@ -22,37 +22,41 @@ class ResponseBlock(Vertical):
         width: 100%;
         height: auto;
         padding: 1 2;
-        margin: 0 0 1 0;
+        margin: 1 0;
+        border: round #636764;
+        background: #0d0d0d;
     }
 
     ResponseBlock.user {
-        background: $surface;
-        border-left: thick $primary;
+        background: #0d0d0d;
+        border-left: outer #FB8B24;
     }
 
     ResponseBlock.assistant {
-        background: $surface-darken-1;
-        border-left: thick $secondary;
+        background: #0d0d0d;
+        border-left: outer #FB8B24;
     }
 
     ResponseBlock.system {
-        background: $surface-darken-2;
-        border-left: thick $warning;
-        color: $text-muted;
+        background: #0d0d0d;
+        border-left: outer #50D8D7;
+        color: #636764;
     }
 
     ResponseBlock.code {
-        background: $surface-darken-3;
-        border-left: thick $success;
+        background: #0d0d0d;
+        border-left: outer #3B60E4;
     }
 
     ResponseBlock.error {
-        background: $error-darken-2;
-        border-left: thick $error;
+        background: #0d0d0d;
+        border-left: outer #FB8B24;
+        color: #FB8B24;
     }
 
     .response-header {
         text-style: bold;
+        color: #FB8B24;
         margin-bottom: 1;
     }
     """
@@ -66,11 +70,11 @@ class ResponseBlock(Vertical):
 
     def compose(self) -> ComposeResult:
         labels = {
-            "user": "> You",
-            "assistant": "< r3LAY",
-            "system": "* r3LAY",
-            "code": "# Code",
-            "error": "! Error",
+            "user": "▸ You",
+            "assistant": "▸ r3LAY",
+            "system": "▸ r3LAY",
+            "code": "▸ Code",
+            "error": "▸ Error",
         }
         yield Static(labels.get(self.role, self.role), classes="response-header")
 

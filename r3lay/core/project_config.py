@@ -344,15 +344,14 @@ class ProjectConfig(BaseModel):
         Returns:
             The configuration for the active domain, or None if not set.
         """
-        match self.domain:
-            case DomainType.AUTOMOTIVE:
-                return self.automotive
-            case DomainType.ELECTRONICS:
-                return self.electronics
-            case DomainType.SOFTWARE:
-                return self.software
-            case DomainType.HOME_DIY:
-                return self.home_diy
+        if self.domain == DomainType.AUTOMOTIVE:
+            return self.automotive
+        elif self.domain == DomainType.ELECTRONICS:
+            return self.electronics
+        elif self.domain == DomainType.SOFTWARE:
+            return self.software
+        elif self.domain == DomainType.HOME_DIY:
+            return self.home_diy
         return None
 
     def get_context_for_research(self) -> str:
@@ -370,19 +369,18 @@ class ProjectConfig(BaseModel):
             "",
         ]
 
-        match self.domain:
-            case DomainType.AUTOMOTIVE:
-                if self.automotive:
-                    lines.extend(self._format_automotive_context(self.automotive))
-            case DomainType.ELECTRONICS:
-                if self.electronics:
-                    lines.extend(self._format_electronics_context(self.electronics))
-            case DomainType.SOFTWARE:
-                if self.software:
-                    lines.extend(self._format_software_context(self.software))
-            case DomainType.HOME_DIY:
-                if self.home_diy:
-                    lines.extend(self._format_home_diy_context(self.home_diy))
+        if self.domain == DomainType.AUTOMOTIVE:
+            if self.automotive:
+                lines.extend(self._format_automotive_context(self.automotive))
+        elif self.domain == DomainType.ELECTRONICS:
+            if self.electronics:
+                lines.extend(self._format_electronics_context(self.electronics))
+        elif self.domain == DomainType.SOFTWARE:
+            if self.software:
+                lines.extend(self._format_software_context(self.software))
+        elif self.domain == DomainType.HOME_DIY:
+            if self.home_diy:
+                lines.extend(self._format_home_diy_context(self.home_diy))
 
         if self.notes:
             lines.extend(["", "### Notes", self.notes])
@@ -486,31 +484,30 @@ class ProjectConfig(BaseModel):
         """
         parts: list[str] = []
 
-        match self.domain:
-            case DomainType.AUTOMOTIVE:
-                if self.automotive:
-                    parts.append(self.automotive.get_vehicle_string())
-                    if self.automotive.current_issues:
-                        # Add first issue as most likely search focus
-                        parts.append(self.automotive.current_issues[0])
+        if self.domain == DomainType.AUTOMOTIVE:
+            if self.automotive:
+                parts.append(self.automotive.get_vehicle_string())
+                if self.automotive.current_issues:
+                    # Add first issue as most likely search focus
+                    parts.append(self.automotive.current_issues[0])
 
-            case DomainType.ELECTRONICS:
-                if self.electronics:
-                    parts.append(self.electronics.get_device_string())
-                    if self.electronics.symptoms:
-                        parts.append(self.electronics.symptoms[0])
+        elif self.domain == DomainType.ELECTRONICS:
+            if self.electronics:
+                parts.append(self.electronics.get_device_string())
+                if self.electronics.symptoms:
+                    parts.append(self.electronics.symptoms[0])
 
-            case DomainType.SOFTWARE:
-                if self.software:
-                    parts.append(self.software.get_context_string())
-                    if self.software.issue_type:
-                        parts.append(self.software.issue_type)
+        elif self.domain == DomainType.SOFTWARE:
+            if self.software:
+                parts.append(self.software.get_context_string())
+                if self.software.issue_type:
+                    parts.append(self.software.issue_type)
 
-            case DomainType.HOME_DIY:
-                if self.home_diy:
-                    parts.append(self.home_diy.get_project_string())
-                    if self.home_diy.materials:
-                        parts.append(self.home_diy.materials[0])
+        elif self.domain == DomainType.HOME_DIY:
+            if self.home_diy:
+                parts.append(self.home_diy.get_project_string())
+                if self.home_diy.materials:
+                    parts.append(self.home_diy.materials[0])
 
         return " ".join(parts)
 
@@ -660,35 +657,34 @@ class ProjectConfigManager:
             data["notes"] = config.notes
 
         # Add domain-specific config
-        match config.domain:
-            case DomainType.AUTOMOTIVE:
-                if config.automotive:
-                    data["automotive"] = config.automotive.model_dump(
-                        exclude_none=True,
-                        exclude_defaults=False,
-                    )
-            case DomainType.ELECTRONICS:
-                if config.electronics:
-                    data["electronics"] = config.electronics.model_dump(
-                        exclude_none=True,
-                        exclude_defaults=False,
-                    )
-            case DomainType.SOFTWARE:
-                if config.software:
-                    data["software"] = config.software.model_dump(
-                        exclude_none=True,
-                        exclude_defaults=False,
-                    )
-            case DomainType.HOME_DIY:
-                if config.home_diy:
-                    diy_data = config.home_diy.model_dump(
-                        exclude_none=True,
-                        exclude_defaults=False,
-                    )
-                    # Convert skill_level enum to string
-                    if "skill_level" in diy_data:
-                        diy_data["skill_level"] = config.home_diy.skill_level.value
-                    data["home_diy"] = diy_data
+        if config.domain == DomainType.AUTOMOTIVE:
+            if config.automotive:
+                data["automotive"] = config.automotive.model_dump(
+                    exclude_none=True,
+                    exclude_defaults=False,
+                )
+        elif config.domain == DomainType.ELECTRONICS:
+            if config.electronics:
+                data["electronics"] = config.electronics.model_dump(
+                    exclude_none=True,
+                    exclude_defaults=False,
+                )
+        elif config.domain == DomainType.SOFTWARE:
+            if config.software:
+                data["software"] = config.software.model_dump(
+                    exclude_none=True,
+                    exclude_defaults=False,
+                )
+        elif config.domain == DomainType.HOME_DIY:
+            if config.home_diy:
+                diy_data = config.home_diy.model_dump(
+                    exclude_none=True,
+                    exclude_defaults=False,
+                )
+                # Convert skill_level enum to string
+                if "skill_level" in diy_data:
+                    diy_data["skill_level"] = config.home_diy.skill_level.value
+                data["home_diy"] = diy_data
 
         return data
 

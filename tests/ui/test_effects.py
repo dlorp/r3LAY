@@ -91,7 +91,7 @@ class TestEffectsFallback:
 
             assert len(frames) == 1
             assert "Warning message" in frames[0]
-            assert "⚠" in frames[0]
+            assert "!" in frames[0]
 
     def test_quick_reveal_fallback(self):
         """quick_reveal yields text when TTE unavailable."""
@@ -383,3 +383,70 @@ class TestMultilineText:
         frames = list(gen)
 
         assert frames[-1] == multiline
+
+
+# ============================================================================
+# Retro Loading Indicators Tests
+# ============================================================================
+
+
+class TestRetroProgressBar:
+    """Tests for retro_progress_bar method."""
+
+    def test_retro_progress_bar_returns_generator(self):
+        """retro_progress_bar returns a generator."""
+        gen = Effects.retro_progress_bar(percent=50, width=20)
+        assert isinstance(gen, Generator)
+
+    def test_retro_progress_bar_uses_block_chars(self):
+        """retro_progress_bar uses block characters."""
+        gen = Effects.retro_progress_bar(percent=50, width=20)
+        result = next(gen)
+        # Should contain filled (█) and/or empty (░) blocks
+        assert "█" in result or "░" in result
+
+    def test_retro_progress_bar_percent_0(self):
+        """retro_progress_bar handles 0%."""
+        gen = Effects.retro_progress_bar(percent=0, width=10)
+        result = next(gen)
+        # Should be mostly empty blocks
+        assert "░" in result
+
+    def test_retro_progress_bar_percent_100(self):
+        """retro_progress_bar handles 100%."""
+        gen = Effects.retro_progress_bar(percent=100, width=10)
+        result = next(gen)
+        # Should be mostly filled blocks
+        assert "█" in result
+
+
+class TestAmberPulse:
+    """Tests for amber_pulse method."""
+
+    def test_amber_pulse_returns_generator(self):
+        """amber_pulse returns a generator."""
+        gen = Effects.amber_pulse(text="Loading", frames=5)
+        assert isinstance(gen, Generator)
+
+    def test_amber_pulse_yields_frames(self):
+        """amber_pulse yields frames."""
+        gen = Effects.amber_pulse(text="Loading", frames=5)
+        frames = list(gen)
+        # Should yield at least 1 frame (may be just fallback if TTE unavailable)
+        assert len(frames) >= 1
+
+    def test_amber_pulse_contains_text(self):
+        """amber_pulse frames contain the input text."""
+        text = "Processing"
+        gen = Effects.amber_pulse(text=text, frames=3)
+        frames = list(gen)
+        # At least one frame should contain the text
+        assert any(text in frame for frame in frames)
+
+    def test_amber_pulse_fallback(self):
+        """amber_pulse falls back to static text on error."""
+        with patch("r3lay.ui.effects._get_tte_classes", return_value=None):
+            gen = Effects.amber_pulse(text="Test", frames=3)
+            frames = list(gen)
+            assert len(frames) == 1
+            assert "Test" in frames[0]

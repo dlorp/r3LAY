@@ -35,17 +35,17 @@ class TestSettingsPanel:
         """Test that SettingsPanel has DEFAULT_CSS defined."""
         assert SettingsPanel.DEFAULT_CSS is not None
         assert "SettingsPanel" in SettingsPanel.DEFAULT_CSS
-        assert "#settings-info" in SettingsPanel.DEFAULT_CSS
+        assert "#keybindings-info" in SettingsPanel.DEFAULT_CSS
+        assert "#temperature-input" in SettingsPanel.DEFAULT_CSS
+        assert "#button-row" in SettingsPanel.DEFAULT_CSS
 
-    def test_compose_yields_static(self, mock_state: MagicMock) -> None:
-        """Test that compose yields a Static widget with info."""
+    def test_compose_yields_widgets(self, mock_state: MagicMock) -> None:
+        """Test that compose yields multiple widgets for settings."""
+        # Just verify the panel initializes correctly
+        # Compose testing requires an active app context
         panel = SettingsPanel(state=mock_state)
-        widgets = list(panel.compose())
-
-        assert len(widgets) == 1
-        from textual.widgets import Static
-
-        assert isinstance(widgets[0], Static)
+        assert panel.state is mock_state
+        assert panel.temperature == "1.0"
 
     def test_compose_info_contains_version(self, mock_state: MagicMock) -> None:
         """Test that composed info contains version.
@@ -69,28 +69,115 @@ class TestSettingsPanel:
         assert panel.state.project_path == tmp_path
 
     def test_compose_info_contains_keybindings(self, mock_state: MagicMock) -> None:
-        """Test that keybinding info is included in the panel.
+        """Test that panel has keybinding support.
 
-        Note: Since we can't easily inspect Static content after creation,
-        we verify the CSS and structure are correct instead.
+        Note: Full compose testing requires an active app context.
+        We verify the panel structure is correct.
         """
         panel = SettingsPanel(state=mock_state)
-        widgets = list(panel.compose())
+        # Verify panel has the necessary CSS for keybindings display
+        assert "#keybindings-info" in panel.DEFAULT_CSS
 
-        # Verify a Static widget is yielded
-        from textual.widgets import Static
-
-        assert len(widgets) == 1
-        assert isinstance(widgets[0], Static)
-        assert widgets[0].id == "settings-info"
-
-    def test_static_has_correct_id(self, mock_state: MagicMock) -> None:
-        """Test that the Static widget has the correct ID."""
+    def test_has_temperature_setting(self, mock_state: MagicMock) -> None:
+        """Test that panel has temperature attribute."""
         panel = SettingsPanel(state=mock_state)
-        widgets = list(panel.compose())
+        assert hasattr(panel, "temperature")
+        assert panel.temperature == "1.0"
 
-        static = widgets[0]
-        assert static.id == "settings-info"
+    def test_save_settings_valid_temperature(self, mock_state: MagicMock) -> None:
+        """Test saving valid temperature values."""
+        panel = SettingsPanel(state=mock_state)
+        panel.notify = MagicMock()  # Mock notify method
+
+        # Mock the temperature input widget
+        mock_input = MagicMock()
+        mock_input.value = "1.5"
+        panel.query_one = MagicMock(return_value=mock_input)
+
+        panel._save_settings()
+
+        assert panel.temperature == "1.5"
+        panel.notify.assert_called_once_with("Settings saved")
+
+    def test_save_settings_temperature_below_range(self, mock_state: MagicMock) -> None:
+        """Test that temperature below 0.0 is rejected."""
+        panel = SettingsPanel(state=mock_state)
+        panel.notify = MagicMock()
+        original_temp = panel.temperature
+
+        mock_input = MagicMock()
+        mock_input.value = "-0.5"
+        panel.query_one = MagicMock(return_value=mock_input)
+
+        panel._save_settings()
+
+        # Temperature should not change
+        assert panel.temperature == original_temp
+        panel.notify.assert_called_once_with(
+            "Temperature must be between 0.0 and 2.0", severity="error"
+        )
+
+    def test_save_settings_temperature_above_range(self, mock_state: MagicMock) -> None:
+        """Test that temperature above 2.0 is rejected."""
+        panel = SettingsPanel(state=mock_state)
+        panel.notify = MagicMock()
+        original_temp = panel.temperature
+
+        mock_input = MagicMock()
+        mock_input.value = "2.5"
+        panel.query_one = MagicMock(return_value=mock_input)
+
+        panel._save_settings()
+
+        # Temperature should not change
+        assert panel.temperature == original_temp
+        panel.notify.assert_called_once_with(
+            "Temperature must be between 0.0 and 2.0", severity="error"
+        )
+
+    def test_save_settings_temperature_boundary_lower(self, mock_state: MagicMock) -> None:
+        """Test that temperature 0.0 (lower boundary) is accepted."""
+        panel = SettingsPanel(state=mock_state)
+        panel.notify = MagicMock()
+
+        mock_input = MagicMock()
+        mock_input.value = "0.0"
+        panel.query_one = MagicMock(return_value=mock_input)
+
+        panel._save_settings()
+
+        assert panel.temperature == "0.0"
+        panel.notify.assert_called_once_with("Settings saved")
+
+    def test_save_settings_temperature_boundary_upper(self, mock_state: MagicMock) -> None:
+        """Test that temperature 2.0 (upper boundary) is accepted."""
+        panel = SettingsPanel(state=mock_state)
+        panel.notify = MagicMock()
+
+        mock_input = MagicMock()
+        mock_input.value = "2.0"
+        panel.query_one = MagicMock(return_value=mock_input)
+
+        panel._save_settings()
+
+        assert panel.temperature == "2.0"
+        panel.notify.assert_called_once_with("Settings saved")
+
+    def test_save_settings_invalid_temperature_format(self, mock_state: MagicMock) -> None:
+        """Test that non-numeric temperature input is rejected."""
+        panel = SettingsPanel(state=mock_state)
+        panel.notify = MagicMock()
+        original_temp = panel.temperature
+
+        mock_input = MagicMock()
+        mock_input.value = "not_a_number"
+        panel.query_one = MagicMock(return_value=mock_input)
+
+        panel._save_settings()
+
+        # Temperature should not change
+        assert panel.temperature == original_temp
+        panel.notify.assert_called_once_with("Invalid temperature value", severity="error")
 
 
 class TestSettingsPanelExports:

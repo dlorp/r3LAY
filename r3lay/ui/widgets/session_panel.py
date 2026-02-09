@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from textual.app import ComposeResult
 from textual.containers import Vertical, VerticalScroll
@@ -10,6 +10,14 @@ from textual.widgets import Static
 
 if TYPE_CHECKING:
     from ...core import R3LayState
+
+
+class SessionItem(Static):
+    """A clickable session list item with proper session_id attribute."""
+
+    def __init__(self, session_id: str, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.session_id = session_id
 
 
 class SessionPanel(Vertical):
@@ -43,6 +51,13 @@ class SessionPanel(Vertical):
 
     .session-item:hover {
         background: $surface-lighten-1;
+        border: solid $primary-lighten-1;
+        cursor: pointer;
+    }
+
+    .session-item-selected {
+        background: $primary-darken-3;
+        border: solid $primary;
     }
 
     .session-title {
@@ -57,6 +72,7 @@ class SessionPanel(Vertical):
     def __init__(self, state: "R3LayState"):
         super().__init__()
         self.state = state
+        self._selected_session_id: Optional[str] = None
 
     def compose(self) -> ComposeResult:
         yield Static("Sessions", id="session-status")
@@ -65,6 +81,11 @@ class SessionPanel(Vertical):
     def on_mount(self) -> None:
         """Refresh sessions on mount."""
         self.refresh_sessions()
+
+    def on_static_click(self, event: Static.Clicked) -> None:
+        """Handle session item click."""
+        if isinstance(event.static, SessionItem):
+            self._load_session(event.static.session_id)
 
     def refresh_sessions(self) -> None:
         """Refresh the list of saved sessions."""
@@ -105,15 +126,60 @@ class SessionPanel(Vertical):
             updated = session.updated_at.strftime("%m/%d %H:%M")
             short_id = session.id[:8]
 
-            item = Static(
+            # Check if this is the selected session
+            item_classes = "session-item"
+            if session.id == self._selected_session_id:
+                item_classes += " session-item-selected"
+
+            item = SessionItem(
+                session.id,
                 f"[bold]{title}[/bold]\n"
                 f"[dim]{msg_count} msgs • {updated}[/dim]\n"
                 f"[dim]ID: {short_id}[/dim]",
-                classes="session-item",
+                classes=item_classes,
                 markup=True,
             )
-            item.session_id = session.id  # Store for click handling
             session_list.mount(item)
 
+    def _load_session(self, session_id: str) -> None:
+        """Load a saved session and display its transcript."""
+        from ...core.session import Session
 
-__all__ = ["SessionPanel"]
+        sessions_dir = self.state.get_sessions_dir()
+        session_file = sessions_dir / f"{session_id}.json"
+
+        if not session_file.exists():
+            self.notify(f"Session {session_id[:8]} not found", severity="error")
+            return
+
+        try:
+            session = Session.load(session_file)
+            self._selected_session_id = session_id
+
+            # Refresh to update highlighting
+            self.refresh_sessions()
+
+            # Display session transcript in response pane
+            from .response_pane import ResponsePane
+
+            response_pane = self.app.query_one(ResponsePane)
+            response_pane.clear()
+
+            # Add session header
+            title = session.title or "(untitled)"
+            response_pane.add_header(f"Session: {title}")
+
+            # Add all messages
+            for msg in session.messages:
+                if msg.role == "user":
+                    response_pane.add_user_message(msg.content)
+                elif msg.role == "assistant":
+                    response_pane.add_assistant_message(msg.content)
+
+            self.notify(f"Loaded session: {title}")
+
+        except (ValueError, IOError) as e:
+            self.notify(f"Failed to load session: {e}", severity="error")
+
+
+__all__ = ["SessionPanel", "SessionItem"]

@@ -224,17 +224,16 @@ class SemanticChunker:
         # Detect source type from path
         source_type = detect_source_type_from_path(path)
 
-        match suffix:
-            case ".md":
-                return self._chunk_markdown(content, str(path), source_type)
-            case ".py":
-                return self._chunk_python(content, str(path), source_type)
-            case ".ts" | ".tsx" | ".js" | ".jsx":
-                return self._chunk_javascript(content, str(path), source_type)
-            case ".yaml" | ".yml" | ".json":
-                return self._chunk_config(content, str(path), source_type)
-            case _:
-                return self._chunk_text(content, str(path), source_type)
+        if suffix == ".md":
+            return self._chunk_markdown(content, str(path), source_type)
+        elif suffix == ".py":
+            return self._chunk_python(content, str(path), source_type)
+        elif suffix in (".ts", ".tsx", ".js", ".jsx"):
+            return self._chunk_javascript(content, str(path), source_type)
+        elif suffix in (".yaml", ".yml", ".json"):
+            return self._chunk_config(content, str(path), source_type)
+        else:
+            return self._chunk_text(content, str(path), source_type)
 
     def _chunk_markdown(
         self,
