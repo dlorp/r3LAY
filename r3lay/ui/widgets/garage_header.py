@@ -1,9 +1,16 @@
 """GarageHeader widget for r3LAY."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Optional
+
 from textual.app import ComposeResult
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import Static
+
+if TYPE_CHECKING:
+    from ...core import R3LayState
 
 
 class GarageHeader(Widget):
@@ -15,7 +22,7 @@ class GarageHeader(Widget):
         - Current mileage (if available)
 
     Attributes:
-        project_name: Name of the project
+        state: Application state
         active_model: Currently selected model name
         current_mileage: Current vehicle mileage (optional)
     """
@@ -47,29 +54,34 @@ class GarageHeader(Widget):
     }
     """
 
-    active_model: reactive[str | None] = reactive(None)
+    active_model: reactive[Optional[str]] = reactive(None)
 
     def __init__(
         self,
-        project_name: str = "r3LAY",
+        state: "R3LayState",
         *,
-        name: str | None = None,
-        id: str | None = None,
-        classes: str | None = None,
+        name: Optional[str] = None,
+        id: Optional[str] = None,
+        classes: Optional[str] = None,
         disabled: bool = False,
     ) -> None:
         """Initialize GarageHeader.
 
         Args:
-            project_name: Name of the project (default: "r3LAY")
+            state: Application state
             name: Widget name
             id: Widget ID
             classes: Widget CSS classes
             disabled: Whether widget is disabled
         """
         super().__init__(name=name, id=id, classes=classes, disabled=disabled)
-        self.project_name = project_name
-        self.current_mileage: int | None = None
+        self.state = state
+        self.current_mileage: Optional[int] = None
+
+    @property
+    def project_name(self) -> str:
+        """Get project name from state."""
+        return self.state.project_path.name if self.state.project_path else "r3LAY"
 
     def compose(self) -> ComposeResult:
         """Compose the header layout.
@@ -81,7 +93,7 @@ class GarageHeader(Widget):
         yield Static(self._get_model_text(), id="model-text", classes="model-info")
         yield Static(self._get_mileage_text(), id="mileage-text", classes="mileage-info")
 
-    def watch_active_model(self, new_model: str | None) -> None:
+    def watch_active_model(self, new_model: Optional[str]) -> None:
         """React to active model changes.
 
         Args:

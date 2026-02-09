@@ -1,17 +1,32 @@
 """Tests for GarageHeader widget."""
 
+from pathlib import Path
+from unittest.mock import MagicMock
+
 import pytest
 from textual.app import App, ComposeResult
 
 from r3lay.ui.widgets.garage_header import GarageHeader
 
 
+def create_mock_state(project_name: str = "Test Project") -> MagicMock:
+    """Create a mock R3LayState for testing."""
+    state = MagicMock()
+    # Use a real Path object so .name property works correctly
+    state.project_path = Path(f"/tmp/{project_name}")
+    return state
+
+
 class GarageHeaderTestApp(App):
     """Test app for GarageHeader."""
 
+    def __init__(self, state=None):
+        super().__init__()
+        self.test_state = state or create_mock_state()
+
     def compose(self) -> ComposeResult:
         """Mount GarageHeader widget."""
-        yield GarageHeader(project_name="Test Project")
+        yield GarageHeader(self.test_state)
 
 
 class TestGarageHeaderInit:
@@ -27,13 +42,10 @@ class TestGarageHeaderInit:
 
     @pytest.mark.asyncio
     async def test_default_project_name(self):
-        """GarageHeader uses default project name if none provided."""
+        """GarageHeader uses default project name from state."""
+        state = create_mock_state("r3LAY")
         
-        class DefaultApp(App):
-            def compose(self) -> ComposeResult:
-                yield GarageHeader()
-        
-        async with DefaultApp().run_test() as pilot:
+        async with GarageHeaderTestApp(state).run_test() as pilot:
             header = pilot.app.query_one(GarageHeader)
             assert header.project_name == "r3LAY"
 
