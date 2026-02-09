@@ -115,6 +115,7 @@ class SplashScreen(ModalScreen[None]):
         with Container(id="splash-container"):
             yield Static("", id="splash-text")
             yield Static(f"v{__version__}", id="splash-version")
+            yield Static("Press any key to continue...", id="splash-prompt")
 
     async def on_mount(self) -> None:
         """Start animation on mount."""
