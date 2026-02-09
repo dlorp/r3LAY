@@ -14,6 +14,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from textual.message import Message
 from textual.reactive import reactive
 from textual.widgets import Static
 
@@ -30,7 +31,17 @@ class GarageHeader(Static):
         project_name: Vehicle/project display name
         mileage: Current odometer reading
         model_name: Active LLM model name
+
+    Messages:
+        Listens for model changes from ModelPanel.RoleAssigned to update display.
     """
+
+    class ModelChanged(Message):
+        """Posted when the active model changes."""
+
+        def __init__(self, model_name: str) -> None:
+            self.model_name = model_name
+            super().__init__()
 
     DEFAULT_CSS = """
     GarageHeader {
@@ -86,9 +97,36 @@ class GarageHeader(Static):
     def on_mount(self) -> None:
         """Initialize header content on mount."""
         self._load_project_state()
+        self._fetch_mileage_from_backend()
         self._update_display()
         # Update time every minute
         self.set_interval(60, self._update_display)
+
+    async def _fetch_mileage_from_backend(self) -> None:
+        """Fetch current odometer reading from backend/project state."""
+        if self._state is None:
+            return
+
+        try:
+            # Try to load from maintenance log if available
+            from ...core.maintenance import MaintenanceLog
+
+            maintenance = MaintenanceLog(self._state.project_path)
+            # Get the most recent mileage reading
+            recent = maintenance.get_history(limit=1)
+            if recent:
+                self.mileage = recent[0].mileage
+        except Exception:
+            # Silently fail - mileage may not be available
+            pass
+
+    def on_model_changed(self, message: "GarageHeader.ModelChanged") -> None:
+        """React to model changes from ModelPanel.
+
+        Args:
+            message: ModelChanged message with new model name
+        """
+        self.update_model(message.model_name)
 
     def _load_project_state(self) -> None:
         """Load project state from disk if available."""
@@ -188,3 +226,11 @@ class GarageHeader(Static):
         self.project_name = project_name
         if mileage is not None:
             self.mileage = mileage
+
+    async def refresh_mileage(self) -> None:
+        """Refresh mileage from backend/maintenance log.
+
+        Can be called from app or via keyboard shortcut to fetch latest mileage.
+        """
+        await self._fetch_mileage_from_backend()
+        self._update_display()
