@@ -1,190 +1,132 @@
-"""Custom garage-style header for r3LAY.
+"""GarageHeader widget for r3LAY."""
 
-Shows project name, mileage, active model, and time in retrofuturistic style.
-
-Layout:
-╔═══════════════════════════════════════════════════════════════════════════╗
-║ r3LAY ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ llama3.2 ░░░░░░░░░░░░░░░░ 14:32 ║
-║ 97-IMPREZA ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ 102,847 mi ║
-╚═══════════════════════════════════════════════════════════════════════════╝
-"""
-
-from __future__ import annotations
-
-from datetime import datetime
-from typing import TYPE_CHECKING
-
+from textual.app import ComposeResult
 from textual.reactive import reactive
+from textual.widget import Widget
 from textual.widgets import Static
 
-if TYPE_CHECKING:
-    from textual.app import ComposeResult
 
-    from ...core import R3LayState
+class GarageHeader(Widget):
+    """Custom header widget showing project, model, and mileage.
 
-
-class GarageHeader(Static):
-    """Two-line header showing project and system status.
+    Displays:
+        - Project name
+        - Currently active model
+        - Current mileage (if available)
 
     Attributes:
-        project_name: Vehicle/project display name
-        mileage: Current odometer reading
-        model_name: Active LLM model name
+        project_name: Name of the project
+        active_model: Currently selected model name
+        current_mileage: Current vehicle mileage (optional)
     """
 
     DEFAULT_CSS = """
     GarageHeader {
-        height: 4;
-        width: 100%;
-        background: #0d0d0d;
-        border-bottom: solid #636764;
-        padding: 0 1;
+        height: 3;
+        background: $surface;
+        border-bottom: solid $primary;
+        padding: 0 2;
     }
 
-    GarageHeader .header-line {
-        width: 100%;
+    GarageHeader Static {
         height: 1;
+        content-align: center middle;
     }
 
-    GarageHeader .header-line-1 {
-        color: #F4E409;
+    GarageHeader .project-name {
+        text-style: bold;
+        color: $primary;
     }
 
-    GarageHeader .header-line-2 {
-        color: #50D8D7;
+    GarageHeader .model-info {
+        color: $text;
+    }
+
+    GarageHeader .mileage-info {
+        color: $accent;
     }
     """
 
-    project_name: reactive[str] = reactive("No Project")
-    mileage: reactive[int] = reactive(0)
-    model_name: reactive[str] = reactive("no model")
+    active_model: reactive[str | None] = reactive(None)
 
     def __init__(
         self,
-        state: "R3LayState | None" = None,
+        project_name: str = "r3LAY",
         *,
         name: str | None = None,
         id: str | None = None,
         classes: str | None = None,
+        disabled: bool = False,
     ) -> None:
-        """Initialize the garage header.
+        """Initialize GarageHeader.
 
         Args:
-            state: R3LayState instance for project/model info
+            project_name: Name of the project (default: "r3LAY")
             name: Widget name
             id: Widget ID
-            classes: CSS classes
+            classes: Widget CSS classes
+            disabled: Whether widget is disabled
         """
-        super().__init__(name=name, id=id, classes=classes)
-        self._state = state
+        super().__init__(name=name, id=id, classes=classes, disabled=disabled)
+        self.project_name = project_name
+        self.current_mileage: int | None = None
 
-    def compose(self) -> "ComposeResult":
-        """Compose the header lines."""
-        yield Static(id="line1", classes="header-line header-line-1")
-        yield Static(id="line2", classes="header-line header-line-2")
+    def compose(self) -> ComposeResult:
+        """Compose the header layout.
 
-    def on_mount(self) -> None:
-        """Initialize header content on mount."""
-        self._load_project_state()
-        self._update_display()
-        # Update time every minute
-        self.set_interval(60, self._update_display)
+        Yields:
+            Static widgets for project name, model, and mileage
+        """
+        yield Static(self._get_header_text(), id="header-text", classes="project-name")
+        yield Static(self._get_model_text(), id="model-text", classes="model-info")
+        yield Static(self._get_mileage_text(), id="mileage-text", classes="mileage-info")
 
-    def _load_project_state(self) -> None:
-        """Load project state from disk if available."""
-        if self._state is None:
-            return
-
-        try:
-            from ...core.project import ProjectManager
-
-            pm = ProjectManager(self._state.project_path)
-            project_state = pm.load()
-
-            if project_state:
-                self.project_name = project_state.profile.short_name
-                self.mileage = project_state.current_mileage
-        except Exception:
-            # Silently fail - project may not exist
-            pass
-
-        # Get current model
-        if self._state.current_model:
-            self.model_name = self._state.current_model
-
-    def _update_display(self) -> None:
-        """Update the header display with current values."""
-        width = self.size.width or 80
-        now = datetime.now()
-        time_str = now.strftime("%H:%M")
-
-        # Line 1: r3LAY ░░░░░░ model ░░░░░░ time
-        title = "r³LAY"
-        model = self.model_name[:20]  # Truncate long model names
-
-        # Calculate spacers
-        line1_content = f"{title}  {model}  {time_str}"
-        spacer_len = max(0, width - len(line1_content) - 4)
-        spacer1_len = spacer_len // 2
-        spacer2_len = spacer_len - spacer_len // 2
-
-        spacer1 = "░" * spacer1_len
-        spacer2 = "░" * spacer2_len
-
-        line1 = f" {title} {spacer1} {model} {spacer2} {time_str} "
-
-        # Line 2: project ░░░░░░░░░░░░░░░░░░░░░░░░░░░░ mileage mi
-        project = self.project_name[:30]
-        mileage_str = f"{self.mileage:,} mi"
-
-        line2_content = f"{project}  {mileage_str}"
-        spacer3_len = max(0, width - len(line2_content) - 4)
-        spacer3 = "░" * spacer3_len
-
-        line2 = f" {project} {spacer3} {mileage_str} "
-
-        # Update static widgets
-        try:
-            self.query_one("#line1", Static).update(line1)
-            self.query_one("#line2", Static).update(line2)
-        except Exception:
-            pass
-
-    def watch_project_name(self, value: str) -> None:
-        """React to project name changes."""
-        self._update_display()
-
-    def watch_mileage(self, value: int) -> None:
-        """React to mileage changes."""
-        self._update_display()
-
-    def watch_model_name(self, value: str) -> None:
-        """React to model name changes."""
-        self._update_display()
-
-    def update_model(self, model_name: str) -> None:
-        """Update the displayed model name.
+    def watch_active_model(self, new_model: str | None) -> None:
+        """React to active model changes.
 
         Args:
-            model_name: New model name to display
+            new_model: New active model name
         """
-        self.model_name = model_name
+        # Only update if widget is mounted and composed
+        if self.is_mounted:
+            try:
+                model_static = self.query_one("#model-text", Static)
+                model_static.update(self._get_model_text())
+            except Exception:
+                # Widget not ready yet, will be set during compose
+                pass
 
-    def update_mileage(self, mileage: int) -> None:
-        """Update the displayed mileage.
+    def refresh_mileage(self, mileage: int) -> None:
+        """Update mileage display.
 
         Args:
             mileage: New mileage value
         """
-        self.mileage = mileage
+        self.current_mileage = mileage
+        # Only update if widget is mounted
+        if self.is_mounted:
+            try:
+                mileage_static = self.query_one("#mileage-text", Static)
+                mileage_static.update(self._get_mileage_text())
+            except Exception:
+                # Widget not ready yet
+                pass
 
-    def update_project(self, project_name: str, mileage: int | None = None) -> None:
-        """Update project information.
+    def _get_header_text(self) -> str:
+        """Get project name header text."""
+        return f"[[ {self.project_name} ]]"
 
-        Args:
-            project_name: New project name
-            mileage: Optional new mileage value
-        """
-        self.project_name = project_name
-        if mileage is not None:
-            self.mileage = mileage
+    def _get_model_text(self) -> str:
+        """Get active model display text."""
+        if self.active_model:
+            return f"Model: {self.active_model}"
+        return "Model: None"
+
+    def _get_mileage_text(self) -> str:
+        """Get mileage display text."""
+        if self.current_mileage is not None:
+            return f"Mileage: {self.current_mileage:,} mi"
+        return "Mileage: --"
+
+
+__all__ = ["GarageHeader"]
