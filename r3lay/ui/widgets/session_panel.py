@@ -52,7 +52,6 @@ class SessionPanel(Vertical):
     .session-item:hover {
         background: $surface-lighten-1;
         border: solid $primary-lighten-1;
-        cursor: pointer;
     }
 
     .session-item-selected {
