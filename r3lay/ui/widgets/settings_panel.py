@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Button, Input, Label, RadioButton, RadioSet, Static
+from textual.widgets import Button, Input, RadioButton, RadioSet, Static
 
 from ... import __version__
 
@@ -99,7 +99,9 @@ class SettingsPanel(Vertical):
             yield Static("Active Model", classes="settings-label")
             with RadioSet():
                 # Will populate available models
-                text_models = [m.name for m in self.state.available_models if "text" in m.name.lower()][:3]
+                text_models = [
+                    m.name for m in self.state.available_models if "text" in m.name.lower()
+                ][:3]
                 if not text_models and self.state.available_models:
                     text_models = [m.name for m in self.state.available_models[:3]]
 
