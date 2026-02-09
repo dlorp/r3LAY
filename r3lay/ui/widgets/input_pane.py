@@ -136,8 +136,21 @@ class InputPane(Vertical):
     def compose(self) -> ComposeResult:
         yield TextArea(id="input-area")
         with Horizontal(id="input-controls"):
-            yield Static("Ready", id="input-status")
+            yield Static(
+                "Ask about automotive, electronics, software, or home projects...",
+                id="input-status",
+            )
             yield Button("Send", id="send-button", variant="primary")
+
+    def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        """Update placeholder status when text changes."""
+        if event.text_area.id == "input-area":
+            if event.text_area.text.strip():
+                self.set_status("Ready")
+            else:
+                self.set_status(
+                    "Ask about automotive, electronics, software, or home projects..."
+                )
 
     def focus_input(self) -> None:
         self.query_one("#input-area", TextArea).focus()
@@ -801,7 +814,7 @@ class InputPane(Vertical):
             sessions_dir = self.state.get_sessions_dir()
             session.save(sessions_dir)
             response_pane.add_system(
-                f"✓ Session saved: **{session.title or session.id}**\n\nID: `{session.id}`"
+                f"OK Session saved: **{session.title or session.id}**\n\nID: `{session.id}`"
             )
             # Refresh session panel if available
             self._refresh_session_panel()
@@ -851,7 +864,7 @@ class InputPane(Vertical):
         self.state.session = matching_session
         response_pane.clear()
         response_pane.add_system(
-            f"✓ Loaded session: **{matching_session.title or matching_session.id}**\n\n"
+            f"OK Loaded session: **{matching_session.title or matching_session.id}**\n\n"
             f"Messages: {len(matching_session.messages)}"
         )
 

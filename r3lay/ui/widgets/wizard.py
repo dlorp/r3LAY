@@ -14,7 +14,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -24,7 +24,7 @@ from textual.screen import Screen
 from textual.widgets import Button, Input, Label, Select, Static, TextArea
 
 if TYPE_CHECKING:
-    from textual.app import App
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,6 @@ DOMAINS = [
 # Import automotive makes from project_context
 from ...core.project_context import (
     AUTOMOTIVE_MAKES,
-    ELECTRONICS_BOARDS,
     SOFTWARE_LANGUAGES,
 )
 
@@ -240,6 +239,7 @@ class ProjectConfigManager:
         Uses atomic write (temp file + replace) for safety.
         """
         import tempfile
+
         from ruamel.yaml import YAML
 
         # Ensure directory exists

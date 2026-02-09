@@ -11,10 +11,9 @@ Tests cover:
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock, PropertyMock
+from unittest.mock import MagicMock
 
 import pytest
-from textual.widgets import Button, Select, Static
 
 from r3lay.ui.widgets.axiom_panel import (
     AXIOM_CATEGORIES,
@@ -23,7 +22,6 @@ from r3lay.ui.widgets.axiom_panel import (
     AxiomPanel,
     AxiomStatus,
 )
-
 
 # =============================================================================
 # Fixtures
@@ -500,7 +498,7 @@ class TestAxiomPanelFiltering:
         panel = AxiomPanel(state=mock_state_with_axioms)
         panel._current_category = "specifications"
 
-        axioms = panel._get_filtered_axioms(mock_axiom_manager)
+        _ = panel._get_filtered_axioms(mock_axiom_manager)
 
         # Manager's search should be called with category
         mock_axiom_manager.search.assert_called_once()
@@ -514,7 +512,7 @@ class TestAxiomPanelFiltering:
         panel = AxiomPanel(state=mock_state_with_axioms)
         panel._current_status = "validated"
 
-        axioms = panel._get_filtered_axioms(mock_axiom_manager)
+        _ = panel._get_filtered_axioms(mock_axiom_manager)
 
         # Should use validated_only filter
         call_kwargs = mock_axiom_manager.search.call_args.kwargs
@@ -526,7 +524,7 @@ class TestAxiomPanelFiltering:
         """Test default limit of 50 is applied."""
         panel = AxiomPanel(state=mock_state_with_axioms)
 
-        axioms = panel._get_filtered_axioms(mock_axiom_manager)
+        _ = panel._get_filtered_axioms(mock_axiom_manager)
 
         call_kwargs = mock_axiom_manager.search.call_args.kwargs
         assert call_kwargs.get("limit") == 50

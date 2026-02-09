@@ -83,6 +83,8 @@ class MainScreen(Screen):
         Binding("ctrl+5", "tab_due", "Due", show=False),
         Binding("ctrl+6", "tab_sessions", "Sessions", show=False),
         Binding("ctrl+7", "tab_settings", "Settings", show=False),
+        Binding("ctrl+h", "tab_sessions", "History", show=False),
+        Binding("ctrl+comma", "tab_settings", "Settings", show=False),
     ]
 
     def __init__(self, state: R3LayState):
@@ -111,7 +113,7 @@ class MainScreen(Screen):
                         yield AxiomPanel(self.state)
                     with TabPane("Log", id="tab-log"):
                         yield HistoryPanel(self.state)
-                    with TabPane("⚠ Due", id="tab-due"):
+                    with TabPane("Due", id="tab-due"):
                         yield MaintenancePanel(
                             project_path=self.state.project_path,
                             current_mileage=None,
@@ -127,6 +129,12 @@ class MainScreen(Screen):
         """Initialize on mount."""
         # Focus input
         self.query_one(InputPane).focus_input()
+
+    def on_model_panel_role_assigned(self, message: ModelPanel.RoleAssigned) -> None:
+        """Forward model assignment to GarageHeader."""
+        if message.role == "text" and message.model_name:
+            header = self.query_one(GarageHeader)
+            header.active_model = message.model_name
 
     async def action_new_session(self) -> None:
         """Start a new session."""
