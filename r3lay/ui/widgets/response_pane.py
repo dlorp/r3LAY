@@ -66,11 +66,11 @@ class ResponseBlock(Vertical):
 
     def compose(self) -> ComposeResult:
         labels = {
-            "user": "> You",
-            "assistant": "< r3LAY",
-            "system": "* r3LAY",
-            "code": "# Code",
-            "error": "! Error",
+            "user": "▸ You",
+            "assistant": "▸ r3LAY",
+            "system": "▸ System",
+            "code": "▸ Code",
+            "error": "▸ Error",
         }
         yield Static(labels.get(self.role, self.role), classes="response-header")
 
@@ -129,7 +129,7 @@ class StreamingBlock(Vertical):
 
     def compose(self) -> ComposeResult:
         """Compose the streaming block with header and content area."""
-        yield Static("< r3LAY", classes="streaming-header")
+        yield Static("▸ r3LAY", classes="streaming-header")
         self._content_widget = Static("", classes="streaming-content")
         yield self._content_widget
 

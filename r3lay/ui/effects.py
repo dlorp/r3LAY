@@ -166,3 +166,69 @@ class Effects:
         for i in range(0, len(text) + 1, chars_per_frame):
             yield text[:i]
         yield text
+
+    @staticmethod
+    def retro_progress_bar(
+        width: int = 40,
+        filled_char: str = "█",
+        empty_char: str = "░",
+        prefix: str = "",
+        suffix: str = "",
+    ) -> Generator[str, None, None]:
+        """Block-based retro progress bar with amber fill animation.
+
+        Generates a terminal-native progress bar using block characters.
+        Designed for demoscene aesthetic with dense, precise visualization.
+
+        Args:
+            width: Width of the progress bar in characters.
+            filled_char: Character for filled portion (default: █ full block).
+            empty_char: Character for empty portion (default: ░ light shade).
+            prefix: Text prefix before the bar.
+            suffix: Text suffix after the bar.
+
+        Yields:
+            Progress bar frames from 0% to 100%.
+
+        Example:
+            for frame in Effects.retro_progress_bar(30, prefix="Loading: "):
+                display(frame)
+                await asyncio.sleep(0.05)
+        """
+        for i in range(width + 1):
+            filled = filled_char * i
+            empty = empty_char * (width - i)
+            percent = int((i / width) * 100)
+            bar = f"{prefix}[{filled}{empty}] {percent}%{suffix}"
+            yield bar
+
+    @staticmethod
+    def amber_pulse(text: str, cycles: int = 3) -> Generator[str, None, None]:
+        """Pulsing amber glow effect for text.
+
+        Creates a visual "pulsing" effect by cycling through amber shades.
+        Terminal-native using ANSI color codes for r3LAY's amber accent.
+
+        Args:
+            text: Text to apply pulsing effect to.
+            cycles: Number of pulse cycles to generate.
+
+        Yields:
+            Frames with ANSI color codes for amber pulse effect.
+
+        Note:
+            Uses ANSI escape codes. May not render in all terminals.
+        """
+        # ANSI colors for amber pulse (bright yellow/orange range)
+        amber_shades = [
+            f"\033[38;5;220m{text}\033[0m",  # Bright amber
+            f"\033[38;5;214m{text}\033[0m",  # Medium amber
+            f"\033[38;5;208m{text}\033[0m",  # Deep amber
+            f"\033[38;5;202m{text}\033[0m",  # Dark amber
+            f"\033[38;5;208m{text}\033[0m",  # Back to deep
+            f"\033[38;5;214m{text}\033[0m",  # Back to medium
+        ]
+
+        for _ in range(cycles):
+            for shade in amber_shades:
+                yield shade
