@@ -182,7 +182,7 @@ class Effects:
         """
         filled_count = int((percent / 100) * width)
         empty_count = width - filled_count
-        
+
         bar = "█" * filled_count + "░" * empty_count
         yield f"[{bar}] {percent:.0f}%"
 

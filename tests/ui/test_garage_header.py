@@ -44,7 +44,7 @@ class TestGarageHeaderInit:
     async def test_default_project_name(self):
         """GarageHeader uses default project name from state."""
         state = create_mock_state("r3LAY")
-        
+
         async with GarageHeaderTestApp(state).run_test() as pilot:
             header = pilot.app.query_one(GarageHeader)
             assert header.project_name == "r3LAY"
@@ -89,11 +89,11 @@ class TestGarageHeaderActiveModel:
         """watch_active_model updates the model display."""
         async with GarageHeaderTestApp().run_test() as pilot:
             header = pilot.app.query_one(GarageHeader)
-            
+
             # Trigger model change
             header.active_model = "test-model-1"
             await pilot.pause()
-            
+
             # Should update display
             assert header.active_model == "test-model-1"
 
@@ -113,11 +113,11 @@ class TestGarageHeaderMileage:
         """refresh_mileage updates the mileage display."""
         async with GarageHeaderTestApp().run_test() as pilot:
             header = pilot.app.query_one(GarageHeader)
-            
+
             # Call refresh_mileage with a value
             header.refresh_mileage(12345)
             await pilot.pause()
-            
+
             # Mileage should be stored (implementation will display it)
             assert hasattr(header, "current_mileage")
 
@@ -135,6 +135,6 @@ class TestModuleExports:
     def test_all_exports(self):
         """Module exports GarageHeader in __all__."""
         from r3lay.ui.widgets import garage_header
-        
+
         assert hasattr(garage_header, "__all__")
         assert "GarageHeader" in garage_header.__all__
