@@ -69,6 +69,11 @@ class IndexPanel(Vertical):
     def on_mount(self) -> None:
         self._refresh_stats()
 
+    def on_unmount(self) -> None:
+        """Cancel any pending timers to prevent memory leaks."""
+        if self._clear_reset_timer and not self._clear_reset_timer.done():
+            self._clear_reset_timer.cancel()
+
     def _refresh_stats(self) -> None:
         """Update stats display from current index state."""
         from ...core import (
