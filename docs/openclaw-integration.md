@@ -1,130 +1,225 @@
 # OpenClaw Integration
 
-r3LAY can use OpenClaw agents as an LLM backend, enabling remote inference via Claude without requiring local model hosting.
+r3LAY can use OpenClaw as an LLM backend via its OpenAI-compatible HTTP API, enabling access to various LLM providers (Anthropic, OpenAI, local models) through a unified gateway.
 
 ## Architecture
 
 ```
-┌─────────────┐     file-based      ┌─────────────┐     API      ┌─────────────┐
-│   r3LAY     │ ←──────────────────→│  OpenClaw   │ ←───────────→│   Claude    │
-│   (TUI)     │   ~/.r3lay/openclaw │   (agent)   │   Anthropic  │   (remote)  │
-└─────────────┘                     └─────────────┘              └─────────────┘
+┌─────────────┐      HTTP API       ┌─────────────┐     Provider     ┌─────────────┐
+│   r3LAY     │ ←─────────────────→ │  OpenClaw   │ ←──────────────→ │  Anthropic  │
+│   (TUI)     │  localhost:4444     │  Gateway    │    API calls     │   OpenAI    │
+│             │  /v1/chat/completions│             │                  │   Ollama    │
+└─────────────┘                     └─────────────┘                  └─────────────┘
 ```
 
 ## How It Works
 
-1. **r3LAY writes queries** to `~/.r3lay/openclaw/pending/<uuid>.json`
-2. **OpenClaw agent polls** for new queries (via cron or heartbeat)
-3. **Agent processes** the query using its configured model (Claude)
-4. **Agent writes response** to `~/.r3lay/openclaw/done/<uuid>.json`
-5. **r3LAY polls** for response and displays it
+1. **r3LAY connects** to OpenClaw's HTTP API (`http://localhost:4444`)
+2. **Sends requests** to `/v1/chat/completions` (OpenAI-compatible format)
+3. **OpenClaw Gateway** routes the request to the configured LLM provider
+4. **Streams response** back via Server-Sent Events (SSE)
+5. **r3LAY displays** tokens in real-time
 
 ## Setup
 
-### 1. Enable OpenClaw Backend in r3LAY
+### 1. Start OpenClaw Gateway
 
-In your r3LAY config (`~/.r3lay/config.yaml`):
+```bash
+# Start the gateway daemon
+openclaw gateway start
+
+# Check status
+openclaw gateway status
+```
+
+The gateway listens on `http://localhost:4444` by default.
+
+### 2. Configure r3LAY Backend
+
+In your r3LAY project config (`.r3lay/config.yaml`):
 
 ```yaml
-llm:
-  backend: openclaw
-  openclaw:
-    poll_interval: 0.5  # seconds between polls
-    timeout: 120        # max seconds to wait for response
+model_roles:
+  text_model: openclaw/anthropic/claude-sonnet-4-20250514
+  vision_model: openclaw/anthropic/claude-sonnet-4-20250514
 ```
 
-### 2. Configure OpenClaw Agent
+Or use environment variables:
 
-Add a cron job to process r3LAY queries:
-
-```yaml
-# In OpenClaw config
-cron:
-  jobs:
-    - name: r3lay-processor
-      schedule:
-        kind: every
-        everyMs: 5000  # Check every 5 seconds
-      payload:
-        kind: agentTurn
-        message: "Check ~/.r3lay/openclaw/pending/ for queries. Process any found and write responses to ~/.r3lay/openclaw/done/"
-      sessionTarget: isolated
+```bash
+export R3LAY_TEXT_MODEL="openclaw/anthropic/claude-sonnet-4-20250514"
+export R3LAY_VISION_MODEL="openclaw/anthropic/claude-sonnet-4-20250514"
 ```
 
-Or handle via heartbeat in `HEARTBEAT.md`:
+### 3. Model Naming Convention
 
-```markdown
-## r3LAY Queries
-- Check `~/.r3lay/openclaw/pending/` for new queries
-- Process using research context
-- Write responses to `~/.r3lay/openclaw/done/`
-```
+Format: `openclaw/<provider>/<model-name>`
 
-## Query Format
+Examples:
+- `openclaw/anthropic/claude-sonnet-4-20250514`
+- `openclaw/openai/gpt-4`
+- `openclaw/ollama/qwen2.5:7b`
 
-Pending queries (`pending/<uuid>.json`):
+The `openclaw/` prefix tells r3LAY to use the OpenClaw backend. The rest is passed to the gateway as the model name.
+
+## API Details
+
+### Backend Implementation
+
+r3LAY's OpenClaw backend is an HTTP client (`r3lay/core/backends/openclaw.py`) that:
+
+- Connects to `http://localhost:4444` (configurable via `endpoint` parameter)
+- Uses the OpenAI-compatible `/v1/chat/completions` endpoint
+- Streams responses via Server-Sent Events (SSE)
+- Supports vision models with base64-encoded images
+- Handles authentication via optional Bearer tokens
+
+### Request Format
+
+POST to `/v1/chat/completions`:
 
 ```json
 {
-  "request_id": "uuid",
-  "timestamp": 1234567890.123,
+  "model": "anthropic/claude-sonnet-4-20250514",
   "messages": [
     {"role": "user", "content": "What is..."}
   ],
-  "system_prompt": "You are a research assistant...",
-  "temperature": 0.7,
-  "max_tokens": null
+  "stream": true,
+  "max_tokens": 512,
+  "temperature": 0.7
 }
 ```
 
-## Response Format
+### Vision Model Support
 
-Responses (`done/<uuid>.json`):
+For vision models, the last user message is converted to multimodal format:
 
 ```json
 {
-  "request_id": "uuid",
-  "content": "The response text...",
-  "done": true,
-  "timestamp": 1234567890.456,
-  "tokens": 150
+  "role": "user",
+  "content": [
+    {"type": "text", "text": "What's in this image?"},
+    {
+      "type": "image_url",
+      "image_url": {"url": "data:image/jpeg;base64,/9j/4AAQ..."}
+    }
+  ]
 }
 ```
 
-For streaming (optional):
+### Response Format (SSE)
 
-```json
-{
-  "request_id": "uuid",
-  "chunks": ["chunk1", "chunk2", "..."],
-  "done": false
-}
+OpenClaw streams responses in OpenAI's SSE format:
+
+```
+data: {"choices":[{"delta":{"content":"Hello"},"finish_reason":null}]}
+
+data: {"choices":[{"delta":{"content":" world"},"finish_reason":null}]}
+
+data: {"choices":[{"delta":{},"finish_reason":"stop"}]}
+
+data: [DONE]
 ```
 
-## Helper Script
+## Configuration Options
 
-Use `scripts/openclaw_processor.py` for manual processing:
+### Custom Endpoint
+
+```python
+from r3lay.core.backends.openclaw import OpenClawBackend
+
+backend = OpenClawBackend(
+    model_name="anthropic/claude-sonnet-4-20250514",
+    endpoint="http://custom-host:8080",  # Non-default endpoint
+    api_key="optional-bearer-token"       # Optional authentication
+)
+```
+
+### Environment Variables
+
+You can configure the OpenClaw endpoint via environment:
 
 ```bash
-# List pending queries
-python scripts/openclaw_processor.py list
-
-# Show a specific query
-python scripts/openclaw_processor.py show <request_id>
-
-# Respond to a query
-python scripts/openclaw_processor.py respond <request_id> "Your response here"
+export OPENCLAW_ENDPOINT="http://localhost:4444"
+export OPENCLAW_API_KEY="your-token"  # Optional
 ```
 
 ## Benefits
 
-- **No local GPU required** - Uses Claude via OpenClaw
-- **Agent context** - OpenClaw agent can use its memory, tools, and research capabilities
-- **Async-friendly** - Non-blocking file-based communication
-- **Debuggable** - Query/response files are human-readable JSON
+- **Unified Interface** - One backend for multiple LLM providers
+- **True Streaming** - Real-time token streaming via SSE
+- **Vision Support** - Works with multimodal models
+- **Local & Remote** - Mix local (Ollama) and remote (Anthropic/OpenAI) models
+- **No Polling** - Direct HTTP requests, low latency
+- **Provider Abstraction** - Switch providers without changing r3LAY config
 
-## Limitations
+## Troubleshooting
 
-- **Latency** - 5-15 seconds typical (depends on cron interval + Claude response time)
-- **No true streaming** - Streaming is simulated via chunk polling
-- **Single agent** - One OpenClaw agent processes all queries (could be extended for multiple)
+### Connection Refused
+
+```
+Cannot connect to OpenClaw at http://localhost:4444.
+Is OpenClaw running? Try: openclaw gateway start
+```
+
+**Solution:** Start the OpenClaw gateway:
+```bash
+openclaw gateway start
+openclaw gateway status
+```
+
+### Model Not Found
+
+If OpenClaw can't route your model, check:
+- Model name format: `<provider>/<model-id>`
+- Provider credentials are configured in OpenClaw
+- Model is available from the provider
+
+### Authentication Errors
+
+If you've configured authentication on the gateway, pass the API key:
+
+```python
+backend = OpenClawBackend(
+    model_name="...",
+    api_key="your-bearer-token"
+)
+```
+
+## Advanced Usage
+
+### Checking Gateway Status
+
+```python
+from r3lay.core.backends.openclaw import OpenClawBackend
+
+# Check if gateway is running
+is_running = await OpenClawBackend.is_available("http://localhost:4444")
+```
+
+### Manual Request
+
+```bash
+# Test the gateway directly
+curl -X POST http://localhost:4444/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "anthropic/claude-sonnet-4-20250514",
+    "messages": [{"role": "user", "content": "Hello!"}],
+    "stream": true,
+    "max_tokens": 100
+  }'
+```
+
+## Comparison: File-Based vs HTTP
+
+| Aspect | HTTP (Current) | File-Based (Old) |
+|--------|---------------|------------------|
+| Transport | HTTP API | JSON files |
+| Latency | ~100-500ms | 5-15 seconds |
+| Streaming | True SSE streaming | Simulated via polling |
+| Reliability | Direct connection | Requires file watchers |
+| Debugging | HTTP logs | File inspection |
+| Status | ✅ Active | ❌ Deprecated |
+
+The file-based approach described in earlier documentation was never fully implemented. The HTTP backend is the only production implementation.
