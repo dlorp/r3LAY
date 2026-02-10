@@ -23,7 +23,7 @@ r³LAY is under active development. Here's where things stand and where they're 
 
 ### Current State
 
-The **automotive** category is the primary focus right now, built around my vehicle maintenance workflow. This serves as the proving ground for the core architecture before expanding to other domains.
+The **automotive** category is the primary focus right now, built around dlorp's motorcycle and vehicle maintenance workflow. This serves as the proving ground for the core architecture before expanding to other domains.
 
 ### Vision
 
@@ -40,7 +40,7 @@ The core ideas:
 
 ```
 r3lay/
-├── automotive/       ← active development (motorcycles, vehicles, FSMs)
+├── automotive/       ← active development (motorcycles, vehicles)
 ├── home/             ← planned (home maintenance, appliances)
 ├── electronics/      ← planned (lab gear, repairs, builds)
 └── ...               ← your categories here
@@ -50,7 +50,7 @@ Each category folder contains its own knowledge base, maintenance logs, axioms, 
 
 ### Contributing Categories
 
-New categories are welcome! If you have a domain where you track projects, wrench on things, or maintain equipment — it probably fits. Open an issue to request a category or submit a PR with a new one, i'll probably get around to it eventually.
+New categories are welcome! If you have a domain where you track projects, wrench on things, or maintain equipment — it probably fits. Open an issue to request a category or submit a PR with a new one.
 
 ---
 
