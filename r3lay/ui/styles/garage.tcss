@@ -553,17 +553,17 @@ MarkdownOrderedList {
    Splash screen
    ───────────────────────────────────────────────────────────────────────────── */
 
-#splash-screen {
+SplashScreen {
     align: center middle;
-    background: #0d0d0d;
+    background: rgba(13, 13, 13, 0.95);
 }
 
 #splash-container {
-    width: auto;
-    height: auto;
-    padding: 2 4;
-    border: double #636764;
+    width: 65;
+    height: 18;
+    padding: 1 2;
     background: #0d0d0d;
+    border: double #636764;
 }
 
 #splash-text {
@@ -575,6 +575,13 @@ MarkdownOrderedList {
     color: #636764;
     text-align: center;
     margin-top: 1;
+}
+
+#splash-prompt {
+    color: #50D8D7;
+    text-align: center;
+    margin-top: 2;
+    text-style: italic;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -837,17 +844,6 @@ GarageHeader .mileage-info {
 .response-header {
     color: $amber;
     text-style: bold;
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   Splash Screen Prompt
-   ───────────────────────────────────────────────────────────────────────────── */
-
-#splash-prompt {
-    color: $amber-dim;
-    text-align: center;
-    margin-top: 2;
-    text-style: italic;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
