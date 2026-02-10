@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _No unreleased changes._
 
+## [0.7.0] - 2026-02-10
+
+### Added
+- Maintenance commands fully wired and functional (log, due, history, mileage)
+- Natural language input support for maintenance logging
+- Configurable intent routing (local/OpenClaw/auto)
+- LLM conversational feedback integration
+- GGUF model auto-discovery for local backends
+- OpenClaw HTTP API backend documented
+- vLLM backend support documented
+- Command documentation expanded from 7 to 21 commands
+
+### Changed
+- Enhanced maintenance tracking with natural language parsing
+- Improved backend configuration flexibility
+- Expanded documentation coverage
+
 ## [0.6.1] - 2025-02-03
 
 ### Docs
@@ -66,7 +83,8 @@ _No unreleased changes._
 - Various type checking import issues
 - Signal test stability improvements
 
-[Unreleased]: https://github.com/dlorp/r3LAY/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/dlorp/r3LAY/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/dlorp/r3LAY/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/dlorp/r3LAY/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/dlorp/r3LAY/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/dlorp/r3LAY/compare/v0.4.0...v0.5.0
