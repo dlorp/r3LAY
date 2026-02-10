@@ -2,7 +2,7 @@
 
 Tests cover:
 - Send button validation with no models configured
-- Send button validation with one model configured  
+- Send button validation with one model configured
 - Send button validation with all models configured
 - Button state stability (no flickering)
 - Clear error messages when validation fails
@@ -12,9 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from unittest.mock import MagicMock, Mock
-
-import pytest
+from unittest.mock import Mock
 
 
 class MockBackendType(Enum):
@@ -66,19 +64,19 @@ class MockInputPane:
 
     def _validate_can_send(self) -> tuple[bool, str]:
         """Validate if message can be sent.
-        
+
         Returns:
             Tuple of (is_valid, error_message). If is_valid is True, error_message is empty.
         """
         # Check if a model is loaded
         if not hasattr(self.state, "current_backend") or self.state.current_backend is None:
             return False, "No model loaded. Load a model from the Models tab first."
-        
+
         # Check if there's actual content to send
         value = self.get_value().strip()
         if not value:
             return False, "Enter a message to send."
-        
+
         return True, ""
 
 
@@ -89,9 +87,9 @@ class TestValidateCanSend:
         """Test validation fails when no model is configured."""
         state = MockState(current_backend=None, available_models=[])
         pane = MockInputPane(state, text="Hello world")
-        
+
         is_valid, error_msg = pane._validate_can_send()
-        
+
         assert is_valid is False
         assert "No model loaded" in error_msg
         assert "Models tab" in error_msg
@@ -101,9 +99,9 @@ class TestValidateCanSend:
         models = [MockModelInfo(name="mistral-7b")]
         state = MockState(current_backend=None, available_models=models)
         pane = MockInputPane(state, text="Hello world")
-        
+
         is_valid, error_msg = pane._validate_can_send()
-        
+
         assert is_valid is False
         assert "No model loaded" in error_msg
 
@@ -112,9 +110,9 @@ class TestValidateCanSend:
         backend = MockBackend("mistral-7b")
         state = MockState(current_backend=backend)
         pane = MockInputPane(state, text="Hello world")
-        
+
         is_valid, error_msg = pane._validate_can_send()
-        
+
         assert is_valid is True
         assert error_msg == ""
 
@@ -128,9 +126,9 @@ class TestValidateCanSend:
         backend = MockBackend("mistral-7b")
         state = MockState(current_backend=backend, available_models=models)
         pane = MockInputPane(state, text="Hello world")
-        
+
         is_valid, error_msg = pane._validate_can_send()
-        
+
         assert is_valid is True
         assert error_msg == ""
 
@@ -139,9 +137,9 @@ class TestValidateCanSend:
         backend = MockBackend("mistral-7b")
         state = MockState(current_backend=backend)
         pane = MockInputPane(state, text="")
-        
+
         is_valid, error_msg = pane._validate_can_send()
-        
+
         assert is_valid is False
         assert "Enter a message" in error_msg
 
@@ -150,9 +148,9 @@ class TestValidateCanSend:
         backend = MockBackend("mistral-7b")
         state = MockState(current_backend=backend)
         pane = MockInputPane(state, text="   \n\t  ")
-        
+
         is_valid, error_msg = pane._validate_can_send()
-        
+
         assert is_valid is False
         assert "Enter a message" in error_msg
 
@@ -161,9 +159,9 @@ class TestValidateCanSend:
         backend = MockBackend("mistral-7b")
         state = MockState(current_backend=backend)
         pane = MockInputPane(state, text="Tell me about cars")
-        
+
         is_valid, error_msg = pane._validate_can_send()
-        
+
         assert is_valid is True
         assert error_msg == ""
 
@@ -171,9 +169,9 @@ class TestValidateCanSend:
         """Test validation handles state without current_backend attribute."""
         state = Mock(spec=[])  # Mock with no attributes
         pane = MockInputPane(state, text="Hello")
-        
+
         is_valid, error_msg = pane._validate_can_send()
-        
+
         assert is_valid is False
         assert "No model loaded" in error_msg
 
@@ -185,10 +183,10 @@ class TestButtonStateStability:
         """Test that repeated validation calls return consistent results."""
         state = MockState(current_backend=None)
         pane = MockInputPane(state, text="Hello")
-        
+
         # Call validation multiple times
         results = [pane._validate_can_send() for _ in range(10)]
-        
+
         # All results should be identical
         assert all(r == results[0] for r in results)
         # Should consistently fail with no model
@@ -199,10 +197,10 @@ class TestButtonStateStability:
         backend = MockBackend("mistral-7b")
         state = MockState(current_backend=backend)
         pane = MockInputPane(state, text="Hello")
-        
+
         # Simulate processing state
         pane._processing = True
-        
+
         # Validation should still return correct result
         is_valid, _ = pane._validate_can_send()
         assert is_valid is True
@@ -211,15 +209,15 @@ class TestButtonStateStability:
         """Test that validation result changes when model state changes."""
         state = MockState(current_backend=None)
         pane = MockInputPane(state, text="Hello")
-        
+
         # Initially should fail
         is_valid, error_msg = pane._validate_can_send()
         assert is_valid is False
         assert "No model loaded" in error_msg
-        
+
         # Load a model
         state.current_backend = MockBackend("mistral-7b")
-        
+
         # Now should pass
         is_valid, error_msg = pane._validate_can_send()
         assert is_valid is True
@@ -233,9 +231,9 @@ class TestErrorMessages:
         """Test that 'no model' error message tells user what to do."""
         state = MockState(current_backend=None)
         pane = MockInputPane(state, text="Hello")
-        
+
         _, error_msg = pane._validate_can_send()
-        
+
         # Should mention where to go (Models tab) and what to do (load)
         assert "model" in error_msg.lower()
         assert "load" in error_msg.lower()
@@ -245,9 +243,9 @@ class TestErrorMessages:
         backend = MockBackend("mistral-7b")
         state = MockState(current_backend=backend)
         pane = MockInputPane(state, text="")
-        
+
         _, error_msg = pane._validate_can_send()
-        
+
         # Should clearly indicate the problem
         assert "message" in error_msg.lower()
         assert "enter" in error_msg.lower()
@@ -256,9 +254,9 @@ class TestErrorMessages:
         """Test that error messages aren't overly verbose."""
         state = MockState(current_backend=None)
         pane = MockInputPane(state, text="Hello")
-        
+
         _, error_msg = pane._validate_can_send()
-        
+
         # Should be under 100 characters for status bar display
         assert len(error_msg) < 100
 
@@ -267,9 +265,9 @@ class TestErrorMessages:
         backend = MockBackend("mistral-7b")
         state = MockState(current_backend=backend)
         pane = MockInputPane(state, text="Hello")
-        
+
         is_valid, error_msg = pane._validate_can_send()
-        
+
         assert is_valid is True
         assert error_msg == ""
 
@@ -281,9 +279,9 @@ class TestEdgeCases:
         """Test when backend is explicitly set to None (unload)."""
         state = MockState(current_backend=None)
         pane = MockInputPane(state, text="Hello")
-        
+
         is_valid, _ = pane._validate_can_send()
-        
+
         assert is_valid is False
 
     def test_very_long_message(self):
@@ -292,9 +290,9 @@ class TestEdgeCases:
         state = MockState(current_backend=backend)
         long_text = "x" * 10000
         pane = MockInputPane(state, text=long_text)
-        
+
         is_valid, error_msg = pane._validate_can_send()
-        
+
         # Should still validate successfully
         assert is_valid is True
         assert error_msg == ""
@@ -304,9 +302,9 @@ class TestEdgeCases:
         backend = MockBackend("mistral-7b")
         state = MockState(current_backend=backend)
         pane = MockInputPane(state, text="Hello! @#$%^&*() 你好")
-        
+
         is_valid, error_msg = pane._validate_can_send()
-        
+
         assert is_valid is True
         assert error_msg == ""
 
@@ -315,8 +313,8 @@ class TestEdgeCases:
         backend = MockBackend("mistral-7b")
         state = MockState(current_backend=backend)
         pane = MockInputPane(state, text="Line 1\nLine 2\nLine 3")
-        
+
         is_valid, error_msg = pane._validate_can_send()
-        
+
         assert is_valid is True
         assert error_msg == ""

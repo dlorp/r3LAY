@@ -2239,6 +2239,7 @@ class InputPane(Vertical):
         # Delegate to existing handler
         await self._handle_update_mileage(str(mileage), response_pane)
 
+
     async def _handle_log_maintenance(self, args: str, response_pane) -> None:
         """Handle /log command - log a maintenance entry.
 
