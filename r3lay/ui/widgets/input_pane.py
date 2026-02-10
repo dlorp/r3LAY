@@ -736,26 +736,33 @@ class InputPane(Vertical):
                 "- `/cite <axiom_id>` - Show provenance chain for axiom\n"
                 "- `/dispute <axiom_id> <reason>` - Mark axiom as disputed\n"
             )
+            self.notify("Help displayed", severity="information")
         elif cmd == "clear":
             response_pane.clear()
             self.clear_conversation()
             response_pane.add_system("Chat and conversation history cleared.")
+            self.notify("Chat cleared", severity="information")
         elif cmd == "index":
             if not args:
                 response_pane.add_system("Usage: `/index <query>`")
+                self.notify("Missing query parameter", severity="warning")
                 return
             await self._handle_index_search(args, response_pane)
         elif cmd == "session":
             self._show_session_info(response_pane)
+            self.notify("Session info displayed", severity="information")
         elif cmd == "status":
             self._show_status(response_pane)
+            self.notify("Status displayed", severity="information")
         elif cmd == "attach":
             if not args:
                 response_pane.add_system("Usage: `/attach <path>` - attach image file(s)")
+                self.notify("Missing path parameter", severity="warning")
                 return
             self._handle_attach(args, response_pane)
         elif cmd == "attachments":
             self._show_attachments(response_pane)
+            self.notify("Attachments listed", severity="information")
         elif cmd == "detach":
             self._clear_attachments(response_pane)
         elif cmd == "axiom":
@@ -773,6 +780,7 @@ class InputPane(Vertical):
         elif cmd == "cite":
             if not args:
                 response_pane.add_system("Usage: `/cite <axiom_id>`")
+                self.notify("Missing axiom_id parameter", severity="warning")
                 return
             await self._handle_show_citations(args, response_pane)
         elif cmd == "dispute":
@@ -810,12 +818,15 @@ class InputPane(Vertical):
         elif cmd == "load":
             if not args:
                 response_pane.add_system("Usage: `/load <name>` - Load a saved session")
+                self.notify("Missing session name parameter", severity="warning")
                 return
             await self._handle_load_session(args, response_pane)
         elif cmd == "sessions":
             await self._handle_list_sessions(response_pane)
         else:
+            from rich.markup import escape
             response_pane.add_system(f"Command `/{cmd}` not implemented yet.")
+            self.notify(f"Unknown command: /{escape(cmd)}", severity="error")
 
     def _show_session_info(self, response_pane) -> None:
         """Show current session information."""
