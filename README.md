@@ -23,7 +23,7 @@ r³LAY is under active development. Here's where things stand and where they're 
 
 ### Current State
 
-The **automotive** category is the primary focus right now, built around dlorp's vehicle maintenance workflow. This serves as the proving ground for the core architecture before expanding to other domains.
+The **automotive** category is the primary focus right now, built around my vehicle maintenance workflow. This serves as the proving ground for the core architecture before expanding to other domains.
 
 ### Vision
 
