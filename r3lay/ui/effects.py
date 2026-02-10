@@ -11,12 +11,38 @@ from __future__ import annotations
 
 from typing import Generator
 
-# r3LAY brand colors (hex without #)
+"""HDLS Brand Palette - Core Colors
+
+Granite Gray:      #636764  (backgrounds, borders, muted text)
+Dark Orange:       #FB8B24  (warnings, alerts, urgent states)
+Titanium Yellow:   #F4E409  (highlights, active states, headers)
+Medium Turquoise:  #50D8D7  (info, links, secondary actions)
+Royal Blue Light:  #3B60E4  (primary actions, focus states)
+"""
+
+# Core brand colors (hex without #)
 GRANITE_GRAY = "636764"
 DARK_ORANGE = "FB8B24"
 TITANIUM_YELLOW = "F4E409"
 MEDIUM_TURQUOISE = "50D8D7"
 ROYAL_BLUE = "3B60E4"
+
+# Background shades
+BG_DARKEST = "0d0d0d"
+BG_DARK = "1a1a1a"
+
+# Status icon constants for consistent use across widgets
+STATUS_SUCCESS = MEDIUM_TURQUOISE  # ✓
+STATUS_WARNING = DARK_ORANGE       # ⚠
+STATUS_INACTIVE = GRANITE_GRAY     # ○
+STATUS_ERROR = DARK_ORANGE         # ✗
+STATUS_ACTIVE = TITANIUM_YELLOW    # ◉
+STATUS_LOADING = ROYAL_BLUE        # ◈
+
+# Text color roles
+TEXT_PRIMARY = TITANIUM_YELLOW
+TEXT_SECONDARY = MEDIUM_TURQUOISE
+TEXT_MUTED = GRANITE_GRAY
 
 
 def _get_tte_classes():
