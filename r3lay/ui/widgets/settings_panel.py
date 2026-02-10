@@ -76,13 +76,6 @@ class SettingsPanel(Vertical):
                 id="temperature-input",
             )
 
-        # Model selection (placeholder - currently uses ModelPanel)
-        with Vertical(classes="settings-section"):
-            yield Label("Model Selection:")
-            with RadioSet(id="model-selection"):
-                yield RadioButton("Use default text model", value=True)
-                yield RadioButton("Use default vision model")
-
         # Action buttons
         with Horizontal(id="button-row"):
             yield Button("Save", variant="primary", id="save-button")
