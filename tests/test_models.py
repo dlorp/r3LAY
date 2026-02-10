@@ -34,6 +34,8 @@ from r3lay.core.models import (
     detect_capabilities,
     detect_capabilities_from_name,
     detect_format,
+    get_common_gguf_paths,
+    scan_all_gguf_folders,
     scan_gguf_folder,
     scan_huggingface_cache,
     scan_llm_models_folder,
@@ -764,7 +766,8 @@ class TestScanGgufFolder:
             assert model.source == ModelSource.GGUF_FILE
             assert model.format == ModelFormat.GGUF
             assert model.backend == Backend.LLAMA_CPP
-            assert model.path == gguf_file
+            # Compare resolved paths (security fix returns canonical paths)
+            assert model.path == gguf_file.resolve()
             assert model.size_bytes is not None
 
     def test_scan_creates_folder_if_missing(self):
@@ -780,6 +783,133 @@ class TestScanGgufFolder:
         """Test scanning with nonexistent parent returns empty."""
         models = scan_gguf_folder(Path("/nonexistent/path/models"))
         assert models == []
+
+    def test_scan_rejects_symlink_path_traversal(self):
+        """Test that symlinks pointing outside search root are rejected.
+
+        SECURITY: Prevents attacks like:
+            ln -s /etc/shadow ~/.r3lay/models/malicious.gguf
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            search_dir = Path(tmpdir) / "models"
+            search_dir.mkdir()
+            external_dir = Path(tmpdir) / "external"
+            external_dir.mkdir()
+
+            # Create a real GGUF file outside the search directory
+            external_file = external_dir / "external.gguf"
+            external_file.write_bytes(GGUF_MAGIC_BE + b"\x00" * 100)
+
+            # Create a symlink inside the search directory pointing outside
+            try:
+                symlink = search_dir / "malicious.gguf"
+                symlink.symlink_to(external_file)
+            except OSError:
+                # Skip test if symlinks not supported (e.g., Windows without admin)
+                pytest.skip("Symlinks not supported on this platform")
+
+            models = scan_gguf_folder(search_dir)
+
+            # Symlink should be rejected because resolved path is outside search root
+            assert len(models) == 0
+
+    def test_scan_allows_internal_symlinks(self):
+        """Test that symlinks within search root are allowed."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            search_dir = Path(tmpdir) / "models"
+            search_dir.mkdir()
+
+            # Create a real GGUF file inside the search directory
+            real_file = search_dir / "real.gguf"
+            real_file.write_bytes(GGUF_MAGIC_BE + b"\x00" * 100)
+
+            # Create a symlink inside the search directory pointing to another file inside
+            try:
+                symlink = search_dir / "link.gguf"
+                symlink.symlink_to(real_file)
+            except OSError:
+                pytest.skip("Symlinks not supported on this platform")
+
+            models = scan_gguf_folder(search_dir)
+
+            # Both the real file and symlink should be found (deduplicated by scan_all)
+            assert len(models) == 2
+
+    def test_scan_handles_broken_symlinks(self):
+        """Test that broken symlinks are gracefully skipped."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            search_dir = Path(tmpdir) / "models"
+            search_dir.mkdir()
+
+            # Create a valid GGUF file
+            valid_file = search_dir / "valid.gguf"
+            valid_file.write_bytes(GGUF_MAGIC_BE + b"\x00" * 100)
+
+            # Create a broken symlink
+            try:
+                broken_link = search_dir / "broken.gguf"
+                broken_link.symlink_to(Path(tmpdir) / "nonexistent.gguf")
+            except OSError:
+                pytest.skip("Symlinks not supported on this platform")
+
+            models = scan_gguf_folder(search_dir)
+
+            # Only the valid file should be found
+            assert len(models) == 1
+            assert models[0].name == "valid"
+
+
+class TestScanAllGgufFolders:
+    """Tests for scanning all GGUF folders with deduplication."""
+
+    def test_deduplication_with_symlinks(self):
+        """Test that symlinks are properly deduplicated using canonical paths.
+
+        SECURITY: Prevents deduplication bypass via symlinks pointing to same file.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create two search paths
+            path1 = Path(tmpdir) / "path1"
+            path2 = Path(tmpdir) / "path2"
+            path1.mkdir()
+            path2.mkdir()
+
+            # Create a real GGUF file in path1
+            real_file = path1 / "model.gguf"
+            real_file.write_bytes(GGUF_MAGIC_BE + b"\x00" * 100)
+
+            # Create a symlink in path2 pointing to the same file
+            try:
+                symlink = path2 / "model.gguf"
+                symlink.symlink_to(real_file)
+            except OSError:
+                pytest.skip("Symlinks not supported on this platform")
+
+            # Mock get_common_gguf_paths to return our test paths
+            with patch("r3lay.core.models.get_common_gguf_paths", return_value=[path1, path2]):
+                models = scan_all_gguf_folders()
+
+            # Should find only ONE model (deduplicated by canonical path)
+            assert len(models) == 1
+            assert models[0].name == "model"
+
+    def test_get_common_gguf_paths_excludes_cwd(self):
+        """Test that Path.cwd() is NOT in the search paths.
+
+        SECURITY: CWD-based paths are attacker-controlled in scenarios like:
+            cd /tmp/malicious && r3lay
+        where /tmp/malicious/models could contain malicious symlinks.
+        """
+        paths = get_common_gguf_paths()
+        path_strs = [str(p) for p in paths]
+
+        # Should NOT include any path that uses cwd()
+        cwd_str = str(Path.cwd())
+        for path_str in path_strs:
+            # Make sure no path starts with cwd (would indicate relative to cwd)
+            # Allow paths that happen to be under cwd but are actually absolute (like home)
+            if path_str.startswith(cwd_str) and not path_str.startswith(str(Path.home())):
+                pytest.fail(f"Search path uses CWD: {path_str}")
 
 
 class TestScanMlxFolder:
@@ -1082,6 +1212,36 @@ class TestModelScanner:
             assert len(models) == 1
             assert models[0].name == "test"
 
+    @pytest.mark.asyncio
+    async def test_scan_all_uses_multi_path_discovery_when_no_custom_folder(self):
+        """Test scan_all uses scan_all_gguf_folders when gguf_folder is None."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create test paths with GGUF files
+            path1 = Path(tmpdir) / "path1"
+            path2 = Path(tmpdir) / "path2"
+            path1.mkdir(parents=True)
+            path2.mkdir(parents=True)
+
+            (path1 / "model-a.gguf").write_bytes(GGUF_MAGIC_BE + b"\x00" * 100)
+            (path2 / "model-b.gguf").write_bytes(GGUF_MAGIC_BE + b"\x00" * 200)
+
+            scanner = ModelScanner(
+                hf_cache_path=Path(tmpdir) / "nonexistent",
+                mlx_folder=Path(tmpdir) / "nonexistent",
+                gguf_folder=None,  # No custom folder
+                llm_models_folder=Path(tmpdir) / "nonexistent",
+            )
+
+            # Mock the common paths to return our test paths
+            with patch("r3lay.core.models.get_common_gguf_paths", return_value=[path1, path2]):
+                with patch("r3lay.core.models.scan_ollama", return_value=[]):
+                    models = await scanner.scan_all()
+
+            # Should find both models
+            assert len(models) == 2
+            names = {m.name for m in models}
+            assert names == {"model-a", "model-b"}
+
     def test_get_by_name(self):
         """Test get_by_name lookup."""
         scanner = ModelScanner()
@@ -1231,6 +1391,148 @@ class TestHelperFunctions:
         """Test Apple Silicon detection returns bool."""
         result = _is_apple_silicon()
         assert isinstance(result, bool)
+
+
+# =============================================================================
+# GGUF Auto-Discovery Tests
+# =============================================================================
+
+
+class TestGgufAutoDiscovery:
+    """Tests for GGUF auto-discovery across multiple paths."""
+
+    def test_get_common_gguf_paths_returns_list(self):
+        """Test get_common_gguf_paths returns list of Path objects."""
+        paths = get_common_gguf_paths()
+        assert isinstance(paths, list)
+        assert len(paths) > 0
+        assert all(isinstance(p, Path) for p in paths)
+
+    def test_get_common_gguf_paths_includes_expected_locations(self):
+        """Test that common paths include expected locations."""
+        paths = get_common_gguf_paths()
+        path_strs = [str(p) for p in paths]
+
+        # Should include at least these common locations
+        assert any(".r3lay/models" in p for p in path_strs)
+        assert any("models" in p for p in path_strs)
+        assert any(".cache/gguf" in p for p in path_strs)
+
+    def test_scan_all_gguf_folders_empty(self):
+        """Test scan_all_gguf_folders with no models returns empty list."""
+        with patch("r3lay.core.models.get_common_gguf_paths") as mock_paths:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                # Create empty test directories
+                test_paths = [
+                    Path(tmpdir) / "path1",
+                    Path(tmpdir) / "path2",
+                    Path(tmpdir) / "path3",
+                ]
+                for p in test_paths:
+                    p.mkdir(parents=True, exist_ok=True)
+
+                mock_paths.return_value = test_paths
+                models = scan_all_gguf_folders()
+
+                assert models == []
+
+    def test_scan_all_gguf_folders_finds_models_from_multiple_paths(self):
+        """Test scan_all_gguf_folders discovers models from multiple locations."""
+        with patch("r3lay.core.models.get_common_gguf_paths") as mock_paths:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                # Create test directories with GGUF files
+                path1 = Path(tmpdir) / "path1"
+                path2 = Path(tmpdir) / "path2"
+                path3 = Path(tmpdir) / "path3"
+
+                for p in [path1, path2, path3]:
+                    p.mkdir(parents=True, exist_ok=True)
+
+                # Create GGUF files in different paths
+                (path1 / "model-a.gguf").write_bytes(GGUF_MAGIC_BE + b"\x00" * 100)
+                (path2 / "model-b.gguf").write_bytes(GGUF_MAGIC_BE + b"\x00" * 200)
+                (path3 / "model-c.gguf").write_bytes(GGUF_MAGIC_BE + b"\x00" * 300)
+
+                mock_paths.return_value = [path1, path2, path3]
+                models = scan_all_gguf_folders()
+
+                assert len(models) == 3
+                names = {m.name for m in models}
+                assert names == {"model-a", "model-b", "model-c"}
+
+    def test_scan_all_gguf_folders_deduplicates(self):
+        """Test scan_all_gguf_folders removes duplicate paths."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path1 = Path(tmpdir) / "models"
+            path1.mkdir(parents=True, exist_ok=True)
+
+            # Create one GGUF file
+            gguf_file = path1 / "model.gguf"
+            gguf_file.write_bytes(GGUF_MAGIC_BE + b"\x00" * 100)
+
+            with patch("r3lay.core.models.get_common_gguf_paths") as mock_paths:
+                # Return the same path multiple times
+                mock_paths.return_value = [path1, path1, path1]
+                models = scan_all_gguf_folders()
+
+                # Should only find the model once
+                assert len(models) == 1
+                assert models[0].name == "model"
+
+    def test_scan_all_gguf_folders_skips_nonexistent_paths(self):
+        """Test scan_all_gguf_folders handles nonexistent paths gracefully."""
+        with patch("r3lay.core.models.get_common_gguf_paths") as mock_paths:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                existing_path = Path(tmpdir) / "exists"
+                existing_path.mkdir(parents=True)
+                (existing_path / "model.gguf").write_bytes(GGUF_MAGIC_BE + b"\x00" * 100)
+
+                nonexistent = Path(tmpdir) / "does-not-exist"
+
+                mock_paths.return_value = [nonexistent, existing_path]
+                models = scan_all_gguf_folders()
+
+                # Should find only the one from existing path
+                assert len(models) == 1
+                assert models[0].name == "model"
+
+    def test_scan_all_gguf_folders_includes_source_path_metadata(self):
+        """Test that discovered models include source path in metadata."""
+        with patch("r3lay.core.models.get_common_gguf_paths") as mock_paths:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                test_path = Path(tmpdir) / "test"
+                test_path.mkdir(parents=True)
+                (test_path / "model.gguf").write_bytes(GGUF_MAGIC_BE + b"\x00" * 100)
+
+                mock_paths.return_value = [test_path]
+                models = scan_all_gguf_folders()
+
+                assert len(models) == 1
+                assert "source_path" in models[0].metadata
+                assert str(test_path) in models[0].metadata["source_path"]
+
+    def test_scan_gguf_folder_adds_source_path_metadata(self):
+        """Test that single folder scan includes source path in metadata."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir)
+            (path / "model.gguf").write_bytes(GGUF_MAGIC_BE + b"\x00" * 100)
+
+            models = scan_gguf_folder(path)
+
+            assert len(models) == 1
+            assert "source_path" in models[0].metadata
+            # Compare resolved paths (security fix returns canonical paths)
+            assert models[0].metadata["source_path"] == str(path.resolve())
+
+    def test_scan_gguf_folder_auto_creates_path(self):
+        """Test that paths are auto-created when possible."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            custom_path = Path(tmpdir) / "custom" / "path"
+            models = scan_gguf_folder(custom_path)
+
+            # Should auto-create the path
+            assert custom_path.exists()
+            assert models == []
 
 
 # =============================================================================
