@@ -22,19 +22,19 @@ class ModelPanel(Vertical):
         height: 100%;
         padding: 1;
     }
-    
+
     #model-list {
         height: 1fr;
         min-height: 6;
     }
-    
+
     #model-status {
         height: 3;
         margin-top: 1;
         padding: 1;
         background: $surface-darken-1;
     }
-    
+
     #scan-button {
         width: 100%;
         margin-top: 1;

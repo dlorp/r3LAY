@@ -14,9 +14,9 @@ Environment Variables:
 """
 
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -96,6 +96,22 @@ class AppConfig(BaseSettings):
     # Model role assignments (Phase C)
     model_roles: ModelRoles = Field(default_factory=ModelRoles)
 
+    # Intent routing preference (Phase 102)
+    intent_routing: Literal["local", "openclaw", "auto"] = Field(
+        default="auto",
+        description="Intent routing preference: 'local', 'openclaw', or 'auto'",
+    )
+
+    @field_validator("intent_routing")
+    @classmethod
+    def validate_intent_routing(cls, v: str) -> str:
+        """Validate intent_routing is one of the allowed values."""
+        if v not in ("local", "openclaw", "auto"):
+            raise ValueError(
+                f"Invalid intent_routing value: {v}. Must be 'local', 'openclaw', or 'auto'"
+            )
+        return v
+
     @classmethod
     def load(cls, path: Path) -> "AppConfig":
         """Load configuration from .r3lay/config.yaml if it exists.
@@ -125,6 +141,10 @@ class AppConfig(BaseSettings):
                     vision_embedder=roles.get("vision_embedder"),
                 )
 
+            # Load intent_routing preference if present
+            if data and "intent_routing" in data:
+                config.intent_routing = data["intent_routing"]
+
         return config
 
     def save(self) -> None:
@@ -144,7 +164,8 @@ class AppConfig(BaseSettings):
                 "vision_model": self.model_roles.vision_model,
                 "text_embedder": self.model_roles.text_embedder,
                 "vision_embedder": self.model_roles.vision_embedder,
-            }
+            },
+            "intent_routing": self.intent_routing,
         }
 
         with config_file.open("w") as f:
