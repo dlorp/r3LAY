@@ -23,6 +23,8 @@ from textual.message import Message
 from textual.screen import Screen
 from textual.widgets import Button, Input, Label, Select, Static, TextArea
 
+from ...core.project_context import AUTOMOTIVE_MAKES, SOFTWARE_LANGUAGES
+
 if TYPE_CHECKING:
     pass
 
@@ -39,12 +41,6 @@ DOMAINS = [
     ("software", "Software - Code projects, documentation"),
     ("home", "Home/DIY - Home improvement, repairs, automation"),
 ]
-
-# Import automotive makes from project_context
-from ...core.project_context import (
-    AUTOMOTIVE_MAKES,
-    SOFTWARE_LANGUAGES,
-)
 
 # Common automotive makes for dropdown (sorted, with "Other" option)
 AUTOMOTIVE_MAKES_LIST = sorted(AUTOMOTIVE_MAKES.keys())
