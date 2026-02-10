@@ -523,14 +523,14 @@ def detect_capabilities_from_name(name: str) -> set[ModelCapability]:
 
 def validate_model_name(name: str) -> bool:
     """Validate model name doesn't contain path traversal or shell metacharacters.
-    
+
     Args:
         name: Model name to validate
-        
+
     Returns:
         True if name is safe, False if it contains dangerous patterns
     """
-    dangerous_patterns = ['..', '~/', '$', '`', '|', '&', ';', '\n', '\r']
+    dangerous_patterns = ["..", "~/", "$", "`", "|", "&", ";", "\n", "\r"]
     return not any(pattern in name for pattern in dangerous_patterns)
 
 
@@ -578,7 +578,7 @@ def scan_huggingface_cache(
                 continue
 
             repo_id = "/".join(parts[1:])
-            
+
             # Validate model name for security (path traversal, shell metacharacters)
             if not validate_model_name(repo_id):
                 continue
@@ -723,7 +723,7 @@ def scan_mlx_folder(
 
             # Model name is the directory name
             model_name = f"mlx-community/{item.name}"
-            
+
             # Validate model name for security (path traversal, shell metacharacters)
             if not validate_model_name(model_name):
                 continue
@@ -770,6 +770,27 @@ def scan_mlx_folder(
 # =============================================================================
 
 
+def get_common_gguf_paths() -> list[Path]:
+    """Get list of common GGUF model search paths.
+
+    Returns paths in priority order:
+    1. ~/.r3lay/models/ (primary r3LAY models folder)
+    2. ~/models/ (user models folder)
+    3. ~/.cache/gguf/ (cached GGUF models)
+    4. ./models/ (project-local models)
+
+    Returns:
+        List of Path objects for common GGUF locations.
+    """
+    paths = [
+        Path.home() / ".r3lay" / "models",
+        Path.home() / "models",
+        Path.home() / ".cache" / "gguf",
+        Path.cwd() / "models",
+    ]
+    return paths
+
+
 def scan_gguf_folder(
     folder_path: Path | None = None,
 ) -> list[ModelInfo]:
@@ -807,7 +828,7 @@ def scan_gguf_folder(
 
             # Extract model name from filename (remove .gguf extension)
             model_name = item.stem
-            
+
             # Validate model name for security (path traversal, shell metacharacters)
             if not validate_model_name(model_name):
                 continue
@@ -829,6 +850,12 @@ def scan_gguf_folder(
             # Detect capabilities from name (no config.json for standalone GGUF)
             capabilities = detect_capabilities_from_name(model_name)
 
+            # Add source path to metadata for disambiguation
+            metadata = {
+                "filename": item.name,
+                "source_path": str(folder_path),
+            }
+
             models.append(
                 ModelInfo(
                     name=model_name,
@@ -839,7 +866,7 @@ def scan_gguf_folder(
                     backend=Backend.LLAMA_CPP,
                     capabilities=capabilities,
                     last_accessed=last_accessed,
-                    metadata={"filename": item.name},
+                    metadata=metadata,
                 )
             )
 
@@ -847,6 +874,34 @@ def scan_gguf_folder(
         pass
 
     return models
+
+
+def scan_all_gguf_folders() -> list[ModelInfo]:
+    """Scan all common GGUF paths for .gguf files.
+
+    Searches multiple common locations:
+    - ~/.r3lay/models/ (primary)
+    - ~/models/ (user folder)
+    - ~/.cache/gguf/ (cache)
+    - ./models/ (project-local)
+
+    Deduplicates models by file path to avoid showing the same model twice.
+
+    Returns:
+        List of ModelInfo from all discovered GGUF files.
+    """
+    all_models: list[ModelInfo] = []
+    seen_paths: set[Path] = set()
+
+    for search_path in get_common_gguf_paths():
+        models = scan_gguf_folder(search_path)
+        for model in models:
+            if model.path and model.path not in seen_paths:
+                all_models.append(model)
+                if model.path:
+                    seen_paths.add(model.path)
+
+    return all_models
 
 
 # =============================================================================
@@ -908,7 +963,7 @@ def scan_llm_models_folder(
 
             # Model name is the directory name
             model_name = item.name
-            
+
             # Validate model name for security (path traversal, shell metacharacters)
             if not validate_model_name(model_name):
                 continue
@@ -1083,8 +1138,8 @@ class ModelScanner:
     async def scan_all(self) -> list[ModelInfo]:
         """Scan all sources for available models.
 
-        Scans HuggingFace cache, MLX folder, GGUF folder, llm-models folder,
-        and Ollama API.
+        Scans HuggingFace cache, MLX folder, GGUF folders (multiple paths),
+        llm-models folder, and Ollama API.
         Results are sorted by source: HuggingFace/MLX first, then Ollama, then GGUF files.
         Within each source, models are sorted by name.
 
@@ -1109,8 +1164,13 @@ class ModelScanner:
         ollama_models = await scan_ollama(self.ollama_endpoint)
         self._models.extend(ollama_models)
 
-        # Scan GGUF drop folder (sync)
-        gguf_models = scan_gguf_folder(self.gguf_folder)
+        # Scan all common GGUF paths (sync) - replaces single folder scan
+        if self.gguf_folder:
+            # If custom folder specified, scan only that
+            gguf_models = scan_gguf_folder(self.gguf_folder)
+        else:
+            # Otherwise scan all common paths with deduplication
+            gguf_models = scan_all_gguf_folders()
         self._models.extend(gguf_models)
 
         # Sort: HuggingFace (0) -> Ollama (1) -> GGUF_FILE (2), then by name
@@ -1205,9 +1265,11 @@ __all__ = [
     "select_backend",
     "detect_capabilities",
     "detect_capabilities_from_name",
+    "get_common_gguf_paths",
     "scan_huggingface_cache",
     "scan_mlx_folder",
     "scan_gguf_folder",
+    "scan_all_gguf_folders",
     "scan_llm_models_folder",
     "scan_ollama",
     # Class
