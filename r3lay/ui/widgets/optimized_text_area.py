@@ -16,11 +16,26 @@ class OptimizedTextArea(TextArea):
     Args:
         cursor_blink_rate: Cursor blink interval in seconds (default 1.0 = 1 Hz).
                           Set to 0 to disable blinking entirely.
+                          Valid range: 0.0 to 10.0 seconds (minimum 0.1s for non-zero values).
         *args: Passed to TextArea
         **kwargs: Passed to TextArea
+    
+    Raises:
+        ValueError: If cursor_blink_rate is outside valid range.
     """
     
     def __init__(self, *args, cursor_blink_rate: float = 1.0, **kwargs):
+        # Validate cursor_blink_rate to prevent DoS via excessive redraw rates
+        if cursor_blink_rate < 0.0:
+            raise ValueError(f"cursor_blink_rate must be >= 0.0, got {cursor_blink_rate}")
+        if cursor_blink_rate > 10.0:
+            raise ValueError(f"cursor_blink_rate must be <= 10.0 seconds, got {cursor_blink_rate}")
+        if 0.0 < cursor_blink_rate < 0.1:
+            raise ValueError(
+                f"cursor_blink_rate must be >= 0.1 seconds (or 0 to disable), got {cursor_blink_rate}. "
+                "Values below 0.1s can cause excessive CPU usage."
+            )
+        
         super().__init__(*args, **kwargs)
         self._cursor_blink_rate = cursor_blink_rate
         
