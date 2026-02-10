@@ -149,6 +149,14 @@ class SettingsPanel(Vertical):
         self.state.config.intent_routing = self.intent_routing
         self.state.config.save()
 
+        # Trigger model panel refresh if routing changed
+        try:
+            model_panel = self.screen.query_one("ModelPanel")
+            if hasattr(model_panel, "refresh_routing_view"):
+                model_panel.refresh_routing_view()
+        except Exception:
+            pass  # Best effort - ModelPanel may not exist
+
         self.notify("Settings saved")
 
     def _reset_settings(self) -> None:
