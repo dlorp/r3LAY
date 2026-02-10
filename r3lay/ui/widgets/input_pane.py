@@ -687,15 +687,40 @@ class InputPane(Vertical):
                 # Parse intent to detect natural language commands
                 intent_result = self._intent_parser.parse_sync(value)
 
-                # Handle natural language model swap commands
-                if (
-                    intent_result.intent == IntentType.COMMAND
-                    and intent_result.subtype == "cmd.model"
-                    and intent_result.confidence >= 0.7
-                ):
-                    await self._handle_model_swap(intent_result, response_pane)
+                # Route intents to appropriate handlers based on confidence
+                if intent_result.confidence >= 0.7:
+                    # High confidence - route to specific handlers
+
+                    # Handle natural language model swap commands
+                    if (
+                        intent_result.intent == IntentType.COMMAND
+                        and intent_result.subtype == "cmd.model"
+                    ):
+                        await self._handle_model_swap(intent_result, response_pane)
+
+                    # Handle maintenance logging: "Logged oil change at 98k"
+                    elif (
+                        intent_result.intent == IntentType.LOG
+                        and intent_result.subtype == "log.maintenance"
+                    ):
+                        await self._handle_maintenance_intent(intent_result, response_pane)
+
+                    # Handle maintenance queries: "When is oil change due?"
+                    elif intent_result.intent == IntentType.QUERY:
+                        await self._handle_query_intent(intent_result, response_pane)
+
+                    # Handle mileage updates: "Mileage is now 98500"
+                    elif (
+                        intent_result.intent == IntentType.UPDATE
+                        and intent_result.subtype == "update.mileage"
+                    ):
+                        await self._handle_mileage_update_intent(intent_result, response_pane)
+
+                    else:
+                        # Other intents fall through to chat
+                        await self._handle_chat(value, response_pane)
                 else:
-                    # Default: treat as chat
+                    # Low confidence - default to chat
                     await self._handle_chat(value, response_pane)
         finally:
             self.set_processing(False)
@@ -2091,6 +2116,128 @@ class InputPane(Vertical):
                 model=model_name,
                 metadata={"was_cancelled": True},
             )
+
+    async def _handle_maintenance_intent(
+        self, intent_result: "IntentResult", response_pane
+    ) -> None:
+        """Handle natural language maintenance logging intent.
+
+        Converts intent entities to /log command format and delegates to handler.
+
+        Args:
+            intent_result: Parsed intent with entities
+            response_pane: ResponsePane to display results
+        """
+        entities = intent_result.entities
+
+        # Extract mileage (required)
+        mileage = entities.get("mileage")
+        if mileage is None:
+            response_pane.add_system(
+                "Could not extract mileage from your message. "
+                "Please specify mileage, e.g., 'at 98k miles' or 'at 98,500'."
+            )
+            return
+
+        # Extract service type from entities or infer from part
+        service_type = entities.get("service_type") or entities.get("part")
+        if service_type is None:
+            # Try to infer from the original text
+            service_type = "general_maintenance"
+
+        # Normalize service_type to match maintenance log expectations
+        # Convert part names to service types (e.g., "engine_oil" -> "oil_change")
+        service_map = {
+            "engine_oil": "oil_change",
+            "oil_filter": "oil_change",
+            "coolant": "coolant_flush",
+            "brake_fluid": "brake_fluid_flush",
+            "air_filter": "air_filter_replacement",
+            "fuel_filter": "fuel_filter_replacement",
+            "spark_plugs": "spark_plug_replacement",
+            "timing_belt": "timing_belt_replacement",
+            "brake_pads": "brake_pad_replacement",
+        }
+        service_type = service_map.get(service_type, service_type)
+
+        # Build args string for handler
+        args = f"{service_type} {mileage}"
+
+        # Log what we're doing for user feedback
+        logger.info(
+            f"Maintenance intent: service_type={service_type}, mileage={mileage}, "
+            f"confidence={intent_result.confidence:.2f}"
+        )
+
+        # Delegate to existing handler
+        await self._handle_log_maintenance(args, response_pane)
+
+    async def _handle_query_intent(self, intent_result: "IntentResult", response_pane) -> None:
+        """Handle natural language maintenance query intent.
+
+        Routes to appropriate query handler based on subtype.
+
+        Args:
+            intent_result: Parsed intent with entities
+            response_pane: ResponsePane to display results
+        """
+        subtype = intent_result.subtype
+        entities = intent_result.entities
+
+        logger.info(f"Query intent: subtype={subtype}, confidence={intent_result.confidence:.2f}")
+
+        # Route based on query subtype
+        if subtype == "query.reminder":
+            # "When is oil change due?" -> show due services
+            mileage = entities.get("mileage")
+            args = str(mileage) if mileage else ""
+            await self._handle_due_services(args, response_pane)
+
+        elif subtype == "query.history":
+            # "When did I last change oil?" -> show history
+            service_type = entities.get("service_type") or entities.get("part")
+            args = service_type if service_type else ""
+            await self._handle_maintenance_history(args, response_pane)
+
+        elif subtype == "query.status":
+            # "What's the current mileage?" -> show mileage status
+            mileage = entities.get("mileage")
+            args = str(mileage) if mileage else ""
+            await self._handle_update_mileage(args, response_pane)
+
+        else:
+            # Default: show due services
+            mileage = entities.get("mileage")
+            args = str(mileage) if mileage else ""
+            await self._handle_due_services(args, response_pane)
+
+    async def _handle_mileage_update_intent(
+        self, intent_result: "IntentResult", response_pane
+    ) -> None:
+        """Handle natural language mileage update intent.
+
+        Converts intent entities to /mileage command format.
+
+        Args:
+            intent_result: Parsed intent with entities
+            response_pane: ResponsePane to display results
+        """
+        entities = intent_result.entities
+        mileage = entities.get("mileage")
+
+        if mileage is None:
+            response_pane.add_system(
+                "Could not extract mileage from your message. "
+                "Please specify mileage, e.g., 'mileage is 98k' or 'at 98,500 miles'."
+            )
+            return
+
+        logger.info(
+            f"Mileage update intent: mileage={mileage}, confidence={intent_result.confidence:.2f}"
+        )
+
+        # Delegate to existing handler
+        await self._handle_update_mileage(str(mileage), response_pane)
 
     async def _handle_log_maintenance(self, args: str, response_pane) -> None:
         """Handle /log command - log a maintenance entry.
