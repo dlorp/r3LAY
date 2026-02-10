@@ -517,6 +517,24 @@ def detect_capabilities_from_name(name: str) -> set[ModelCapability]:
 
 
 # =============================================================================
+# Security - Model Name Validation
+# =============================================================================
+
+
+def validate_model_name(name: str) -> bool:
+    """Validate model name doesn't contain path traversal or shell metacharacters.
+    
+    Args:
+        name: Model name to validate
+        
+    Returns:
+        True if name is safe, False if it contains dangerous patterns
+    """
+    dangerous_patterns = ['..', '~/', '$', '`', '|', '&', ';', '\n', '\r']
+    return not any(pattern in name for pattern in dangerous_patterns)
+
+
+# =============================================================================
 # Phase 2.3 - HuggingFace Cache Scanner
 # =============================================================================
 
@@ -560,6 +578,10 @@ def scan_huggingface_cache(
                 continue
 
             repo_id = "/".join(parts[1:])
+            
+            # Validate model name for security (path traversal, shell metacharacters)
+            if not validate_model_name(repo_id):
+                continue
 
             # Find snapshot directory for actual model files
             snapshots_dir = item / "snapshots"
@@ -701,6 +723,10 @@ def scan_mlx_folder(
 
             # Model name is the directory name
             model_name = f"mlx-community/{item.name}"
+            
+            # Validate model name for security (path traversal, shell metacharacters)
+            if not validate_model_name(model_name):
+                continue
 
             # Calculate total size
             size_bytes = _calculate_directory_size(item)
@@ -781,6 +807,10 @@ def scan_gguf_folder(
 
             # Extract model name from filename (remove .gguf extension)
             model_name = item.stem
+            
+            # Validate model name for security (path traversal, shell metacharacters)
+            if not validate_model_name(model_name):
+                continue
 
             # Get file size
             try:
@@ -878,6 +908,10 @@ def scan_llm_models_folder(
 
             # Model name is the directory name
             model_name = item.name
+            
+            # Validate model name for security (path traversal, shell metacharacters)
+            if not validate_model_name(model_name):
+                continue
 
             # Get file size
             try:
