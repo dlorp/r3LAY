@@ -1,6 +1,12 @@
 #!/bin/bash
 set -e
 
+# Kill any existing r3LAY processes
+echo "🧹 Cleaning up any existing r3LAY processes..."
+pkill -f "python.*r3lay" 2>/dev/null || true
+pkill -f "textual" 2>/dev/null || true
+sleep 1  # Give processes time to die
+
 echo "🎬 Starting r3LAY screenshot capture..."
 
 # Ensure docs dir exists
@@ -46,9 +52,10 @@ else
     /usr/sbin/screencapture -l"$CGWID" -o ~/repos/r3LAY/docs/screenshot.png
 fi
 
-# Kill r3LAY
+# Cleanup - kill the r3LAY instance we just captured
 echo "🛑 Stopping r3LAY..."
-pkill -f "r3lay" || true
+pkill -f "python.*r3lay" 2>/dev/null || true
+pkill -f "textual" 2>/dev/null || true
 sleep 1
 
 # Verify output
