@@ -766,7 +766,8 @@ class TestScanGgufFolder:
             assert model.source == ModelSource.GGUF_FILE
             assert model.format == ModelFormat.GGUF
             assert model.backend == Backend.LLAMA_CPP
-            assert model.path == gguf_file
+            # Compare resolved paths (security fix returns canonical paths)
+            assert model.path == gguf_file.resolve()
             assert model.size_bytes is not None
 
     def test_scan_creates_folder_if_missing(self):
@@ -1520,7 +1521,8 @@ class TestGgufAutoDiscovery:
 
             assert len(models) == 1
             assert "source_path" in models[0].metadata
-            assert models[0].metadata["source_path"] == str(path)
+            # Compare resolved paths (security fix returns canonical paths)
+            assert models[0].metadata["source_path"] == str(path.resolve())
 
     def test_scan_gguf_folder_auto_creates_path(self):
         """Test that paths are auto-created when possible."""
