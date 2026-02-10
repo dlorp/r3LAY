@@ -777,7 +777,10 @@ def get_common_gguf_paths() -> list[Path]:
     1. ~/.r3lay/models/ (primary r3LAY models folder)
     2. ~/models/ (user models folder)
     3. ~/.cache/gguf/ (cached GGUF models)
-    4. ./models/ (project-local models)
+
+    SECURITY: Path.cwd() / "models" removed - CWD is attacker-controlled
+    in scenarios like `cd /tmp/malicious && r3lay` where /tmp/malicious/models
+    could contain malicious files or symlinks.
 
     Returns:
         List of Path objects for common GGUF locations.
@@ -786,7 +789,7 @@ def get_common_gguf_paths() -> list[Path]:
         Path.home() / ".r3lay" / "models",
         Path.home() / "models",
         Path.home() / ".cache" / "gguf",
-        Path.cwd() / "models",
+        # REMOVED: Path.cwd() / "models"  # CWD-based = attacker-controlled
     ]
     return paths
 
@@ -797,6 +800,10 @@ def scan_gguf_folder(
     """Scan GGUF drop folder for standalone .gguf files.
 
     Auto-creates the folder if it doesn't exist.
+
+    SECURITY: Prevents symlink-based path traversal attacks by resolving
+    all paths and ensuring they remain within the search root directory.
+    Example attack: ln -s /etc/shadow ~/.r3lay/models/malicious.gguf
 
     Args:
         folder_path: Path to GGUF folder. Default: ~/.r3lay/models/
@@ -816,18 +823,44 @@ def scan_gguf_folder(
     if not folder_path.exists():
         return []
 
+    # Resolve the search root to canonical path for security checks
+    try:
+        folder_resolved = folder_path.resolve()
+    except (OSError, RuntimeError):
+        # RuntimeError can occur with circular symlinks
+        return []
+
     models: list[ModelInfo] = []
 
     try:
         for item in folder_path.iterdir():
-            if not item.is_file():
+            # SECURITY: Prevent symlink-based path traversal
+            # Resolve the path to its canonical form (follows symlinks)
+            try:
+                resolved = item.resolve()
+            except (OSError, RuntimeError):
+                # Skip files that can't be resolved (broken symlinks, circular refs)
                 continue
 
-            if item.suffix.lower() != ".gguf":
+            # Ensure the resolved path is still within our search root
+            # This prevents attacks like: ln -s /etc/shadow malicious.gguf
+            try:
+                if not resolved.is_relative_to(folder_resolved):
+                    # Log and skip files outside the search root
+                    continue
+            except ValueError:
+                # is_relative_to can raise ValueError on some platforms
+                continue
+
+            # Now safe to check if it's a file
+            if not resolved.is_file():
+                continue
+
+            if resolved.suffix.lower() != ".gguf":
                 continue
 
             # Extract model name from filename (remove .gguf extension)
-            model_name = item.stem
+            model_name = resolved.stem
 
             # Validate model name for security (path traversal, shell metacharacters)
             if not validate_model_name(model_name):
@@ -835,14 +868,14 @@ def scan_gguf_folder(
 
             # Get file size
             try:
-                size_bytes = item.stat().st_size
+                size_bytes = resolved.stat().st_size
             except OSError:
                 size_bytes = None
 
             # Get last accessed time
             last_accessed: datetime | None = None
             try:
-                stat = item.stat()
+                stat = resolved.stat()
                 last_accessed = datetime.fromtimestamp(stat.st_atime)
             except OSError:
                 pass
@@ -852,15 +885,15 @@ def scan_gguf_folder(
 
             # Add source path to metadata for disambiguation
             metadata = {
-                "filename": item.name,
-                "source_path": str(folder_path),
+                "filename": resolved.name,
+                "source_path": str(folder_resolved),
             }
 
             models.append(
                 ModelInfo(
                     name=model_name,
                     source=ModelSource.GGUF_FILE,
-                    path=item,
+                    path=resolved,  # Use canonical path
                     format=ModelFormat.GGUF,
                     size_bytes=size_bytes,
                     backend=Backend.LLAMA_CPP,
@@ -883,23 +916,32 @@ def scan_all_gguf_folders() -> list[ModelInfo]:
     - ~/.r3lay/models/ (primary)
     - ~/models/ (user folder)
     - ~/.cache/gguf/ (cache)
-    - ./models/ (project-local)
 
-    Deduplicates models by file path to avoid showing the same model twice.
+    SECURITY: Deduplicates using canonical paths (path.resolve()) to prevent
+    symlink-based deduplication bypass attacks.
 
     Returns:
         List of ModelInfo from all discovered GGUF files.
     """
     all_models: list[ModelInfo] = []
-    seen_paths: set[Path] = set()
+    seen_paths: set[str] = set()  # Use strings for canonical path comparison
 
     for search_path in get_common_gguf_paths():
         models = scan_gguf_folder(search_path)
         for model in models:
-            if model.path and model.path not in seen_paths:
-                all_models.append(model)
-                if model.path:
-                    seen_paths.add(model.path)
+            if model.path:
+                # SECURITY: Use canonical path for deduplication
+                # scan_gguf_folder already returns resolved paths, but be explicit
+                try:
+                    canonical = model.path.resolve()
+                    canonical_str = str(canonical)
+
+                    if canonical_str not in seen_paths:
+                        seen_paths.add(canonical_str)
+                        all_models.append(model)
+                except (OSError, RuntimeError):
+                    # Skip files that can't be resolved
+                    continue
 
     return all_models
 
