@@ -65,7 +65,7 @@ r3lay ~/Documents/my-project
 r3lay
 ```
 
-Select a model from the Models panel (`Tab+M`) and start chatting.
+Select a model from the Models panel (`Ctrl+1`) and start chatting.
 
 ### Docker
 
@@ -91,6 +91,10 @@ PROJECT_PATH=/path/to/project docker compose run r3lay
 | Key | Action |
 |-----|--------|
 | `Tab` | Cycle panes |
+| `Ctrl+N` | New session |
+| `Ctrl+Q` | Quit |
+| `Ctrl+R` | Reindex |
+| `Ctrl+D` | Toggle dark mode |
 | `Ctrl+1` | Models panel |
 | `Ctrl+2` | Index panel |
 | `Ctrl+3` | Axioms panel |
@@ -98,9 +102,8 @@ PROJECT_PATH=/path/to/project docker compose run r3lay
 | `Ctrl+5` | Due panel |
 | `Ctrl+6` | Sessions panel |
 | `Ctrl+7` | Settings panel |
-| `Ctrl+N` | New session |
-| `Ctrl+R` | Reindex |
-| `Ctrl+Q` | Quit |
+| `Ctrl+H` | History/Sessions panel |
+| `Ctrl+,` | Settings panel |
 
 ## Requirements
 
