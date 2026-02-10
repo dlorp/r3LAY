@@ -9,7 +9,7 @@ A terminal-based research assistant with:
 - Theme-based project organization
 """
 
-__version__ = "0.6.1"
+__version__ = "0.7.0"
 __author__ = "r3LAY"
 
 from .app import R3LayApp, R3LayState, main
