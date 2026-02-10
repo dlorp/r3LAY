@@ -40,6 +40,7 @@ from r3lay.core.models import (
     scan_mlx_folder,
     scan_ollama,
     select_backend,
+    validate_model_name,
 )
 
 # =============================================================================
@@ -590,6 +591,102 @@ class TestDetectCapabilitiesFromName:
 
 
 # =============================================================================
+# Security Validation Tests
+# =============================================================================
+
+
+class TestValidateModelName:
+    """Tests for model name validation (security)."""
+
+    def test_valid_model_names(self):
+        """Test that valid model names pass validation."""
+        valid_names = [
+            "Qwen/Qwen2.5-7B",
+            "meta-llama/Llama-3.2-8B",
+            "mistral-7b-instruct",
+            "model_name_v1.2",
+            "organization/model-name-2024",
+            "mlx-community/Qwen2.5-7B-4bit",
+        ]
+        for name in valid_names:
+            assert validate_model_name(name) is True, f"Valid name rejected: {name}"
+
+    def test_path_traversal_attack(self):
+        """Test that path traversal attempts are blocked."""
+        dangerous_names = [
+            "../../../etc/passwd",
+            "models--org--..--malicious",
+            "safe/../../../dangerous",
+            "model/../config",
+        ]
+        for name in dangerous_names:
+            assert validate_model_name(name) is False, f"Path traversal not blocked: {name}"
+
+    def test_home_expansion_attack(self):
+        """Test that home directory expansion is blocked."""
+        dangerous_names = [
+            "~/malicious/model",
+            "model-~/config",
+            "org~/model",
+        ]
+        for name in dangerous_names:
+            assert validate_model_name(name) is False, f"Home expansion not blocked: {name}"
+
+    def test_variable_expansion_attack(self):
+        """Test that variable expansion is blocked."""
+        dangerous_names = [
+            "$HOME/model",
+            "model-$USER",
+            "${PATH}/malicious",
+            "$SHELL",
+        ]
+        for name in dangerous_names:
+            assert validate_model_name(name) is False, f"Variable expansion not blocked: {name}"
+
+    def test_command_substitution_attack(self):
+        """Test that command substitution is blocked."""
+        dangerous_names = [
+            "`whoami`",
+            "model-`id`",
+            "`rm -rf /`",
+        ]
+        for name in dangerous_names:
+            assert validate_model_name(name) is False, f"Command substitution not blocked: {name}"
+
+    def test_shell_operator_attack(self):
+        """Test that shell operators are blocked."""
+        dangerous_names = [
+            "model|malicious",
+            "name&background",
+            "cmd;rm -rf",
+            "test||exploit",
+        ]
+        for name in dangerous_names:
+            assert validate_model_name(name) is False, f"Shell operator not blocked: {name}"
+
+    def test_line_break_injection(self):
+        """Test that line breaks are blocked (newline injection)."""
+        dangerous_names = [
+            "model\nmalicious",
+            "name\rexploit",
+            "test\r\ninjection",
+        ]
+        for name in dangerous_names:
+            assert validate_model_name(name) is False, f"Line break not blocked: {name}"
+
+    def test_combined_attacks(self):
+        """Test combinations of attack vectors."""
+        dangerous_names = [
+            "../$HOME/model",
+            "`cat ../../../etc/passwd`",
+            "model;rm -rf ~/",
+            "$USER/../config",
+        ]
+        for name in dangerous_names:
+            assert validate_model_name(name) is False, f"Combined attack not blocked: {name}"
+
+
+# =============================================================================
 # Scanner Tests
 # =============================================================================
 
@@ -602,6 +699,28 @@ class TestScanGgufFolder:
         with tempfile.TemporaryDirectory() as tmpdir:
             models = scan_gguf_folder(Path(tmpdir))
             assert models == []
+
+    def test_scan_rejects_path_traversal(self):
+        """Test that GGUF scanner rejects path traversal filenames."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create malicious filename
+            malicious = Path(tmpdir) / "..--etc--passwd.gguf"
+            malicious.write_bytes(GGUF_MAGIC_BE + b"\x00" * 100)
+
+            models = scan_gguf_folder(Path(tmpdir))
+
+            # Should be rejected due to ".." in name
+            assert len(models) == 0
+
+    def test_scan_rejects_shell_operators(self):
+        """Test that GGUF scanner rejects shell operators in filenames."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            malicious = Path(tmpdir) / "model|malicious.gguf"
+            malicious.write_bytes(GGUF_MAGIC_BE + b"\x00" * 100)
+
+            models = scan_gguf_folder(Path(tmpdir))
+
+            assert len(models) == 0
 
     def test_scan_with_gguf_files(self):
         """Test scanning folder with GGUF files."""
@@ -672,6 +791,19 @@ class TestScanMlxFolder:
             models = scan_mlx_folder(Path(tmpdir))
             assert models == []
 
+    def test_scan_rejects_path_traversal(self):
+        """Test that MLX scanner rejects path traversal in directory names."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            malicious_dir = Path(tmpdir) / "..--etc--passwd"
+            malicious_dir.mkdir()
+            (malicious_dir / "model.safetensors").write_bytes(b"content")
+            (malicious_dir / "config.json").write_text("{}")
+
+            models = scan_mlx_folder(Path(tmpdir))
+
+            # Should be rejected
+            assert len(models) == 0
+
     def test_scan_with_mlx_models(self):
         """Test scanning folder with MLX model structure."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -720,6 +852,18 @@ class TestScanLlmModelsFolder:
         with tempfile.TemporaryDirectory() as tmpdir:
             models = scan_llm_models_folder(Path(tmpdir))
             assert models == []
+
+    def test_scan_rejects_dangerous_directory_names(self):
+        """Test that llm-models scanner rejects dangerous directory names."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            malicious_dir = Path(tmpdir) / "model;rm -rf ~"
+            malicious_dir.mkdir()
+            (malicious_dir / "model.gguf").write_bytes(GGUF_MAGIC_BE + b"\x00" * 1000)
+
+            models = scan_llm_models_folder(Path(tmpdir))
+
+            # Should be rejected
+            assert len(models) == 0
 
     def test_scan_with_gguf_model(self):
         """Test scanning folder with GGUF model."""
@@ -777,6 +921,36 @@ class TestScanHuggingfaceCache:
         """Test scanning nonexistent path returns empty."""
         models = scan_huggingface_cache(Path("/nonexistent/hf/cache"))
         assert models == []
+
+    def test_scan_rejects_path_traversal_in_repo_id(self):
+        """Test that HF cache scanner rejects path traversal in repo IDs."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create HF cache structure with malicious repo_id
+            model_dir = Path(tmpdir) / "models--org--..--etc--passwd"
+            snapshot_dir = model_dir / "snapshots" / "abc123"
+            snapshot_dir.mkdir(parents=True)
+
+            (snapshot_dir / "model.safetensors").write_bytes(b"content")
+            (snapshot_dir / "config.json").write_text('{"model_type": "test"}')
+
+            models = scan_huggingface_cache(Path(tmpdir))
+
+            # Should be rejected due to ".." in repo_id
+            assert len(models) == 0
+
+    def test_scan_rejects_variable_expansion(self):
+        """Test that HF cache scanner rejects variable expansion in names."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            model_dir = Path(tmpdir) / "models--$USER--malicious"
+            snapshot_dir = model_dir / "snapshots" / "abc123"
+            snapshot_dir.mkdir(parents=True)
+
+            (snapshot_dir / "model.safetensors").write_bytes(b"content")
+            (snapshot_dir / "config.json").write_text("{}")
+
+            models = scan_huggingface_cache(Path(tmpdir))
+
+            assert len(models) == 0
 
     def test_scan_with_model(self):
         """Test scanning HuggingFace cache structure."""
