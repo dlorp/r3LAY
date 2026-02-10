@@ -7,7 +7,7 @@
 **Date Reported:** 2026-02-09  
 **Severity:** Critical  
 **Status:** Fixed  
-**PR:** [Link will be added]
+**PR:** https://github.com/dlorp/r3LAY/pull/93
 
 #### Issue Description
 
