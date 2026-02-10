@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Button, Input, Label, Static
+from textual.widgets import Button, Input, Label, RadioButton, RadioSet, Static
 
 from ... import __version__
 
@@ -58,6 +58,7 @@ class SettingsPanel(Vertical):
         super().__init__()
         self.state = state
         self.temperature = "1.0"
+        self.intent_routing = state.config.intent_routing
 
     def compose(self) -> ComposeResult:
         # Version and project info
@@ -74,6 +75,26 @@ class SettingsPanel(Vertical):
                 placeholder="1.0",
                 id="temperature-input",
             )
+
+        # Intent routing setting
+        with Vertical(classes="settings-section"):
+            yield Label("Intent Routing:")
+            with RadioSet(id="intent-routing"):
+                yield RadioButton(
+                    "Local Models (fast, pattern-based)",
+                    value="local" == self.intent_routing,
+                    id="routing-local",
+                )
+                yield RadioButton(
+                    "OpenClaw (accurate, LLM-based)",
+                    value="openclaw" == self.intent_routing,
+                    id="routing-openclaw",
+                )
+                yield RadioButton(
+                    "Auto (prefer OpenClaw, fallback to local)",
+                    value="auto" == self.intent_routing,
+                    id="routing-auto",
+                )
 
         # Action buttons
         with Horizontal(id="button-row"):
@@ -106,17 +127,51 @@ class SettingsPanel(Vertical):
             temp_val = float(temp_input.value)
             if 0.0 <= temp_val <= 2.0:
                 self.temperature = str(temp_val)
-                self.notify("Settings saved")
             else:
                 self.notify("Temperature must be between 0.0 and 2.0", severity="error")
+                return
         except ValueError:
             self.notify("Invalid temperature value", severity="error")
+            return
+
+        # Save intent routing preference
+        radio_set = self.query_one("#intent-routing", RadioSet)
+        pressed_button = radio_set.pressed_button
+        if pressed_button:
+            if pressed_button.id == "routing-local":
+                self.intent_routing = "local"
+            elif pressed_button.id == "routing-openclaw":
+                self.intent_routing = "openclaw"
+            elif pressed_button.id == "routing-auto":
+                self.intent_routing = "auto"
+
+        # Update config and save
+        self.state.config.intent_routing = self.intent_routing
+        self.state.config.save()
+
+        # Trigger model panel refresh if routing changed
+        try:
+            model_panel = self.screen.query_one("ModelPanel")
+            if hasattr(model_panel, "refresh_routing_view"):
+                model_panel.refresh_routing_view()
+        except Exception:
+            pass  # Best effort - ModelPanel may not exist
+
+        self.notify("Settings saved")
 
     def _reset_settings(self) -> None:
         """Reset settings to defaults."""
         self.temperature = "1.0"
         temp_input = self.query_one("#temperature-input", Input)
         temp_input.value = self.temperature
+
+        # Reset intent routing to default (auto)
+        self.intent_routing = "auto"
+        # Update radio buttons
+        self.query_one("#routing-auto", RadioButton).value = True
+        self.query_one("#routing-local", RadioButton).value = False
+        self.query_one("#routing-openclaw", RadioButton).value = False
+
         self.notify("Settings reset to defaults")
 
 

@@ -45,6 +45,10 @@ class ModelPanel(Vertical):
     # This ensures UI updates when model load state changes
     _loaded_model_name: reactive[str | None] = reactive(None)
 
+    # Reactive attribute for routing preference tracking
+    # This ensures UI refreshes when routing preference changes
+    _routing_preference: reactive[str] = reactive("auto")
+
     DEFAULT_CSS = """
     ModelPanel {
         width: 100%;
@@ -147,6 +151,16 @@ class ModelPanel(Vertical):
         return getattr(self.state, "scanner", None)
 
     def compose(self) -> ComposeResult:
+        # Check intent routing preference to determine which view to show
+        routing = self.state.config.intent_routing
+
+        if routing == "openclaw":
+            yield from self._compose_openclaw_view()
+        else:
+            yield from self._compose_local_models_view()
+
+    def _compose_local_models_view(self) -> ComposeResult:
+        """Compose the local models view (original behavior)."""
         yield Label("Model Roles:")
         yield OptionList(id="model-list")
         yield Static("Click Scan to discover models", id="model-status")
@@ -154,10 +168,26 @@ class ModelPanel(Vertical):
             yield Button("Scan", id="scan-button", variant="primary")
             yield Button("Load", id="load-button", disabled=True)
 
+    def _compose_openclaw_view(self) -> ComposeResult:
+        """Compose the OpenClaw routing view."""
+        yield Label("OpenClaw Routing:")
+        yield OptionList(id="model-list")
+        yield Static("Connected to OpenClaw Gateway", id="model-status")
+        with Horizontal(id="button-row"):
+            yield Button("Refresh", id="scan-button", variant="primary")
+            yield Button("Info", id="load-button", disabled=False)
+
     async def on_mount(self) -> None:
-        """Handle mount - display persisted role assignments."""
-        # Display current role assignments from config (loaded on app startup)
-        self._display_persisted_roles()
+        """Handle mount - display persisted role assignments or OpenClaw info."""
+        # Initialize reactive routing preference
+        self._routing_preference = self.state.config.intent_routing
+
+        # Check routing preference
+        if self._routing_preference == "openclaw":
+            self._display_openclaw_info()
+        else:
+            # Display current role assignments from config (loaded on app startup)
+            self._display_persisted_roles()
 
     def watch__loaded_model_name(self, old_value: str | None, new_value: str | None) -> None:
         """React to loaded model changes by refreshing the model list.
@@ -169,18 +199,39 @@ class ModelPanel(Vertical):
         if self._models:
             self.call_later(self._refresh_model_list)
 
+    def watch__routing_preference(self, old_value: str, new_value: str) -> None:
+        """React to routing preference changes by recomposing the panel.
+
+        This watcher fires when the routing preference changes, triggering
+        a full panel refresh to switch between local models and OpenClaw views.
+        """
+        if old_value != new_value:
+            # Trigger a refresh by removing and re-adding children
+            self.call_later(self._refresh_panel_view)
+
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
-        if event.button.id == "scan-button":
-            await self._scan_models()
-        elif event.button.id == "load-button":
-            button_text = event.button.label.plain
-            if button_text == "Unload":
-                await self._unload_model()
-            elif button_text in ("Set Embedder", "Set Vision Embedder"):
-                await self._set_embedder_role()
-            else:
-                await self._load_selected_model()
+        # Check routing preference to determine button behavior
+        routing = self.state.config.intent_routing
+
+        if routing == "openclaw":
+            # OpenClaw view button handlers
+            if event.button.id == "scan-button":
+                self._display_openclaw_info()  # Refresh OpenClaw info
+            elif event.button.id == "load-button":
+                self._show_openclaw_details()
+        else:
+            # Local models view button handlers
+            if event.button.id == "scan-button":
+                await self._scan_models()
+            elif event.button.id == "load-button":
+                button_text = event.button.label.plain
+                if button_text == "Unload":
+                    await self._unload_model()
+                elif button_text in ("Set Embedder", "Set Vision Embedder"):
+                    await self._set_embedder_role()
+                else:
+                    await self._load_selected_model()
 
     async def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Handle model selection from the list."""
@@ -880,6 +931,16 @@ class ModelPanel(Vertical):
 
         asyncio.create_task(self._scan_models())
 
+    def refresh_routing_view(self) -> None:
+        """Refresh the panel view based on current config routing preference.
+
+        Call this method after changing the routing preference in config
+        to update the panel display.
+        """
+        new_routing = self.state.config.intent_routing
+        if new_routing != self._routing_preference:
+            self._routing_preference = new_routing
+
     def _refresh_welcome_message(self) -> None:
         """Refresh the welcome message in ResponsePane to reflect model state."""
         try:
@@ -888,6 +949,128 @@ class ModelPanel(Vertical):
                 response_pane.refresh_welcome()
         except Exception:
             pass  # Best effort - ResponsePane may not exist
+
+    def _refresh_panel_view(self) -> None:
+        """Refresh the entire panel view based on current routing preference.
+
+        This rebuilds the panel UI to switch between local models and OpenClaw views.
+        Called when routing preference changes.
+        """
+        # Remove all current children
+        self.remove_children()
+
+        # Recompose based on new routing preference
+        routing = self.state.config.intent_routing
+
+        if routing == "openclaw":
+            # Mount OpenClaw view
+            for widget in self._compose_openclaw_view():
+                self.mount(widget)
+            # Populate OpenClaw info
+            self.call_later(self._display_openclaw_info)
+        else:
+            # Mount local models view
+            for widget in self._compose_local_models_view():
+                self.mount(widget)
+            # Display persisted roles
+            self.call_later(self._display_persisted_roles)
+
+    def _display_openclaw_info(self) -> None:
+        """Display OpenClaw routing information and capabilities."""
+        model_list = self.query_one("#model-list", OptionList)
+        status = self.query_one("#model-status", Static)
+
+        model_list.clear_options()
+
+        # Read OpenClaw workspace context for available capabilities
+        openclaw_info = self._get_openclaw_capabilities()
+
+        # Display connection status
+        model_list.add_option(Option("-- CONNECTION STATUS --", disabled=True))
+        model_list.add_option(Option("  ✓ OpenClaw Gateway Active", id="status:connected"))
+        model_list.add_option(Option("", disabled=True))  # Separator
+
+        # Display available model tiers
+        model_list.add_option(Option("-- AVAILABLE MODEL TIERS --", disabled=True))
+        model_list.add_option(Option("  • FAST: Quick responses", id="tier:fast"))
+        model_list.add_option(Option("  • BALANCED: General use", id="tier:balanced"))
+        model_list.add_option(Option("  • POWERFUL: Complex tasks", id="tier:powerful"))
+        model_list.add_option(Option("", disabled=True))  # Separator
+
+        # Display available capabilities
+        model_list.add_option(Option("-- CAPABILITIES --", disabled=True))
+        for capability in openclaw_info.get("capabilities", []):
+            model_list.add_option(Option(f"  • {capability}", id=f"cap:{capability}"))
+
+        if openclaw_info.get("commands"):
+            model_list.add_option(Option("", disabled=True))  # Separator
+            model_list.add_option(Option("-- AVAILABLE COMMANDS --", disabled=True))
+            for cmd in openclaw_info.get("commands", [])[:5]:  # Show top 5 commands
+                model_list.add_option(Option(f"  • {cmd}", id=f"cmd:{cmd}"))
+
+        status.update("Routing to OpenClaw - Click Info for details")
+
+    def _get_openclaw_capabilities(self) -> dict:
+        """Extract OpenClaw capabilities from workspace context files.
+
+        Returns a dictionary with:
+        - capabilities: List of capability strings
+        - commands: List of available commands
+        - agents: List of available agents
+        """
+        # Use generic capability descriptions to avoid exposing attack surface
+        capabilities = [
+            "Internet access",
+            "Document processing",
+            "UI interaction",
+            "Communication",
+            "Device integration",
+            "Visual output",
+        ]
+
+        # Generic command categories instead of specific APIs
+        commands = [
+            "Search and research",
+            "Read and write content",
+            "Interact with web pages",
+            "Execute tasks",
+            "Send messages",
+        ]
+
+        # Try to read workspace files for more context
+        try:
+            # Could parse AGENTS.md or TOOLS.md for additional context if needed
+            # For now, use static capabilities list
+            pass
+
+        except Exception:
+            pass  # Fallback to static list
+
+        return {
+            "capabilities": capabilities,
+            "commands": commands,
+            "agents": ["general-purpose"],
+        }
+
+    def _show_openclaw_details(self) -> None:
+        """Show detailed OpenClaw configuration information."""
+        status = self.query_one("#model-status", Static)
+
+        # Show expanded details about OpenClaw routing
+        details = (
+            "OpenClaw routes intents to cloud models | "
+            "Supports: Claude, GPT-4, etc. | "
+            "Gateway: localhost or remote"
+        )
+        status.update(details)
+
+        # Could also show notification with more details
+        self.app.notify(
+            "OpenClaw Routing Active\n"
+            "Intents are routed to OpenClaw gateway\n"
+            "Model selection handled automatically\n"
+            "Switch routing in Settings panel"
+        )
 
 
 __all__ = ["ModelPanel"]

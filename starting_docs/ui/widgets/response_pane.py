@@ -23,33 +23,33 @@ class ResponseBlock(Static):
         padding: 1 2;
         margin: 0 0 1 0;
     }
-    
+
     ResponseBlock.user {
         background: $surface;
         border-left: thick $primary;
     }
-    
+
     ResponseBlock.assistant {
         background: $surface-darken-1;
         border-left: thick $secondary;
     }
-    
+
     ResponseBlock.system {
         background: $surface-darken-2;
         border-left: thick $warning;
         color: $text-muted;
     }
-    
+
     ResponseBlock.code {
         background: $surface-darken-3;
         border-left: thick $success;
     }
-    
+
     ResponseBlock.error {
         background: $error-darken-2;
         border-left: thick $error;
     }
-    
+
     .response-header {
         text-style: bold;
         margin-bottom: 1;

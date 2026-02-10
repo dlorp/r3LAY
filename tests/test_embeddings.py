@@ -751,8 +751,8 @@ class TestMLXTextEmbeddingBackendAvailability:
     async def test_available_with_sentence_transformers(self):
         """Test availability check with sentence-transformers."""
         with patch("importlib.util.find_spec") as mock_find_spec:
-            mock_find_spec.side_effect = (
-                lambda name: MagicMock() if name == "sentence_transformers" else None
+            mock_find_spec.side_effect = lambda name: (
+                MagicMock() if name == "sentence_transformers" else None
             )
 
             result = await MLXTextEmbeddingBackend.is_available()
@@ -762,8 +762,8 @@ class TestMLXTextEmbeddingBackendAvailability:
     async def test_available_with_mlx_embeddings(self):
         """Test availability check with mlx-embeddings."""
         with patch("importlib.util.find_spec") as mock_find_spec:
-            mock_find_spec.side_effect = (
-                lambda name: MagicMock() if name == "mlx_embeddings" else None
+            mock_find_spec.side_effect = lambda name: (
+                MagicMock() if name == "mlx_embeddings" else None
             )
 
             result = await MLXTextEmbeddingBackend.is_available()

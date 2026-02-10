@@ -23,32 +23,32 @@ class InitScreen(Screen):
         padding: 1 2;
         border: solid $primary;
     }
-    
+
     #init-title {
         text-align: center;
         text-style: bold;
         margin-bottom: 1;
         color: $warning;
     }
-    
+
     #theme-list {
         height: 12;
         margin: 1 0;
     }
-    
+
     #type-list {
         height: 8;
         margin: 1 0;
     }
-    
+
     #name-input {
         margin: 1 0;
     }
-    
+
     .hidden {
         display: none;
     }
-    
+
     #init-button {
         margin-top: 1;
         width: 100%;

@@ -32,8 +32,8 @@ class OptimizedTextArea(TextArea):
             raise ValueError(f"cursor_blink_rate must be <= 10.0 seconds, got {cursor_blink_rate}")
         if 0.0 < cursor_blink_rate < 0.1:
             raise ValueError(
-                f"cursor_blink_rate must be >= 0.1 seconds (or 0 to disable), got {cursor_blink_rate}. "
-                "Values below 0.1s can cause excessive CPU usage."
+                f"cursor_blink_rate must be >= 0.1 seconds (or 0 to disable), "
+                f"got {cursor_blink_rate}. Values below 0.1s can cause excessive CPU usage."
             )
 
         super().__init__(*args, **kwargs)
