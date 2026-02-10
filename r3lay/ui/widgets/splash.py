@@ -109,6 +109,7 @@ class SplashScreen(ModalScreen[None]):
         self._run_animation_enabled = run_animation
         self.duration = duration
         self._animation_task: asyncio.Task | None = None
+        self._selected_logo: str = SPLASH_LOGO  # Will be set in on_mount based on terminal width
 
     def compose(self) -> ComposeResult:
         """Compose the splash screen layout."""
@@ -118,13 +119,23 @@ class SplashScreen(ModalScreen[None]):
             yield Static("Press any key to continue...", id="splash-prompt")
 
     async def on_mount(self) -> None:
-        """Start animation on mount."""
+        """Start animation on mount.
+        
+        Automatically selects compact or full logo based on terminal width.
+        """
+        # Detect terminal width and select appropriate logo
+        terminal_width = self.app.size.width
+        if terminal_width < 65:
+            self._selected_logo = SPLASH_LOGO_COMPACT
+        else:
+            self._selected_logo = SPLASH_LOGO
+        
         if self._run_animation_enabled:
             self._animation_task = asyncio.create_task(self._do_animation())
         else:
             # Quick show then dismiss
             splash_widget = self.query_one("#splash-text", Static)
-            splash_widget.update(SPLASH_LOGO)
+            splash_widget.update(self._selected_logo)
             await asyncio.sleep(0.5)
             self.dismiss()
 
@@ -138,27 +149,27 @@ class SplashScreen(ModalScreen[None]):
 
         try:
             # Calculate characters per frame based on duration
-            total_chars = len(SPLASH_LOGO)
+            total_chars = len(self._selected_logo)
             target_fps = 30
             total_frames = int(self.duration * target_fps)
             chars_per_frame = max(1, total_chars // total_frames)
 
             frame_delay = 1 / target_fps
 
-            for frame in Effects.simple_typewriter(SPLASH_LOGO, chars_per_frame):
+            for frame in Effects.simple_typewriter(self._selected_logo, chars_per_frame):
                 splash_widget.update(frame)
                 await asyncio.sleep(frame_delay)
 
             # Hold final frame briefly
-            splash_widget.update(SPLASH_LOGO)
+            splash_widget.update(self._selected_logo)
             await asyncio.sleep(0.8)
 
         except asyncio.CancelledError:
             # Animation was cancelled (user skipped)
-            splash_widget.update(SPLASH_LOGO)
+            splash_widget.update(self._selected_logo)
         except Exception:
             # On any error, just show static logo
-            splash_widget.update(SPLASH_LOGO)
+            splash_widget.update(self._selected_logo)
             await asyncio.sleep(0.5)
         finally:
             # Auto-dismiss after animation
