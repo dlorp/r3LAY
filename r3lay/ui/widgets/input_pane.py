@@ -141,19 +141,72 @@ class InputPane(Vertical):
                 id="input-status",
             )
             yield Button("Send", id="send-button", variant="primary")
+    
+    def on_mount(self) -> None:
+        """Set initial button state when widget mounts."""
+        self._update_send_button_state()
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
         """Update placeholder status when text changes."""
         if event.text_area.id == "input-area":
+            # Update button state based on validation
+            self._update_send_button_state()
+            
             if event.text_area.text.strip():
-                self.set_status("Ready")
+                # Only show "Ready" if validation passes
+                if self._validate_can_send()[0]:
+                    self.set_status("Ready")
             else:
                 self.set_status(
                     "Ask about automotive, electronics, software, or home projects..."
                 )
 
+    def _validate_can_send(self) -> tuple[bool, str]:
+        """Validate if message can be sent.
+        
+        Returns:
+            Tuple of (is_valid, error_message). If is_valid is True, error_message is empty.
+        """
+        # Check if a model is loaded
+        if not hasattr(self.state, "current_backend") or self.state.current_backend is None:
+            return False, "No model loaded. Load a model from the Models tab first."
+        
+        # Check if there's actual content to send
+        value = self.get_value().strip()
+        if not value:
+            return False, "Enter a message to send."
+        
+        return True, ""
+    
+    def _update_send_button_state(self) -> None:
+        """Update Send button state based on current validation.
+        
+        Disables button and shows clear error message when validation fails.
+        This prevents flickering by setting state before user interaction.
+        """
+        if self._processing:
+            # Don't change state during processing
+            return
+        
+        is_valid, error_msg = self._validate_can_send()
+        button = self.query_one("#send-button", Button)
+        
+        if not is_valid:
+            button.disabled = True
+            if error_msg:
+                self.set_status(error_msg)
+        else:
+            button.disabled = False
+
     def focus_input(self) -> None:
         self.query_one("#input-area", TextArea).focus()
+    
+    def refresh_validation(self) -> None:
+        """Refresh validation state and update button.
+        
+        Call this method when model state changes (e.g., after loading/unloading a model).
+        """
+        self._update_send_button_state()
 
     def set_value(self, value: str) -> None:
         self.query_one("#input-area", TextArea).text = value
@@ -170,10 +223,14 @@ class InputPane(Vertical):
     def set_processing(self, processing: bool) -> None:
         self._processing = processing
         self.query_one("#input-area", TextArea).disabled = processing
-        self.query_one("#send-button", Button).disabled = processing
+        
         if processing:
+            # Always disable button during processing
+            self.query_one("#send-button", Button).disabled = True
             self.set_status("Processing...")
         else:
+            # When processing completes, update button state based on validation
+            self._update_send_button_state()
             # Preserve attachment indicator when not processing
             self._update_attachment_status()
 
@@ -604,6 +661,15 @@ class InputPane(Vertical):
         if self._processing:
             return
 
+        # Validate before any state changes to prevent flickering
+        is_valid, error_msg = self._validate_can_send()
+        if not is_valid:
+            # Show error in response pane instead of just status
+            screen = self.screen
+            response_pane = screen.query_one("ResponsePane")
+            response_pane.add_error(error_msg)
+            return
+
         value = self.get_value().strip()
         if not value:
             return
@@ -1022,6 +1088,7 @@ class InputPane(Vertical):
             response_pane.add_error(
                 "Index not built. Use **Ctrl+R** or click **Reindex** in the Index tab."
             )
+            self.notify("Index not built", severity="error")
             return
 
         stats = self.state.index.get_stats()
@@ -1030,6 +1097,7 @@ class InputPane(Vertical):
                 "Index is empty. Use **Ctrl+R** or click **Reindex** in the Index tab "
                 "to index your project files."
             )
+            self.notify("Index is empty", severity="error")
             return
 
         self.set_status("Searching...")
@@ -1040,6 +1108,7 @@ class InputPane(Vertical):
             )
             if not results:
                 response_pane.add_system(f'No results found for: **"{query}"**')
+                self.notify("No index results found", severity="information")
                 return
 
             # Format results as markdown
@@ -1057,9 +1126,11 @@ class InputPane(Vertical):
                 )
 
             response_pane.add_assistant("\n".join(output_lines))
+            self.notify(f"Found {len(results)} result(s)", severity="information")
 
         except Exception as e:
             response_pane.add_error(f"Search error: {e}")
+            self.notify("Search error", severity="error")
         finally:
             self.set_status("Ready")
 
@@ -1089,6 +1160,7 @@ class InputPane(Vertical):
                     "You can set a custom endpoint via the `R3LAY_SEARXNG_ENDPOINT` "
                     "environment variable."
                 )
+                self.notify("SearXNG not available", severity="error")
                 return
 
             # Perform search
@@ -1096,6 +1168,7 @@ class InputPane(Vertical):
 
             if not results:
                 response_pane.add_system(f'No results found for: **"{query}"**')
+                self.notify("No web results found", severity="information")
                 return
 
             # Format results as markdown (inline, simple display)
@@ -1114,12 +1187,15 @@ class InputPane(Vertical):
                 output_lines.append("")  # blank line between results
 
             response_pane.add_assistant("\n".join(output_lines))
+            self.notify(f"Found {len(results)} web result(s)", severity="information")
 
         except SearchError as e:
             response_pane.add_error(f"Search failed: {e}")
+            self.notify("Web search failed", severity="error")
         except Exception as e:
             logger.exception("Web search failed")
             response_pane.add_error(f"Search error: {e}")
+            self.notify("Web search error", severity="error")
         finally:
             self.set_status("Ready")
 
@@ -1211,12 +1287,15 @@ class InputPane(Vertical):
                 f"- **Statement**: {statement}\n\n"
                 f"*Use `/axioms` to view all axioms.*"
             )
+            self.notify(f"Axiom created: {axiom.id}", severity="information")
 
         except ValueError as e:
             response_pane.add_error(f"Failed to create axiom: {e}")
+            self.notify("Failed to create axiom", severity="error")
         except Exception as e:
             logger.exception("Error creating axiom")
             response_pane.add_error(f"Error creating axiom: {e}")
+            self.notify("Error creating axiom", severity="error")
 
     async def _handle_list_axioms(self, args: str, response_pane) -> None:
         """Handle /axioms command - list axioms with optional filters.
@@ -1435,11 +1514,13 @@ class InputPane(Vertical):
                 f"- **Reason**: {reason}\n\n"
                 f"*Use `/axioms --disputed` to see all disputed axioms.*"
             )
+            self.notify(f"Axiom disputed: {axiom_id}", severity="information")
         else:
             response_pane.add_error(
                 f"Failed to dispute axiom `{axiom_id}`. "
                 f"It may not be in a state that can be disputed."
             )
+            self.notify("Failed to dispute axiom", severity="error")
 
     async def _handle_research(self, query: str, response_pane) -> None:
         """Handle /research command - run deep research expedition.
