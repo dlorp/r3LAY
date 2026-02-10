@@ -61,4 +61,4 @@ async def test_blink_timer_updates():
         # After mount, the blink timer should be set
         # We can't directly check timer interval, but we can verify the widget mounts
         assert widget._cursor_blink_rate == 1.5
-        assert hasattr(widget, 'blink_timer')
+        assert hasattr(widget, "blink_timer")

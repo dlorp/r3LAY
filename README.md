@@ -27,7 +27,7 @@ A TUI research assistant for hobbyists who wrench on their own stuff. Whether yo
 **r³LAY gives you:**
 - 🔧 **Maintenance Tracking** - Log services, track intervals, get overdue alerts
 - 💬 **Natural Language Input** - "logged oil change at 98k" just works
-- 🧠 **Local LLM Inference** - MLX (Apple Silicon), llama.cpp, or Ollama
+- 🧠 **Flexible LLM Backends** - MLX, llama.cpp, Ollama, vLLM, or OpenClaw
 - 🔍 **Hybrid RAG Search** - BM25 + vector search with source attribution
 - 📚 **Deep Research (R³)** - Multi-cycle expeditions with contradiction detection
 
@@ -73,6 +73,136 @@ Select a model from the Models panel (`Tab+M`) and start chatting.
 docker compose --profile default up -d
 PROJECT_PATH=/path/to/project docker compose run r3lay
 ```
+
+## Backends
+
+r3LAY supports multiple LLM inference backends. Choose based on your hardware and needs:
+
+### 🍎 MLX (Apple Silicon - Recommended)
+
+**Best for:** M1/M2/M3/M4 Mac owners who want maximum performance
+
+Native Apple Silicon inference with unified memory architecture.
+
+```bash
+pip install mlx mlx-lm
+```
+
+**Pros:**
+- Fastest on Apple Silicon (2-3x faster than llama.cpp)
+- Excellent memory efficiency via unified memory
+- Native vision model support
+
+**Cons:**
+- macOS 13.0+ only
+- Limited to Apple Silicon hardware
+
+### 🦙 llama.cpp (Universal)
+
+**Best for:** Cross-platform flexibility, NVIDIA GPUs, CPU-only systems
+
+Highly optimized GGUF inference engine with broad hardware support.
+
+```bash
+# CPU only
+pip install llama-cpp-python
+
+# NVIDIA GPU (CUDA)
+CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python
+
+# Apple Metal (alternative to MLX)
+CMAKE_ARGS="-DGGML_METAL=on" pip install llama-cpp-python
+```
+
+**Pros:**
+- Works everywhere (CPU, NVIDIA, AMD, Apple)
+- Mature quantization support (Q4, Q5, Q8)
+- Vision models via mmproj files
+
+**Cons:**
+- Slower than native backends (MLX on Mac, vLLM on NVIDIA)
+- More memory overhead than MLX
+
+### 🐋 Ollama (Easy Mode)
+
+**Best for:** Beginners who want zero configuration
+
+Standalone server that manages models and inference automatically.
+
+```bash
+# Install Ollama from https://ollama.ai
+ollama pull llama3.2:1b
+```
+
+**Pros:**
+- Dead simple setup
+- Automatic model management
+- Works out of the box
+
+**Cons:**
+- Less control over parameters
+- Separate daemon to manage
+- Not as fast as native backends
+
+### ⚡ vLLM (High-Performance NVIDIA)
+
+**Best for:** NVIDIA GPUs when you need maximum throughput
+
+High-performance inference server with PagedAttention and continuous batching.
+
+```bash
+pip install vllm
+
+# Start vLLM server
+python -m vllm.entrypoints.openai.api_server \
+  --model meta-llama/Llama-3.2-1B-Instruct \
+  --host 0.0.0.0 \
+  --port 8000
+```
+
+**Configuration:**
+```bash
+# In r3LAY config or env
+R3LAY_VLLM_ENDPOINT=http://localhost:8000
+```
+
+**Pros:**
+- 2-10x faster than llama.cpp on NVIDIA GPUs
+- PagedAttention for efficient memory usage
+- OpenAI-compatible API
+- Vision model support (Qwen2-VL, LLaVA-NeXT, etc.)
+
+**Cons:**
+- NVIDIA GPUs only (CUDA 11.8+)
+- Models loaded at server startup (not dynamic)
+- Requires separate server process
+
+**Documentation:** [vLLM Serving Guide](https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html)
+
+### 🪶 OpenClaw (Remote Claude)
+
+**Best for:** Using Claude via OpenClaw agent without local GPU
+
+Connect r3LAY to an OpenClaw agent for remote inference via Claude.
+
+**Configuration:**
+
+Select OpenClaw backend in the Models panel (`Tab+M`), then configure:
+- **Model name:** Provider/model (e.g., `anthropic/claude-sonnet-4-20250514`)
+- **Endpoint:** OpenClaw gateway URL (default: `http://localhost:4444`)
+- **API Key:** Optional Bearer token for authentication
+
+**Pros:**
+- No local GPU required
+- Access to Claude's reasoning capabilities
+- OpenClaw agent can use tools and memory
+
+**Cons:**
+- Requires OpenClaw gateway running
+- API costs (Anthropic charges apply)
+- Network latency
+
+**Documentation:** [OpenClaw Integration Guide](https://github.com/dlorp/r3LAY/wiki/openclaw-integration)
 
 ## Commands
 

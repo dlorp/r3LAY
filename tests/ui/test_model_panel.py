@@ -12,8 +12,6 @@ from dataclasses import dataclass
 from enum import Enum
 from unittest.mock import MagicMock
 
-import pytest
-
 from r3lay.ui.widgets.model_panel import ModelPanel
 
 
@@ -260,9 +258,7 @@ class TestModelPanelSecurityRegression:
         # Simulate models being loaded
         panel._models = {
             "llama3": MockModelInfo(name="llama3"),
-            "qwen2-vl": MockModelInfo(
-                name="qwen2-vl", capabilities=[MockModelCapability.VISION]
-            ),
+            "qwen2-vl": MockModelInfo(name="qwen2-vl", capabilities=[MockModelCapability.VISION]),
         }
 
         # Mock methods

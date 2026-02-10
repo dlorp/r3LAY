@@ -141,7 +141,7 @@ class InputPane(Vertical):
                 id="input-status",
             )
             yield Button("Send", id="send-button", variant="primary")
-    
+
     def on_mount(self) -> None:
         """Set initial button state when widget mounts."""
         self._update_send_button_state()
@@ -151,46 +151,44 @@ class InputPane(Vertical):
         if event.text_area.id == "input-area":
             # Update button state based on validation
             self._update_send_button_state()
-            
+
             if event.text_area.text.strip():
                 # Only show "Ready" if validation passes
                 if self._validate_can_send()[0]:
                     self.set_status("Ready")
             else:
-                self.set_status(
-                    "Ask about automotive, electronics, software, or home projects..."
-                )
+                self.set_status("Ask about automotive, electronics, software, or home projects...")
 
     def _validate_can_send(self) -> tuple[bool, str]:
         """Validate if message can be sent.
-        
+
         Returns:
             Tuple of (is_valid, error_message). If is_valid is True, error_message is empty.
         """
         # Check if a model is loaded
         if not hasattr(self.state, "current_backend") or self.state.current_backend is None:
             return False, "No model loaded. Load a model from the Models tab first."
-        
+
         # Check if there's actual content to send
         value = self.get_value().strip()
         if not value:
             return False, "Enter a message to send."
-        
+
         return True, ""
-    
+
     def _update_send_button_state(self) -> None:
         """Update Send button state based on current validation.
-        
+
         Disables button and shows clear error message when validation fails.
         This prevents flickering by setting state before user interaction.
         """
         if self._processing:
             # Don't change state during processing
             return
-        
+
         is_valid, error_msg = self._validate_can_send()
         button = self.query_one("#send-button", Button)
-        
+
         if not is_valid:
             button.disabled = True
             if error_msg:
@@ -200,10 +198,10 @@ class InputPane(Vertical):
 
     def focus_input(self) -> None:
         self.query_one("#input-area", TextArea).focus()
-    
+
     def refresh_validation(self) -> None:
         """Refresh validation state and update button.
-        
+
         Call this method when model state changes (e.g., after loading/unloading a model).
         """
         self._update_send_button_state()
@@ -223,7 +221,7 @@ class InputPane(Vertical):
     def set_processing(self, processing: bool) -> None:
         self._processing = processing
         self.query_one("#input-area", TextArea).disabled = processing
-        
+
         if processing:
             # Always disable button during processing
             self.query_one("#send-button", Button).disabled = True
@@ -631,7 +629,7 @@ class InputPane(Vertical):
         """
         allowed_dirs = [
             Path.home(),  # User's home directory
-            Path.cwd(),   # Current working directory
+            Path.cwd(),  # Current working directory
         ]
 
         # Add common user media directories if they exist
@@ -825,6 +823,7 @@ class InputPane(Vertical):
             await self._handle_list_sessions(response_pane)
         else:
             from rich.markup import escape
+
             response_pane.add_system(f"Command `/{cmd}` not implemented yet.")
             self.notify(f"Unknown command: /{escape(cmd)}", severity="error")
 
