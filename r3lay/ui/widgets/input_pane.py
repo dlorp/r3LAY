@@ -796,18 +796,24 @@ class InputPane(Vertical):
                         intent_result.intent == IntentType.LOG
                         and intent_result.subtype == "log.maintenance"
                     ):
-                        await self._handle_maintenance_intent(intent_result, response_pane)
+                        await self._handle_maintenance_intent(
+                            intent_result, response_pane, original_input=value
+                        )
 
                     # Handle maintenance queries: "When is oil change due?"
                     elif intent_result.intent == IntentType.QUERY:
-                        await self._handle_query_intent(intent_result, response_pane)
+                        await self._handle_query_intent(
+                            intent_result, response_pane, original_input=value
+                        )
 
                     # Handle mileage updates: "Mileage is now 98500"
                     elif (
                         intent_result.intent == IntentType.UPDATE
                         and intent_result.subtype == "update.mileage"
                     ):
-                        await self._handle_mileage_update_intent(intent_result, response_pane)
+                        await self._handle_mileage_update_intent(
+                            intent_result, response_pane, original_input=value
+                        )
 
                     else:
                         # Other intents fall through to chat
@@ -2211,7 +2217,7 @@ class InputPane(Vertical):
             )
 
     async def _handle_maintenance_intent(
-        self, intent_result: "IntentResult", response_pane
+        self, intent_result: "IntentResult", response_pane, original_input: str
     ) -> None:
         """Handle natural language maintenance logging intent.
 
@@ -2220,6 +2226,7 @@ class InputPane(Vertical):
         Args:
             intent_result: Parsed intent with entities
             response_pane: ResponsePane to display results
+            original_input: Original natural language input from user
         """
         entities = intent_result.entities
 
@@ -2265,7 +2272,21 @@ class InputPane(Vertical):
         # Delegate to existing handler
         await self._handle_log_maintenance(args, response_pane)
 
-    async def _handle_query_intent(self, intent_result: "IntentResult", response_pane) -> None:
+        # Add LLM conversational feedback
+        await self._add_llm_feedback(
+            user_input=original_input,
+            executed_command=f"/log {args}",
+            command_context={
+                "service_type": service_type,
+                "mileage": mileage,
+                "action": "log_maintenance",
+            },
+            response_pane=response_pane,
+        )
+
+    async def _handle_query_intent(
+        self, intent_result: "IntentResult", response_pane, original_input: str
+    ) -> None:
         """Handle natural language maintenance query intent.
 
         Routes to appropriate query handler based on subtype.
@@ -2273,6 +2294,7 @@ class InputPane(Vertical):
         Args:
             intent_result: Parsed intent with entities
             response_pane: ResponsePane to display results
+            original_input: Original natural language input from user
         """
         subtype = intent_result.subtype
         entities = intent_result.entities
@@ -2286,11 +2308,35 @@ class InputPane(Vertical):
             args = str(mileage) if mileage else ""
             await self._handle_due_services(args, response_pane)
 
+            # Add LLM feedback (estimate context from args)
+            await self._add_llm_feedback(
+                user_input=original_input,
+                executed_command=f"/due {args}",
+                command_context={
+                    "action": "query_due",
+                    "mileage": int(mileage) if mileage else 100000,
+                    "service_count": 0,  # Handler doesn't return count, estimate
+                    "has_overdue": False,  # Could enhance this by parsing output
+                },
+                response_pane=response_pane,
+            )
+
         elif subtype == "query.history":
             # "When did I last change oil?" -> show history
             service_type = entities.get("service_type") or entities.get("part")
             args = service_type if service_type else ""
             await self._handle_maintenance_history(args, response_pane)
+
+            # Add LLM feedback
+            await self._add_llm_feedback(
+                user_input=original_input,
+                executed_command=f"/history {args}",
+                command_context={
+                    "action": "query_history",
+                    "service_type": service_type or "all services",
+                },
+                response_pane=response_pane,
+            )
 
         elif subtype == "query.status":
             # "What's the current mileage?" -> show mileage status
@@ -2298,14 +2344,38 @@ class InputPane(Vertical):
             args = str(mileage) if mileage else ""
             await self._handle_update_mileage(args, response_pane)
 
+            # Add LLM feedback
+            await self._add_llm_feedback(
+                user_input=original_input,
+                executed_command=f"/mileage {args}",
+                command_context={
+                    "action": "query_status",
+                    "mileage": int(mileage) if mileage else 100000,
+                },
+                response_pane=response_pane,
+            )
+
         else:
             # Default: show due services
             mileage = entities.get("mileage")
             args = str(mileage) if mileage else ""
             await self._handle_due_services(args, response_pane)
 
+            # Add LLM feedback
+            await self._add_llm_feedback(
+                user_input=original_input,
+                executed_command=f"/due {args}",
+                command_context={
+                    "action": "query_due",
+                    "mileage": int(mileage) if mileage else 100000,
+                    "service_count": 0,
+                    "has_overdue": False,
+                },
+                response_pane=response_pane,
+            )
+
     async def _handle_mileage_update_intent(
-        self, intent_result: "IntentResult", response_pane
+        self, intent_result: "IntentResult", response_pane, original_input: str
     ) -> None:
         """Handle natural language mileage update intent.
 
@@ -2314,6 +2384,7 @@ class InputPane(Vertical):
         Args:
             intent_result: Parsed intent with entities
             response_pane: ResponsePane to display results
+            original_input: Original natural language input from user
         """
         entities = intent_result.entities
         mileage = entities.get("mileage")
@@ -2331,6 +2402,143 @@ class InputPane(Vertical):
 
         # Delegate to existing handler
         await self._handle_update_mileage(str(mileage), response_pane)
+
+        # Add LLM conversational feedback
+        await self._add_llm_feedback(
+            user_input=original_input,
+            executed_command=f"/mileage {mileage}",
+            command_context={
+                "action": "mileage_update",
+                "mileage": mileage,
+            },
+            response_pane=response_pane,
+        )
+
+    async def _add_llm_feedback(
+        self,
+        user_input: str,
+        executed_command: str,
+        command_context: dict,
+        response_pane,
+    ) -> None:
+        """Add conversational LLM feedback after command execution.
+
+        This provides natural, conversational responses that include context,
+        suggestions, and next steps - making commands feel less robotic and
+        more like a helpful assistant.
+
+        Args:
+            user_input: Original natural language input from user
+            executed_command: The command that was executed (e.g., "/log oil_change 50000")
+            command_context: Dictionary with command execution context
+            response_pane: ResponsePane to display the LLM feedback
+        """
+        # Only provide feedback if we have a loaded LLM backend
+        if not hasattr(self.state, "current_backend") or not self.state.current_backend:
+            logger.debug("Skipping LLM feedback - no backend loaded")
+            return
+
+        # Build a prompt for the LLM to provide conversational feedback
+        action = command_context.get("action", "unknown")
+
+        # Create context-specific prompts based on action type
+        if action == "log_maintenance":
+            service_type = command_context.get("service_type", "service")
+            mileage = command_context.get("mileage", 0)
+
+            prompt = f"""You are r3LAY, a helpful automotive maintenance assistant.
+The user just logged a maintenance service.
+
+User's input: "{user_input}"
+Action executed: Logged {service_type} at {mileage:,} miles
+
+Provide a brief, conversational response that:
+1. Acknowledges what was logged
+2. Mentions the typical interval for this service (if you know it)
+3. Suggests when the next service might be due
+4. Optionally asks if they want to check what else might be coming up
+
+Keep it friendly, concise (2-3 sentences), and helpful.
+Don't repeat the exact mileage that was just displayed."""
+
+        elif action == "mileage_update":
+            mileage = command_context.get("mileage", 0)
+            prompt = f"""You are r3LAY, a helpful automotive maintenance assistant.
+The user just updated their vehicle mileage.
+
+User's input: "{user_input}"
+Action executed: Updated mileage to {mileage:,} miles
+
+Provide a brief, conversational response that:
+1. Acknowledges the mileage update
+2. Offers to check what services might be due soon
+3. Keeps it friendly and concise (1-2 sentences)"""
+
+        elif action == "query_due":
+            mileage = command_context.get("mileage", 0)
+            service_count = command_context.get("service_count", 0)
+            has_overdue = command_context.get("has_overdue", False)
+
+            prompt = f"""You are r3LAY, a helpful automotive maintenance assistant.
+The user just checked what services are due.
+
+User's input: "{user_input}"
+Current mileage: {mileage:,} miles
+Services found: {service_count}
+Has overdue: {has_overdue}
+
+Provide a brief, conversational response that:
+1. Summarizes what they're looking at
+2. If there are overdue items, mention that they should prioritize those
+3. Offers to show service history or help log completed work
+4. Keep it brief and actionable (2-3 sentences)"""
+
+        elif action == "query_history":
+            service_type = command_context.get("service_type", "services")
+
+            prompt = f"""You are r3LAY, a helpful automotive maintenance assistant.
+The user just checked their maintenance history.
+
+User's input: "{user_input}"
+Service type: {service_type}
+
+Provide a brief, conversational response that:
+1. Acknowledges they're reviewing their maintenance history
+2. If it's a specific service, mention why tracking history is useful
+3. Optionally offer to check what's due next or help log new work
+4. Keep it friendly and brief (1-2 sentences)"""
+
+        else:
+            # Generic feedback for other actions
+            prompt = f"""You are r3LAY, a helpful automotive maintenance assistant.
+
+User's input: "{user_input}"
+Command executed: {executed_command}
+
+Provide a brief, friendly acknowledgment of what was done and ask if they
+need anything else. Keep it concise (1-2 sentences)."""
+
+        try:
+            # Stream the LLM response
+            block = response_pane.start_streaming()
+            block.append("\n---\n\n")  # Separator between command output and LLM feedback
+
+            async for token in self.state.current_backend.generate_stream(
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=256,  # Keep feedback concise
+                temperature=0.7,
+            ):
+                if self._cancel_requested:
+                    block.append("\n\n*[Cancelled]*")
+                    break
+                block.append(token)
+
+            block.finish()
+            logger.debug(f"LLM feedback provided for action: {action}")
+
+        except Exception as e:
+            # Fail silently - don't interrupt UX if feedback fails
+            logger.warning(f"Failed to generate LLM feedback: {e}")
 
     async def _handle_log_maintenance(self, args: str, response_pane) -> None:
         """Handle /log command - log a maintenance entry.
