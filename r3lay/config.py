@@ -14,9 +14,9 @@ Environment Variables:
 """
 
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -97,10 +97,20 @@ class AppConfig(BaseSettings):
     model_roles: ModelRoles = Field(default_factory=ModelRoles)
 
     # Intent routing preference (Phase 102)
-    intent_routing: str = Field(
+    intent_routing: Literal["local", "openclaw", "auto"] = Field(
         default="auto",
         description="Intent routing preference: 'local', 'openclaw', or 'auto'",
     )
+
+    @field_validator("intent_routing")
+    @classmethod
+    def validate_intent_routing(cls, v: str) -> str:
+        """Validate intent_routing is one of the allowed values."""
+        if v not in ("local", "openclaw", "auto"):
+            raise ValueError(
+                f"Invalid intent_routing value: {v}. Must be 'local', 'openclaw', or 'auto'"
+            )
+        return v
 
     @classmethod
     def load(cls, path: Path) -> "AppConfig":

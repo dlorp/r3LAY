@@ -21,32 +21,32 @@ class AxiomPanel(Vertical):
         height: 100%;
         padding: 1;
     }
-    
+
     #axiom-stats {
         height: 3;
         padding: 1;
         background: $surface-darken-1;
     }
-    
+
     #axiom-list {
         height: 1fr;
         margin-top: 1;
         border: solid $surface-darken-2;
     }
-    
+
     .axiom-item {
         padding: 0 1;
         margin: 0 0 1 0;
     }
-    
+
     .axiom-item.validated {
         border-left: thick $success;
     }
-    
+
     .axiom-item.pending {
         border-left: thick $warning;
     }
-    
+
     #export-button {
         width: 100%;
         margin-top: 1;

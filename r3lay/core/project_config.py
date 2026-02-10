@@ -586,9 +586,7 @@ class ProjectConfigManager:
 
             # Parse skill level if present in home_diy
             if data.get("home_diy") and data["home_diy"].get("skill_level"):
-                data["home_diy"]["skill_level"] = SkillLevel(
-                    data["home_diy"]["skill_level"]
-                )
+                data["home_diy"]["skill_level"] = SkillLevel(data["home_diy"]["skill_level"])
 
             self._config = ProjectConfig(**data)
             logger.info("Loaded project config: %s", self._config.name)

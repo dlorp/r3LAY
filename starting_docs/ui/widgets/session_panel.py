@@ -21,22 +21,22 @@ class SessionPanel(Vertical):
         height: 100%;
         padding: 1;
     }
-    
+
     #session-list {
         height: 1fr;
         border: solid $surface-darken-2;
     }
-    
+
     .session-item {
         padding: 1;
         margin: 0 0 1 0;
         background: $surface-darken-1;
     }
-    
+
     .session-item:hover {
         background: $surface;
     }
-    
+
     #refresh-sessions {
         width: 100%;
         margin-top: 1;

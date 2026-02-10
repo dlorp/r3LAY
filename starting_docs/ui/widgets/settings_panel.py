@@ -21,21 +21,21 @@ class SettingsPanel(Vertical):
         height: 100%;
         padding: 1;
     }
-    
+
     #settings-list {
         height: 1fr;
     }
-    
+
     .setting-row {
         height: 3;
         padding: 0 1;
         margin-bottom: 1;
     }
-    
+
     .setting-label {
         width: 1fr;
     }
-    
+
     #save-settings {
         width: 100%;
         margin-top: 1;

@@ -25,22 +25,22 @@ class InputPane(Vertical):
         border-title-color: $primary;
         padding: 1;
     }
-    
+
     #input-area {
         height: 1fr;
         min-height: 4;
     }
-    
+
     #input-controls {
         height: 3;
         align: right middle;
     }
-    
+
     #input-status {
         width: 1fr;
         color: $text-muted;
     }
-    
+
     #send-button {
         min-width: 10;
     }

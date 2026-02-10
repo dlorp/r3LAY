@@ -21,14 +21,14 @@ class IndexPanel(Vertical):
         height: 100%;
         padding: 1;
     }
-    
+
     #index-stats {
         height: auto;
         padding: 1;
         background: $surface-darken-1;
         margin-bottom: 1;
     }
-    
+
     .index-button {
         width: 100%;
         margin-top: 1;
