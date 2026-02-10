@@ -119,9 +119,7 @@ class TestVLLMBackendLoad:
         """load() raises ModelLoadError on connection error."""
         backend = VLLMBackend("test-model")
 
-        with patch.object(
-            httpx.AsyncClient, "get", new_callable=AsyncMock
-        ) as mock_get:
+        with patch.object(httpx.AsyncClient, "get", new_callable=AsyncMock) as mock_get:
             mock_get.side_effect = httpx.ConnectError("Connection refused")
             with pytest.raises(ModelLoadError, match="Cannot connect"):
                 await backend.load()
@@ -131,9 +129,7 @@ class TestVLLMBackendLoad:
         """load() raises ModelLoadError on timeout."""
         backend = VLLMBackend("test-model")
 
-        with patch.object(
-            httpx.AsyncClient, "get", new_callable=AsyncMock
-        ) as mock_get:
+        with patch.object(httpx.AsyncClient, "get", new_callable=AsyncMock) as mock_get:
             mock_get.side_effect = httpx.TimeoutException("Timeout")
             with pytest.raises(ModelLoadError, match="Timeout"):
                 await backend.load()
@@ -262,9 +258,7 @@ class TestVLLMBackendGenerate:
 
         mock_response = AsyncMock()
         mock_response.status_code = 400
-        mock_response.aread = AsyncMock(
-            return_value=b'{"error": {"message": "Bad request"}}'
-        )
+        mock_response.aread = AsyncMock(return_value=b'{"error": {"message": "Bad request"}}')
         mock_response.__aenter__ = AsyncMock(return_value=mock_response)
         mock_response.__aexit__ = AsyncMock(return_value=None)
 
@@ -281,9 +275,7 @@ class TestVLLMBackendGenerate:
         backend._client = AsyncMock()
 
         mock_response = AsyncMock()
-        mock_response.__aenter__ = AsyncMock(
-            side_effect=httpx.ConnectError("Connection lost")
-        )
+        mock_response.__aenter__ = AsyncMock(side_effect=httpx.ConnectError("Connection lost"))
         mock_response.__aexit__ = AsyncMock(return_value=None)
 
         backend._client.stream = MagicMock(return_value=mock_response)
@@ -299,9 +291,7 @@ class TestVLLMBackendGenerate:
         backend._client = AsyncMock()
 
         mock_response = AsyncMock()
-        mock_response.__aenter__ = AsyncMock(
-            side_effect=httpx.TimeoutException("Timeout")
-        )
+        mock_response.__aenter__ = AsyncMock(side_effect=httpx.TimeoutException("Timeout"))
         mock_response.__aexit__ = AsyncMock(return_value=None)
 
         backend._client.stream = MagicMock(return_value=mock_response)
@@ -331,6 +321,7 @@ class TestVLLMBackendVision:
             image_path = Path(f.name)
 
         try:
+
             async def mock_aiter_lines():
                 yield 'data: {"choices":[{"delta":{"content":"I see an image"}}]}'
                 yield "data: [DONE]"
@@ -360,10 +351,7 @@ class TestVLLMBackendVision:
             assert "messages" in captured_payload
             user_msg = captured_payload["messages"][-1]
             assert isinstance(user_msg["content"], list)
-            assert any(
-                item.get("type") == "image_url"
-                for item in user_msg["content"]
-            )
+            assert any(item.get("type") == "image_url" for item in user_msg["content"])
 
         finally:
             image_path.unlink()
