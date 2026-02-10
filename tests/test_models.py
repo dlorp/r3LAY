@@ -783,6 +783,133 @@ class TestScanGgufFolder:
         models = scan_gguf_folder(Path("/nonexistent/path/models"))
         assert models == []
 
+    def test_scan_rejects_symlink_path_traversal(self):
+        """Test that symlinks pointing outside search root are rejected.
+
+        SECURITY: Prevents attacks like:
+            ln -s /etc/shadow ~/.r3lay/models/malicious.gguf
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            search_dir = Path(tmpdir) / "models"
+            search_dir.mkdir()
+            external_dir = Path(tmpdir) / "external"
+            external_dir.mkdir()
+
+            # Create a real GGUF file outside the search directory
+            external_file = external_dir / "external.gguf"
+            external_file.write_bytes(GGUF_MAGIC_BE + b"\x00" * 100)
+
+            # Create a symlink inside the search directory pointing outside
+            try:
+                symlink = search_dir / "malicious.gguf"
+                symlink.symlink_to(external_file)
+            except OSError:
+                # Skip test if symlinks not supported (e.g., Windows without admin)
+                pytest.skip("Symlinks not supported on this platform")
+
+            models = scan_gguf_folder(search_dir)
+
+            # Symlink should be rejected because resolved path is outside search root
+            assert len(models) == 0
+
+    def test_scan_allows_internal_symlinks(self):
+        """Test that symlinks within search root are allowed."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            search_dir = Path(tmpdir) / "models"
+            search_dir.mkdir()
+
+            # Create a real GGUF file inside the search directory
+            real_file = search_dir / "real.gguf"
+            real_file.write_bytes(GGUF_MAGIC_BE + b"\x00" * 100)
+
+            # Create a symlink inside the search directory pointing to another file inside
+            try:
+                symlink = search_dir / "link.gguf"
+                symlink.symlink_to(real_file)
+            except OSError:
+                pytest.skip("Symlinks not supported on this platform")
+
+            models = scan_gguf_folder(search_dir)
+
+            # Both the real file and symlink should be found (deduplicated by scan_all)
+            assert len(models) == 2
+
+    def test_scan_handles_broken_symlinks(self):
+        """Test that broken symlinks are gracefully skipped."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            search_dir = Path(tmpdir) / "models"
+            search_dir.mkdir()
+
+            # Create a valid GGUF file
+            valid_file = search_dir / "valid.gguf"
+            valid_file.write_bytes(GGUF_MAGIC_BE + b"\x00" * 100)
+
+            # Create a broken symlink
+            try:
+                broken_link = search_dir / "broken.gguf"
+                broken_link.symlink_to(Path(tmpdir) / "nonexistent.gguf")
+            except OSError:
+                pytest.skip("Symlinks not supported on this platform")
+
+            models = scan_gguf_folder(search_dir)
+
+            # Only the valid file should be found
+            assert len(models) == 1
+            assert models[0].name == "valid"
+
+
+class TestScanAllGgufFolders:
+    """Tests for scanning all GGUF folders with deduplication."""
+
+    def test_deduplication_with_symlinks(self):
+        """Test that symlinks are properly deduplicated using canonical paths.
+
+        SECURITY: Prevents deduplication bypass via symlinks pointing to same file.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create two search paths
+            path1 = Path(tmpdir) / "path1"
+            path2 = Path(tmpdir) / "path2"
+            path1.mkdir()
+            path2.mkdir()
+
+            # Create a real GGUF file in path1
+            real_file = path1 / "model.gguf"
+            real_file.write_bytes(GGUF_MAGIC_BE + b"\x00" * 100)
+
+            # Create a symlink in path2 pointing to the same file
+            try:
+                symlink = path2 / "model.gguf"
+                symlink.symlink_to(real_file)
+            except OSError:
+                pytest.skip("Symlinks not supported on this platform")
+
+            # Mock get_common_gguf_paths to return our test paths
+            with patch("r3lay.core.models.get_common_gguf_paths", return_value=[path1, path2]):
+                models = scan_all_gguf_folders()
+
+            # Should find only ONE model (deduplicated by canonical path)
+            assert len(models) == 1
+            assert models[0].name == "model"
+
+    def test_get_common_gguf_paths_excludes_cwd(self):
+        """Test that Path.cwd() is NOT in the search paths.
+
+        SECURITY: CWD-based paths are attacker-controlled in scenarios like:
+            cd /tmp/malicious && r3lay
+        where /tmp/malicious/models could contain malicious symlinks.
+        """
+        paths = get_common_gguf_paths()
+        path_strs = [str(p) for p in paths]
+
+        # Should NOT include any path that uses cwd()
+        cwd_str = str(Path.cwd())
+        for path_str in path_strs:
+            # Make sure no path starts with cwd (would indicate relative to cwd)
+            # Allow paths that happen to be under cwd but are actually absolute (like home)
+            if path_str.startswith(cwd_str) and not path_str.startswith(str(Path.home())):
+                pytest.fail(f"Search path uses CWD: {path_str}")
+
 
 class TestScanMlxFolder:
     """Tests for MLX folder scanner."""
