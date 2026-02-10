@@ -405,6 +405,217 @@ class TestServiceTypeMapping:
         assert "custom_part" in args
 
 
+class TestRoutingPreference:
+    """Tests for configurable intent routing (local vs OpenClaw)."""
+
+    @pytest.fixture
+    def mock_state_with_config(self):
+        """Create a mock R3LayState with config."""
+        mock_state = MagicMock()
+        mock_state.current_backend = MagicMock()
+        mock_state.current_backend.is_loaded = True
+        mock_state.current_backend.generate = AsyncMock(return_value='{"intent": "CHAT"}')
+
+        # Mock config with routing preference
+        mock_config = MagicMock()
+        mock_config.intent_routing = "local"
+        mock_state.config = mock_config
+
+        return mock_state
+
+    @pytest.fixture
+    def mock_input_pane_with_routing(self, mock_state_with_config):
+        """Create InputPane with routing support."""
+        from r3lay.ui.widgets.input_pane import InputPane
+
+        pane = InputPane(state=mock_state_with_config)
+        pane._get_project_context_string = MagicMock(return_value="Test project")
+        return pane
+
+    @pytest.mark.asyncio
+    async def test_local_routing_uses_parse_sync(self, mock_input_pane_with_routing) -> None:
+        """Test that 'local' routing preference uses parse_sync."""
+        pane = mock_input_pane_with_routing
+        pane.state.config.intent_routing = "local"
+
+        with patch.object(pane._intent_parser, "parse_sync") as mock_sync:
+            mock_sync.return_value = IntentResult(
+                intent=IntentType.CHAT,
+                subtype="chat.general",
+                confidence=0.6,
+                entities={},
+                source="pattern",
+            )
+
+            result = await pane._route_intent_parsing("test message", "local")
+
+            # Should use parse_sync
+            mock_sync.assert_called_once_with("test message")
+            assert result.intent == IntentType.CHAT
+
+    @pytest.mark.asyncio
+    async def test_openclaw_routing_uses_llm(self, mock_input_pane_with_routing) -> None:
+        """Test that 'openclaw' routing preference uses LLM backend."""
+        pane = mock_input_pane_with_routing
+        pane.state.config.intent_routing = "openclaw"
+
+        with patch.object(pane, "_parse_intent_via_openclaw") as mock_openclaw:
+            mock_openclaw.return_value = IntentResult(
+                intent=IntentType.SEARCH,
+                subtype="search.general",
+                confidence=0.85,
+                entities={"query": "test"},
+                source="llm",
+            )
+
+            result = await pane._route_intent_parsing("test message", "openclaw")
+
+            # Should use OpenClaw
+            mock_openclaw.assert_called_once_with("test message")
+            assert result.intent == IntentType.SEARCH
+            assert result.source == "llm"
+
+    @pytest.mark.asyncio
+    async def test_openclaw_routing_fallback_on_error(self, mock_input_pane_with_routing) -> None:
+        """Test that 'openclaw' routing falls back to local on error."""
+        pane = mock_input_pane_with_routing
+        pane.state.config.intent_routing = "openclaw"
+
+        with patch.object(pane, "_parse_intent_via_openclaw") as mock_openclaw:
+            mock_openclaw.side_effect = Exception("OpenClaw unavailable")
+
+            with patch.object(pane._intent_parser, "parse_sync") as mock_sync:
+                mock_sync.return_value = IntentResult(
+                    intent=IntentType.CHAT,
+                    subtype="chat.general",
+                    confidence=0.5,
+                    entities={},
+                    source="pattern",
+                )
+
+                result = await pane._route_intent_parsing("test message", "openclaw")
+
+                # Should fallback to parse_sync
+                mock_sync.assert_called_once_with("test message")
+                assert result.intent == IntentType.CHAT
+
+    @pytest.mark.asyncio
+    async def test_auto_routing_prefers_openclaw(self, mock_input_pane_with_routing) -> None:
+        """Test that 'auto' routing prefers OpenClaw when available."""
+        pane = mock_input_pane_with_routing
+        pane.state.config.intent_routing = "auto"
+
+        with patch.object(pane, "_is_openclaw_available") as mock_available:
+            mock_available.return_value = True
+
+            with patch.object(pane, "_parse_intent_via_openclaw") as mock_openclaw:
+                mock_openclaw.return_value = IntentResult(
+                    intent=IntentType.LOG,
+                    subtype="log.maintenance",
+                    confidence=0.9,
+                    entities={"mileage": 98000},
+                    source="llm",
+                )
+
+                result = await pane._route_intent_parsing("test message", "auto")
+
+                # Should use OpenClaw
+                mock_openclaw.assert_called_once_with("test message")
+                assert result.source == "llm"
+
+    @pytest.mark.asyncio
+    async def test_auto_routing_fallback_to_local(self, mock_input_pane_with_routing) -> None:
+        """Test that 'auto' routing falls back to local when OpenClaw unavailable."""
+        pane = mock_input_pane_with_routing
+        pane.state.config.intent_routing = "auto"
+
+        with patch.object(pane, "_is_openclaw_available") as mock_available:
+            mock_available.return_value = False
+
+            with patch.object(pane._intent_parser, "parse_sync") as mock_sync:
+                mock_sync.return_value = IntentResult(
+                    intent=IntentType.CHAT,
+                    subtype="chat.general",
+                    confidence=0.6,
+                    entities={},
+                    source="pattern",
+                )
+
+                result = await pane._route_intent_parsing("test message", "auto")
+
+                # Should use local parsing
+                mock_sync.assert_called_once_with("test message")
+                assert result.source == "pattern"
+
+    @pytest.mark.asyncio
+    async def test_is_openclaw_available_with_backend(self, mock_input_pane_with_routing) -> None:
+        """Test _is_openclaw_available returns True when backend is loaded."""
+        pane = mock_input_pane_with_routing
+        pane.state.current_backend = MagicMock()
+        pane.state.current_backend.generate = MagicMock()
+
+        result = await pane._is_openclaw_available()
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_is_openclaw_available_without_backend(
+        self, mock_input_pane_with_routing
+    ) -> None:
+        """Test _is_openclaw_available returns False when no backend."""
+        pane = mock_input_pane_with_routing
+        pane.state.current_backend = None
+
+        result = await pane._is_openclaw_available()
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_parse_intent_via_openclaw_creates_parser_with_backend(
+        self, mock_input_pane_with_routing
+    ) -> None:
+        """Test _parse_intent_via_openclaw creates IntentParser with backend."""
+        from r3lay.core.intent import IntentParser
+
+        pane = mock_input_pane_with_routing
+
+        with patch.object(IntentParser, "parse") as mock_parse:
+            mock_parse.return_value = IntentResult(
+                intent=IntentType.SEARCH,
+                subtype="search.general",
+                confidence=0.85,
+                entities={},
+                source="llm",
+            )
+
+            result = await pane._parse_intent_via_openclaw("test message")
+
+            # Should create parser and call parse
+            mock_parse.assert_called_once_with("test message")
+            assert result.source == "llm"
+
+    def test_unknown_routing_preference_defaults_to_local(
+        self, mock_input_pane_with_routing
+    ) -> None:
+        """Test that unknown routing preference defaults to local."""
+        import asyncio
+
+        pane = mock_input_pane_with_routing
+
+        with patch.object(pane._intent_parser, "parse_sync") as mock_sync:
+            mock_sync.return_value = IntentResult(
+                intent=IntentType.CHAT,
+                subtype="chat.general",
+                confidence=0.5,
+                entities={},
+                source="pattern",
+            )
+
+            # Run async function in event loop
+            asyncio.run(pane._route_intent_parsing("test", "invalid_preference"))
+
+            # Should fall back to parse_sync
+            mock_sync.assert_called_once_with("test")
+
+
 class TestRealWorldIntentExamples:
     """Tests using real-world examples from the design document."""
 
