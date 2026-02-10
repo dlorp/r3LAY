@@ -23,7 +23,7 @@ r³LAY is under active development. Here's where things stand and where they're 
 
 ### Current State
 
-The **automotive** category is the primary focus right now, built around dlorp's motorcycle and vehicle maintenance workflow. This serves as the proving ground for the core architecture before expanding to other domains.
+The **automotive** category is the primary focus right now, built around dlorp's vehicle maintenance workflow. This serves as the proving ground for the core architecture before expanding to other domains.
 
 ### Vision
 
@@ -40,7 +40,7 @@ The core ideas:
 
 ```
 r3lay/
-├── automotive/       ← active development (motorcycles, vehicles)
+├── automotive/       ← active development (motorcycles, vehicles, FSMs)
 ├── home/             ← planned (home maintenance, appliances)
 ├── electronics/      ← planned (lab gear, repairs, builds)
 └── ...               ← your categories here
@@ -50,7 +50,7 @@ Each category folder contains its own knowledge base, maintenance logs, axioms, 
 
 ### Contributing Categories
 
-New categories are welcome! If you have a domain where you track projects, wrench on things, or maintain equipment — it probably fits. Open an issue to request a category or submit a PR with a new one.
+New categories are welcome! If you have a domain where you track projects, wrench on things, or maintain equipment — it probably fits. Open an issue to request a category or submit a PR with a new one, i'll probably get around to it eventually.
 
 ---
 
@@ -62,8 +62,8 @@ New categories are welcome! If you have a domain where you track projects, wrenc
 - Forgetting when you last changed that oil/filter/belt
 
 **r³LAY gives you:**
-- 🔧 **Maintenance Tracking** - Log services, track intervals, get overdue alerts
-- 💬 **Natural Language Input** - "logged oil change at 98k" just works
+- 🔧 **Maintenance Tracking** - Log services, track intervals, get overdue alerts 
+- 💬 **Natural Language Input** - "oil change at 98k" just works in a prompt
 - 🧠 **Flexible LLM Backends** - MLX, llama.cpp, Ollama, vLLM, or OpenClaw
 - 🔍 **Hybrid RAG Search** - BM25 + vector search with source attribution
 - 📚 **Deep Research (R³)** - Multi-cycle expeditions with contradiction detection
@@ -216,7 +216,7 @@ R3LAY_VLLM_ENDPOINT=http://localhost:8000
 
 **Documentation:** [vLLM Serving Guide](https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html)
 
-### 🪶 OpenClaw (Remote Claude)
+### 🦞 OpenClaw (Remote Claude)
 
 **Best for:** Using Claude via OpenClaw agent without local GPU
 
