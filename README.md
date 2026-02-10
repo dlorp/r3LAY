@@ -12,7 +12,7 @@
 A TUI research assistant for hobbyists who wrench on their own stuff. Whether you're maintaining a fleet of motorcycles, restoring vintage gear, or keeping your homelab alive - r³LAY helps you track what you did, find what you need, and discover what the community actually knows.
 
 <p align="center">
-  <img src="docs/screenshot.svg" alt="r³LAY TUI showing maintenance tracking and research interface" width="700">
+  <img src="docs/screenshot.png" alt="r³LAY TUI showing maintenance tracking and research interface" width="700">
   <br>
   <em>Track maintenance, chat with local LLMs, and research with full source attribution</em>
 </p>
