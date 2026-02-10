@@ -2270,7 +2270,7 @@ class InputPane(Vertical):
         if trigger_mode == "auto":
             # Auto mode: immediately run R³
             response_pane.add_system(
-                f"🔍 **Contradiction detected** — {signal.description}\n\n"
+                f"**Contradiction detected** — {signal.description}\n\n"
                 f"Auto-triggering R³ deep research..."
             )
             await self._handle_research(research_query, response_pane)
@@ -2285,7 +2285,7 @@ class InputPane(Vertical):
                 conflict_detail = f"\n\n**Conflicting info:**\n{conflict_detail}"
 
             response_pane.add_system(
-                f"🔍 **Contradiction detected** — {signal.description}"
+                f"**Contradiction detected** — {signal.description}"
                 f"{conflict_detail}\n\n"
                 f"Run `/research {research_query[:80]}` to investigate, "
                 f"or change mode in config (`research.auto_trigger_mode`)."
@@ -2784,7 +2784,7 @@ need anything else. Keep it concise (1-2 sentences)."""
 
                 # Highlight overdue in red
                 if service_due.is_overdue:
-                    miles_text = f"[red]{miles_text} ⚠️[/red]"
+                    miles_text = f"[red]{miles_text} OVERDUE[/red]"
 
                 lines.append(
                     f"| {interval.service_type} | {miles_text} | "
@@ -2905,7 +2905,7 @@ need anything else. Keep it concise (1-2 sentences)."""
             lines = [f"## Current Mileage: {new_mileage:,} miles\n"]
 
             if overdue:
-                lines.append(f"⚠️  **{len(overdue)} Service(s) Overdue**\n")
+                lines.append(f"**{len(overdue)} Service(s) Overdue**\n")
                 for service_due in overdue[:3]:
                     interval = service_due.interval
                     lines.append(
