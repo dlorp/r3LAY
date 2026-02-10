@@ -202,6 +202,9 @@ class ModelPanel(Vertical):
             parts = option_id.split(":", 2)  # Split into at most 3 parts
             if len(parts) >= 3:
                 model_name = parts[2]  # model_name is after "model:role:"
+                # Validate model exists in scanned set
+                if model_name not in self._models:
+                    return  # Silently ignore invalid selection
                 self._select_model(model_name)
         elif option_id.startswith("none:"):
             role = option_id[5:]  # Strip "none:" prefix
