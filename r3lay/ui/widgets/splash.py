@@ -67,8 +67,8 @@ class SplashScreen(ModalScreen[None]):
     }
 
     #splash-container {
-        width: auto;
-        height: auto;
+        width: 65;
+        height: 18;
         padding: 1 2;
         background: #0d0d0d;
         border: double #636764;

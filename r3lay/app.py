@@ -197,7 +197,7 @@ class R3LayApp(App):
         if self._show_splash:
             await self.push_screen(MainScreen(self.state))
             # Push splash on top - it will dismiss itself after animation
-            await self.push_screen(SplashScreen(animate=True, duration=3.0))
+            await self.push_screen(SplashScreen(run_animation=True, duration=3.0))
         else:
             await self.push_screen(MainScreen(self.state))
 
