@@ -421,7 +421,6 @@ class TestServiceTypeMapping:
         await pane._handle_maintenance_intent(
             intent_result, mock_response_pane, original_input="test maintenance input"
         )
-        await pane._handle_maintenance_intent(intent_result, mock_response_pane)
 
         # Custom part should pass through unchanged
         args = pane._handle_log_maintenance.call_args[0][0]
