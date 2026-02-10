@@ -321,6 +321,16 @@ R3LAY_SEARXNG_ENDPOINT=http://localhost:8080
 R3LAY_GGUF_FOLDER=~/.r3lay/models
 ```
 
+### GGUF Model Discovery
+
+r³LAY automatically discovers GGUF models from multiple locations:
+- `~/.r3lay/models/` (primary location)
+- `~/models/` (user models folder)
+- `~/.cache/gguf/` (cached models)
+- `./models/` (project-local models)
+
+Place `.gguf` files in any of these locations and they'll appear in the Models panel. Set `R3LAY_GGUF_FOLDER` to use a custom location instead.
+
 Project config lives in: `<project>/.r3lay/config.yaml`
 
 ## Documentation
