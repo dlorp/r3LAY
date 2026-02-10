@@ -62,7 +62,9 @@ class TestMaintenanceIntentRouting:
             source="pattern",
         )
 
-        await mock_input_pane._handle_maintenance_intent(intent_result, mock_response_pane)
+        await mock_input_pane._handle_maintenance_intent(
+            intent_result, mock_response_pane, original_input="test maintenance input"
+        )
 
         # Should call _handle_log_maintenance with formatted args
         mock_input_pane._handle_log_maintenance.assert_called_once()
@@ -83,7 +85,9 @@ class TestMaintenanceIntentRouting:
             source="pattern",
         )
 
-        await mock_input_pane._handle_maintenance_intent(intent_result, mock_response_pane)
+        await mock_input_pane._handle_maintenance_intent(
+            intent_result, mock_response_pane, original_input="test maintenance input"
+        )
 
         # Should show error and not call handler
         mock_response_pane.add_system.assert_called_once()
@@ -101,7 +105,9 @@ class TestMaintenanceIntentRouting:
             source="pattern",
         )
 
-        await mock_input_pane._handle_maintenance_intent(intent_result, mock_response_pane)
+        await mock_input_pane._handle_maintenance_intent(
+            intent_result, mock_response_pane, original_input="test maintenance input"
+        )
 
         # Should map coolant → coolant_flush
         args = mock_input_pane._handle_log_maintenance.call_args[0][0]
@@ -119,7 +125,9 @@ class TestMaintenanceIntentRouting:
             source="pattern",
         )
 
-        await mock_input_pane._handle_maintenance_intent(intent_result, mock_response_pane)
+        await mock_input_pane._handle_maintenance_intent(
+            intent_result, mock_response_pane, original_input="test maintenance input"
+        )
 
         # Should use general_maintenance as fallback
         args = mock_input_pane._handle_log_maintenance.call_args[0][0]
@@ -162,7 +170,9 @@ class TestQueryIntentRouting:
             source="pattern",
         )
 
-        await mock_input_pane._handle_query_intent(intent_result, mock_response_pane)
+        await mock_input_pane._handle_query_intent(
+            intent_result, mock_response_pane, original_input="test query input"
+        )
 
         # Should call _handle_due_services with mileage
         mock_input_pane._handle_due_services.assert_called_once()
@@ -182,7 +192,9 @@ class TestQueryIntentRouting:
             source="pattern",
         )
 
-        await mock_input_pane._handle_query_intent(intent_result, mock_response_pane)
+        await mock_input_pane._handle_query_intent(
+            intent_result, mock_response_pane, original_input="test query input"
+        )
 
         # Should call _handle_maintenance_history with service type
         mock_input_pane._handle_maintenance_history.assert_called_once()
@@ -202,7 +214,9 @@ class TestQueryIntentRouting:
             source="pattern",
         )
 
-        await mock_input_pane._handle_query_intent(intent_result, mock_response_pane)
+        await mock_input_pane._handle_query_intent(
+            intent_result, mock_response_pane, original_input="test query input"
+        )
 
         # Should call _handle_update_mileage for status display
         mock_input_pane._handle_update_mileage.assert_called_once()
@@ -220,7 +234,9 @@ class TestQueryIntentRouting:
             source="pattern",
         )
 
-        await mock_input_pane._handle_query_intent(intent_result, mock_response_pane)
+        await mock_input_pane._handle_query_intent(
+            intent_result, mock_response_pane, original_input="test query input"
+        )
 
         # Should call with empty string
         args = mock_input_pane._handle_due_services.call_args[0][0]
@@ -259,7 +275,9 @@ class TestUpdateIntentRouting:
             source="pattern",
         )
 
-        await mock_input_pane._handle_mileage_update_intent(intent_result, mock_response_pane)
+        await mock_input_pane._handle_mileage_update_intent(
+            intent_result, mock_response_pane, original_input="test mileage update"
+        )
 
         # Should call _handle_update_mileage with mileage string
         mock_input_pane._handle_update_mileage.assert_called_once()
@@ -279,7 +297,9 @@ class TestUpdateIntentRouting:
             source="pattern",
         )
 
-        await mock_input_pane._handle_mileage_update_intent(intent_result, mock_response_pane)
+        await mock_input_pane._handle_mileage_update_intent(
+            intent_result, mock_response_pane, original_input="test mileage update"
+        )
 
         # Should show error and not call handler
         mock_response_pane.add_system.assert_called_once()
@@ -398,7 +418,9 @@ class TestServiceTypeMapping:
             source="pattern",
         )
 
-        await pane._handle_maintenance_intent(intent_result, mock_response_pane)
+        await pane._handle_maintenance_intent(
+            intent_result, mock_response_pane, original_input="test maintenance input"
+        )
 
         # Custom part should pass through unchanged
         args = pane._handle_log_maintenance.call_args[0][0]
