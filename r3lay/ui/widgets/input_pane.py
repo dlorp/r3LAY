@@ -732,7 +732,12 @@ class InputPane(Vertical):
                 "- `/axiom [category:] <statement>` - Create new axiom\n"
                 "- `/axioms [category] [--disputed]` - List axioms\n"
                 "- `/cite <axiom_id>` - Show provenance chain for axiom\n"
-                "- `/dispute <axiom_id> <reason>` - Mark axiom as disputed\n"
+                "- `/dispute <axiom_id> <reason>` - Mark axiom as disputed\n\n"
+                "**Maintenance**\n"
+                "- `/log <service_type> <mileage>` - Log maintenance entry\n"
+                "- `/due [mileage]` - Show due/overdue services\n"
+                "- `/history [service_type] [--limit 10]` - Show maintenance history\n"
+                "- `/mileage [new_value]` - Update or show current mileage\n"
             )
             self.notify("Help displayed", severity="information")
         elif cmd == "clear":
@@ -821,6 +826,19 @@ class InputPane(Vertical):
             await self._handle_load_session(args, response_pane)
         elif cmd == "sessions":
             await self._handle_list_sessions(response_pane)
+        elif cmd == "log":
+            if not args:
+                response_pane.add_system(
+                    "Usage: `/log <service_type> <mileage>`\n\nExample: `/log oil_change 50000`"
+                )
+                return
+            await self._handle_log_maintenance(args, response_pane)
+        elif cmd == "due":
+            await self._handle_due_services(args, response_pane)
+        elif cmd == "history":
+            await self._handle_maintenance_history(args, response_pane)
+        elif cmd == "mileage":
+            await self._handle_update_mileage(args, response_pane)
         else:
             from rich.markup import escape
 
@@ -2073,6 +2091,273 @@ class InputPane(Vertical):
                 model=model_name,
                 metadata={"was_cancelled": True},
             )
+
+    async def _handle_log_maintenance(self, args: str, response_pane) -> None:
+        """Handle /log command - log a maintenance entry.
+
+        Args:
+            args: Command arguments (service_type mileage [--parts] [--notes] [--cost] [--shop])
+            response_pane: ResponsePane to display results
+        """
+        from pathlib import Path
+
+        from ...core.maintenance import MaintenanceEntry, MaintenanceLog
+
+        # Parse arguments
+        parts = args.split(maxsplit=1)
+        if len(parts) < 2:
+            response_pane.add_system(
+                "Usage: `/log <service_type> <mileage>`\n\nExample: `/log oil_change 50000`"
+            )
+            return
+
+        service_type = parts[0].lower()
+        try:
+            mileage = int(parts[1].split()[0])
+        except (ValueError, IndexError):
+            response_pane.add_system(
+                f"Invalid mileage: must be a positive integer. Got: {parts[1]}"
+            )
+            return
+
+        # Create MaintenanceLog instance
+        # Use a reasonable default project path if state.get_project_path doesn't exist
+        try:
+            project_path = Path.home() / ".r3lay"
+        except Exception:
+            project_path = Path.home() / ".r3lay"
+
+        log = MaintenanceLog(project_path)
+
+        # Check if service_type is valid
+        if service_type not in log.intervals:
+            available_services = ", ".join(sorted(log.intervals.keys())[:5])
+            response_pane.add_system(
+                f"Invalid service type: `{service_type}`\n\n"
+                f"Available services: {available_services}... and {len(log.intervals) - 5} more\n\n"
+                f"Use `/axioms` to list all available service types."
+            )
+            return
+
+        # Create and add entry
+        try:
+            entry = MaintenanceEntry(
+                service_type=service_type,
+                mileage=mileage,
+            )
+            log.add_entry(entry)
+
+            # Display success
+            response_pane.add_assistant(
+                f"✓ **Maintenance logged**\n\n"
+                f"- Service: `{service_type}`\n"
+                f"- Mileage: {mileage:,} miles\n"
+                f"- Date: {entry.date.strftime('%Y-%m-%d %H:%M')}\n"
+            )
+        except Exception as e:
+            response_pane.add_system(f"Failed to log maintenance: {e}")
+
+    async def _handle_due_services(self, args: str, response_pane) -> None:
+        """Handle /due command - show due/overdue services.
+
+        Args:
+            args: Optional current mileage
+            response_pane: ResponsePane to display results
+        """
+        from pathlib import Path
+
+        from ...core.maintenance import MaintenanceLog
+
+        # Parse mileage if provided
+        current_mileage = None
+        if args and args.strip():
+            try:
+                current_mileage = int(args.strip())
+            except ValueError:
+                response_pane.add_system("Invalid mileage: must be a positive integer")
+                return
+
+        # Use default mileage if not provided
+        if current_mileage is None:
+            current_mileage = 100000  # Default placeholder
+
+        # Create MaintenanceLog instance
+        try:
+            project_path = Path.home() / ".r3lay"
+        except Exception:
+            project_path = Path.home() / ".r3lay"
+
+        log = MaintenanceLog(project_path)
+
+        # Get upcoming services
+        try:
+            upcoming = log.get_upcoming(current_mileage)
+
+            if not upcoming:
+                response_pane.add_assistant(
+                    f"## Services Due (at {current_mileage:,} miles)\n\n"
+                    "No services found. Check service definitions."
+                )
+                return
+
+            # Build table
+            lines = [f"## Services Due (at {current_mileage:,} miles)\n"]
+            lines.append("| Service | Miles Due | Interval | Severity |")
+            lines.append("|---------|-----------|----------|----------|")
+
+            for service_due in upcoming:
+                interval = service_due.interval
+                miles_text = (
+                    str(service_due.miles_until_due)
+                    if service_due.miles_until_due is not None
+                    else "N/A"
+                )
+
+                # Highlight overdue in red
+                if service_due.is_overdue:
+                    miles_text = f"[red]{miles_text} ⚠️[/red]"
+
+                lines.append(
+                    f"| {interval.service_type} | {miles_text} | "
+                    f"{interval.interval_miles:,} mi | {interval.severity} |"
+                )
+
+            response_pane.add_assistant("\n".join(lines))
+        except Exception as e:
+            response_pane.add_system(f"Failed to get due services: {e}")
+
+    async def _handle_maintenance_history(self, args: str, response_pane) -> None:
+        """Handle /history command - show maintenance history.
+
+        Args:
+            args: Optional service_type and limit flags
+            response_pane: ResponsePane to display results
+        """
+        from pathlib import Path
+
+        from ...core.maintenance import MaintenanceLog
+
+        # Parse arguments
+        service_type = None
+        limit = 10
+
+        if args and args.strip():
+            parts = args.split()
+            for i, part in enumerate(parts):
+                if part == "--limit" and i + 1 < len(parts):
+                    try:
+                        limit = int(parts[i + 1])
+                    except ValueError:
+                        pass
+                elif not part.startswith("--"):
+                    service_type = part.lower()
+
+        # Create MaintenanceLog instance
+        try:
+            project_path = Path.home() / ".r3lay"
+        except Exception:
+            project_path = Path.home() / ".r3lay"
+
+        log = MaintenanceLog(project_path)
+
+        # Get history
+        try:
+            history = log.get_history(limit=limit, service_type=service_type)
+
+            if not history:
+                if service_type:
+                    response_pane.add_assistant(f"No history found for `{service_type}`")
+                else:
+                    response_pane.add_assistant("No maintenance history found.")
+                return
+
+            # Build table
+            title = f"Maintenance History ({len(history)} entries)"
+            if service_type:
+                title += f" - {service_type}"
+
+            lines = [f"## {title}\n"]
+            lines.append("| Date | Service | Mileage | Notes |")
+            lines.append("|------|---------|---------|-------|")
+
+            for entry in history:
+                date_str = entry.date.strftime("%Y-%m-%d")
+                notes = (
+                    entry.notes[:30] + "..."
+                    if entry.notes and len(entry.notes) > 30
+                    else (entry.notes or "-")
+                )
+                lines.append(f"| {date_str} | {entry.service_type} | {entry.mileage:,} | {notes} |")
+
+            response_pane.add_assistant("\n".join(lines))
+        except Exception as e:
+            response_pane.add_system(f"Failed to get history: {e}")
+
+    async def _handle_update_mileage(self, args: str, response_pane) -> None:
+        """Handle /mileage command - update or show current mileage.
+
+        Args:
+            args: Optional new mileage value
+            response_pane: ResponsePane to display results
+        """
+        from pathlib import Path
+
+        from ...core.maintenance import MaintenanceLog
+
+        # Parse mileage if provided
+        new_mileage = None
+        if args and args.strip():
+            try:
+                new_mileage = int(args.strip())
+                if new_mileage < 0:
+                    response_pane.add_system("Mileage must be a positive integer")
+                    return
+            except ValueError:
+                response_pane.add_system("Invalid mileage: must be a positive integer")
+                return
+
+        # Create MaintenanceLog instance
+        try:
+            project_path = Path.home() / ".r3lay"
+        except Exception:
+            project_path = Path.home() / ".r3lay"
+
+        log = MaintenanceLog(project_path)
+
+        # If no specific mileage provided, use a default
+        if new_mileage is None:
+            new_mileage = 100000
+
+        try:
+            # Get upcoming services at this mileage
+            upcoming = log.get_upcoming(new_mileage)
+            overdue = log.get_overdue(new_mileage)
+
+            lines = [f"## Current Mileage: {new_mileage:,} miles\n"]
+
+            if overdue:
+                lines.append(f"⚠️  **{len(overdue)} Service(s) Overdue**\n")
+                for service_due in overdue[:3]:
+                    interval = service_due.interval
+                    lines.append(
+                        f"- `{interval.service_type}` - {interval.interval_miles:,} mi intervals"
+                    )
+
+            # Show next due
+            coming_due = [s for s in upcoming if s.miles_until_due and s.miles_until_due > 0]
+            if coming_due:
+                lines.append("\n**Next Services Due**\n")
+                for service_due in coming_due[:3]:
+                    interval = service_due.interval
+                    miles_left = service_due.miles_until_due
+                    lines.append(
+                        f"- `{interval.service_type}` - {miles_left:,} miles away "
+                        f"({interval.interval_miles:,} mi interval)"
+                    )
+
+            response_pane.add_assistant("\n".join(lines))
+        except Exception as e:
+            response_pane.add_system(f"Failed to get mileage info: {e}")
 
 
 __all__ = ["InputPane"]
