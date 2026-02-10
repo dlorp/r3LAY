@@ -655,6 +655,97 @@ class InputPane(Vertical):
             logger.warning(f"Path resolution failed for {path}: {e}")
             return False
 
+    async def _route_intent_parsing(self, message: str, routing_pref: str) -> "IntentResult":
+        """Route intent parsing based on user preference.
+
+        Args:
+            message: User message to parse
+            routing_pref: Routing preference ('local', 'openclaw', or 'auto')
+
+        Returns:
+            IntentResult from the selected routing method
+        """
+        logger.debug(f"Intent routing preference: {routing_pref}")
+
+        if routing_pref == "local":
+            # Use local pattern-based parsing only
+            return self._intent_parser.parse_sync(message)
+
+        elif routing_pref == "openclaw":
+            # Route to OpenClaw backend for intent classification
+            try:
+                return await self._parse_intent_via_openclaw(message)
+            except Exception as e:
+                logger.warning(f"OpenClaw intent parsing failed: {e}, falling back to local")
+                return self._intent_parser.parse_sync(message)
+
+        elif routing_pref == "auto":
+            # Try OpenClaw first, fallback to local if unavailable
+            try:
+                if await self._is_openclaw_available():
+                    return await self._parse_intent_via_openclaw(message)
+                else:
+                    logger.debug("OpenClaw not available, using local parsing")
+                    return self._intent_parser.parse_sync(message)
+            except Exception as e:
+                logger.warning(f"OpenClaw intent parsing failed: {e}, falling back to local")
+                return self._intent_parser.parse_sync(message)
+
+        else:
+            # Unknown preference, default to local
+            logger.warning(f"Unknown routing preference: {routing_pref}, using local")
+            return self._intent_parser.parse_sync(message)
+
+    async def _is_openclaw_available(self) -> bool:
+        """Check if OpenClaw backend is available for intent parsing.
+
+        Returns:
+            True if OpenClaw can be used for intent parsing
+        """
+        # Check if current backend is loaded and can handle intent classification
+        if self.state.current_backend is None:
+            return False
+
+        # Check if backend has required methods
+        return hasattr(self.state.current_backend, "generate")
+
+    async def _parse_intent_via_openclaw(self, message: str) -> "IntentResult":
+        """Parse intent using OpenClaw backend (LLM-based classification).
+
+        Args:
+            message: User message to classify
+
+        Returns:
+            IntentResult from OpenClaw classification
+        """
+        # Use the LLM backend for intent classification
+        # This leverages the IntentParser's Stage 3 LLM classification
+        if self.state.current_backend is not None:
+            # Create a temporary parser with the current backend
+            from ...core.intent.parser import IntentParser
+
+            openclaw_parser = IntentParser(
+                llm_backend=self.state.current_backend,
+                project_context=self._get_project_context_string(),
+            )
+            return await openclaw_parser.parse(message)
+
+        # Fallback to sync parsing if no backend
+        return self._intent_parser.parse_sync(message)
+
+    def _get_project_context_string(self) -> str:
+        """Get project context as a string for LLM prompts.
+
+        Returns:
+            Project context description
+        """
+        project_ctx = self._get_project_context()
+        if project_ctx is None:
+            return "General garage project"
+
+        # Format project context for LLM
+        return f"{project_ctx.project_type.value} project: {project_ctx.project_name}"
+
     async def submit(self) -> None:
         if self._processing:
             return
@@ -685,7 +776,9 @@ class InputPane(Vertical):
                 await self._handle_command(value, response_pane)
             else:
                 # Parse intent to detect natural language commands
-                intent_result = self._intent_parser.parse_sync(value)
+                # Check routing preference
+                routing_pref = self.state.config.intent_routing
+                intent_result = await self._route_intent_parsing(value, routing_pref)
 
                 # Route intents to appropriate handlers based on confidence
                 if intent_result.confidence >= 0.7:
