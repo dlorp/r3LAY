@@ -223,3 +223,77 @@ class Effects:
         except Exception:
             # Fallback to static text
             yield text
+
+    @staticmethod
+    def demoscene_typewriter(text: str, duration: float = 2.5) -> Generator[str, None, None]:
+        """Demoscene-style typewriter with garage hacker energy.
+
+        Reveals text with variable-length character bursts, random pauses,
+        and occasional rhythm acceleration for that classic underground demo effect.
+        Think old-school demoscene intros: chaotic, energetic, underground.
+
+        Variable burst groups (2-3 chars) reveal with rapid-fire acceleration
+        bursts mixed in. No smooth corporate vibes here—just pure hacker garage
+        aesthetic with character timing that feels like someone typing fast,
+        pausing to think, then hammering out code.
+
+        Args:
+            text: Text to animate (multi-line supported).
+            duration: Target animation duration in seconds (default 2.5s).
+
+        Yields:
+            Progressive strings showing the burst-based reveal effect.
+        """
+        import random
+
+        try:
+            # Calculate frame timing (30 FPS)
+            target_fps = 30
+            total_frames = int(duration * target_fps)
+            total_chars = len(text)
+
+            # Seed random for deterministic but chaotic feel
+            random.seed(42)
+
+            # Build frame schedule: distribute chars across frames with burst pattern
+            char_pos = 0
+            frames_yielded = 0
+
+            while char_pos < total_chars and frames_yielded < total_frames:
+                # Decide burst type: normal burst or rapid acceleration burst
+                if random.random() < 0.15:  # 15% chance of rapid burst cluster
+                    # Rapid burst: 2-3 rapid bursts in quick succession
+                    rapid_bursts = random.randint(2, 3)
+                    for _ in range(rapid_bursts):
+                        burst_size = random.randint(2, 5)  # Faster bursts
+                        char_pos = min(char_pos + burst_size, total_chars)
+                        yield text[:char_pos]
+                        frames_yielded += 1
+                        if frames_yielded >= total_frames:
+                            break
+                    # No pause after rapid burst—continue immediately
+                    continue
+
+                # Normal burst pattern: 2-3 chars, then pause
+                burst_size = random.randint(2, 3)
+                char_pos = min(char_pos + burst_size, total_chars)
+                yield text[:char_pos]
+                frames_yielded += 1
+
+                if frames_yielded >= total_frames:
+                    break
+
+                # Random pause after burst (1-2 frames for variable rhythm)
+                pause_frames = random.randint(0, 2)
+                for _ in range(pause_frames):
+                    if frames_yielded >= total_frames:
+                        break
+                    yield text[:char_pos]
+                    frames_yielded += 1
+
+            # Ensure we always end with full text
+            yield text
+
+        except Exception:
+            # Fallback to simple reveal on any error
+            yield text
