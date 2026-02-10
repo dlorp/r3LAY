@@ -17,6 +17,43 @@ A TUI research assistant for hobbyists who wrench on their own stuff. Whether yo
   <em>Track maintenance, chat with local LLMs, and research with full source attribution</em>
 </p>
 
+## 🚧 Project Status — Work in Progress
+
+r³LAY is under active development. Here's where things stand and where they're headed.
+
+### Current State
+
+The **automotive** category is the primary focus right now, built around dlorp's vehicle maintenance workflow. This serves as the proving ground for the core architecture before expanding to other domains.
+
+### Vision
+
+r³LAY is designed to let you **speak with your project itself** — a natural, conversational interface where the LLM has the *entire* history of your project: every maintenance log, every research session, every axiom you've established.
+
+The core ideas:
+
+- **Full project memory** — The LLM carries all history and context, so you never re-explain your setup
+- **Ingest everything** — Service manuals, small codebases, config files, and notes become searchable knowledge via RAG
+- **Dispute & validate** — Cross-reference community sources (forums, Reddit) against official documentation (vendor specs, service manuals) to surface contradictions and find the truth
+- **Category-specific behavior** — Each category (automotive, home, electronics) can have its own knowledge base, axiom schemas, and tuned behavior
+
+### Folder Structure
+
+```
+r3lay/
+├── automotive/       ← active development (motorcycles, vehicles, FSMs)
+├── home/             ← planned (home maintenance, appliances)
+├── electronics/      ← planned (lab gear, repairs, builds)
+└── ...               ← your categories here
+```
+
+Each category folder contains its own knowledge base, maintenance logs, axioms, and configuration. The system adapts its behavior and domain knowledge based on which category you're working in.
+
+### Contributing Categories
+
+New categories are welcome! If you have a domain where you track projects, wrench on things, or maintain equipment — it probably fits. Open an issue to request a category or submit a PR with a new one, i'll probably get around to it eventually.
+
+---
+
 ## Why r³LAY?
 
 **For the tinkerer who's tired of:**
@@ -25,8 +62,8 @@ A TUI research assistant for hobbyists who wrench on their own stuff. Whether yo
 - Forgetting when you last changed that oil/filter/belt
 
 **r³LAY gives you:**
-- 🔧 **Maintenance Tracking** - Log services, track intervals, get overdue alerts
-- 💬 **Natural Language Input** - "logged oil change at 98k" just works
+- 🔧 **Maintenance Tracking** - Log services, track intervals, get overdue alerts 
+- 💬 **Natural Language Input** - "oil change at 98k" just works in a prompt
 - 🧠 **Flexible LLM Backends** - MLX, llama.cpp, Ollama, vLLM, or OpenClaw
 - 🔍 **Hybrid RAG Search** - BM25 + vector search with source attribution
 - 📚 **Deep Research (R³)** - Multi-cycle expeditions with contradiction detection
@@ -179,7 +216,7 @@ R3LAY_VLLM_ENDPOINT=http://localhost:8000
 
 **Documentation:** [vLLM Serving Guide](https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html)
 
-### 🪶 OpenClaw (Remote Claude)
+### 🦞 OpenClaw (Remote Claude)
 
 **Best for:** Using Claude via OpenClaw agent without local GPU
 
