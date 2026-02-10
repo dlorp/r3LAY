@@ -102,6 +102,17 @@ class AppConfig(BaseSettings):
         description="Intent routing preference: 'local', 'openclaw', or 'auto'",
     )
 
+    # R³ auto-trigger mode for contradiction detection
+    research_auto_trigger: Literal["auto", "prompt", "manual"] = Field(
+        default="auto",
+        description=(
+            "How to handle detected contradictions: "
+            "'auto' = immediately run R³, "
+            "'prompt' = ask user first, "
+            "'manual' = only via /research command"
+        ),
+    )
+
     @field_validator("intent_routing")
     @classmethod
     def validate_intent_routing(cls, v: str) -> str:
@@ -109,6 +120,16 @@ class AppConfig(BaseSettings):
         if v not in ("local", "openclaw", "auto"):
             raise ValueError(
                 f"Invalid intent_routing value: {v}. Must be 'local', 'openclaw', or 'auto'"
+            )
+        return v
+
+    @field_validator("research_auto_trigger")
+    @classmethod
+    def validate_research_auto_trigger(cls, v: str) -> str:
+        """Validate research_auto_trigger is one of the allowed values."""
+        if v not in ("auto", "prompt", "manual"):
+            raise ValueError(
+                f"Invalid research_auto_trigger value: {v}. Must be 'auto', 'prompt', or 'manual'"
             )
         return v
 
@@ -145,6 +166,14 @@ class AppConfig(BaseSettings):
             if data and "intent_routing" in data:
                 config.intent_routing = data["intent_routing"]
 
+            # Load research auto-trigger mode if present
+            if data and "research" in data and isinstance(data["research"], dict):
+                mode = data["research"].get("auto_trigger_mode")
+                if mode in ("auto", "prompt", "manual"):
+                    config.research_auto_trigger = mode
+            elif data and "research_auto_trigger" in data:
+                config.research_auto_trigger = data["research_auto_trigger"]
+
         return config
 
     def save(self) -> None:
@@ -166,6 +195,9 @@ class AppConfig(BaseSettings):
                 "vision_embedder": self.model_roles.vision_embedder,
             },
             "intent_routing": self.intent_routing,
+            "research": {
+                "auto_trigger_mode": self.research_auto_trigger,
+            },
         }
 
         with config_file.open("w") as f:
