@@ -99,6 +99,7 @@ SKILL_LEVELS = [
 # Project Configuration Manager
 # =============================================================================
 
+
 @dataclass
 class ProjectConfig:
     """Project configuration data model.
@@ -267,7 +268,7 @@ class ProjectConfigManager:
         except Exception as e:
             logger.error(f"Failed to save project config: {e}")
             # Clean up temp file if it exists
-            if 'tmp_path' in locals() and tmp_path.exists():
+            if "tmp_path" in locals() and tmp_path.exists():
                 tmp_path.unlink()
             raise
 
@@ -340,6 +341,7 @@ class ProjectConfigManager:
 # Wizard Screen
 # =============================================================================
 
+
 class WizardComplete(Message):
     """Message posted when wizard completes successfully."""
 
@@ -350,6 +352,7 @@ class WizardComplete(Message):
 
 class WizardSkipped(Message):
     """Message posted when wizard is skipped."""
+
     pass
 
 
@@ -543,7 +546,8 @@ class ProjectWizard(Screen):
 
                             yield Label("Make", classes="field-label")
                             yield Select(
-                                [(m.title(), m) for m in AUTOMOTIVE_MAKES_LIST] + [("Other", "other")],
+                                [(m.title(), m) for m in AUTOMOTIVE_MAKES_LIST]
+                                + [("Other", "other")],
                                 id="auto-make",
                                 prompt="Select make...",
                                 classes="form-select",
@@ -732,7 +736,9 @@ class ProjectWizard(Screen):
                         yield Button("Skip", id="skip-button", variant="default")
                         yield Button("Back", id="back-button", variant="default", classes="hidden")
                         yield Button("Next", id="next-button", variant="primary")
-                        yield Button("Finish", id="finish-button", variant="success", classes="hidden")
+                        yield Button(
+                            "Finish", id="finish-button", variant="success", classes="hidden"
+                        )
 
     def on_mount(self) -> None:
         """Focus the domain select on mount."""
@@ -803,9 +809,7 @@ class ProjectWizard(Screen):
             lang_key = str(value).lower()
             if lang_key in SOFTWARE_FRAMEWORKS:
                 frameworks = SOFTWARE_FRAMEWORKS[lang_key]
-                framework_select.set_options(
-                    [(f, f.lower().replace(" ", "-")) for f in frameworks]
-                )
+                framework_select.set_options([(f, f.lower().replace(" ", "-")) for f in frameworks])
             else:
                 framework_select.set_options([("None/Other", "other")])
 

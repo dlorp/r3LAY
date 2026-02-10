@@ -62,7 +62,7 @@ class SplashScreen(ModalScreen[None]):
 
     The demoscene animation uses variable character bursts and random
     rhythm for that underground feel—think old-school demo intros.
-    
+
     CSS is managed in garage.tcss for consistent theming.
     """
 

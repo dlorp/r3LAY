@@ -743,8 +743,13 @@ class InputPane(Vertical):
         if project_ctx is None:
             return "General garage project"
 
+        # Use basename only to prevent filesystem structure disclosure
+        from pathlib import Path
+
+        safe_name = Path(project_ctx.project_name).name
+
         # Format project context for LLM
-        return f"{project_ctx.project_type.value} project: {project_ctx.project_name}"
+        return f"{project_ctx.project_type.value} project: {safe_name}"
 
     async def submit(self) -> None:
         if self._processing:
@@ -2414,6 +2419,49 @@ class InputPane(Vertical):
             response_pane=response_pane,
         )
 
+    def _sanitize_for_prompt(self, user_input: str) -> str:
+        """Sanitize user input for safe inclusion in LLM prompts.
+
+        Prevents prompt injection by:
+        1. Removing control characters
+        2. Truncating to reasonable length
+        3. Escaping quotes to prevent prompt breakout
+        4. Filtering common injection patterns
+
+        Args:
+            user_input: Raw user input string
+
+        Returns:
+            Sanitized string safe for prompt inclusion
+        """
+        # Remove control characters (keep only printable + whitespace)
+        sanitized = "".join(c for c in user_input if c.isprintable() or c.isspace())
+
+        # Truncate to prevent DoS
+        sanitized = sanitized[:500]
+
+        # Escape quotes to prevent prompt breakout
+        sanitized = sanitized.replace('"', '\\"').replace("'", "\\'")
+
+        # Filter common injection patterns (case-insensitive)
+        injection_patterns = [
+            "ignore previous instructions",
+            "ignore all previous",
+            "you are now",
+            "system:",
+            "assistant:",
+            "disregard",
+        ]
+        sanitized_lower = sanitized.lower()
+        for pattern in injection_patterns:
+            if pattern in sanitized_lower:
+                # Find case-insensitive match and replace
+                import re
+
+                sanitized = re.sub(re.escape(pattern), "[filtered]", sanitized, flags=re.IGNORECASE)
+
+        return sanitized
+
     async def _add_llm_feedback(
         self,
         user_input: str,
@@ -2438,6 +2486,9 @@ class InputPane(Vertical):
             logger.debug("Skipping LLM feedback - no backend loaded")
             return
 
+        # Sanitize user input to prevent prompt injection
+        safe_input = self._sanitize_for_prompt(user_input)
+
         # Build a prompt for the LLM to provide conversational feedback
         action = command_context.get("action", "unknown")
 
@@ -2449,7 +2500,7 @@ class InputPane(Vertical):
             prompt = f"""You are r3LAY, a helpful automotive maintenance assistant.
 The user just logged a maintenance service.
 
-User's input: "{user_input}"
+User's input: "{safe_input}"
 Action executed: Logged {service_type} at {mileage:,} miles
 
 Provide a brief, conversational response that:
@@ -2466,7 +2517,7 @@ Don't repeat the exact mileage that was just displayed."""
             prompt = f"""You are r3LAY, a helpful automotive maintenance assistant.
 The user just updated their vehicle mileage.
 
-User's input: "{user_input}"
+User's input: "{safe_input}"
 Action executed: Updated mileage to {mileage:,} miles
 
 Provide a brief, conversational response that:
@@ -2482,7 +2533,7 @@ Provide a brief, conversational response that:
             prompt = f"""You are r3LAY, a helpful automotive maintenance assistant.
 The user just checked what services are due.
 
-User's input: "{user_input}"
+User's input: "{safe_input}"
 Current mileage: {mileage:,} miles
 Services found: {service_count}
 Has overdue: {has_overdue}
@@ -2499,7 +2550,7 @@ Provide a brief, conversational response that:
             prompt = f"""You are r3LAY, a helpful automotive maintenance assistant.
 The user just checked their maintenance history.
 
-User's input: "{user_input}"
+User's input: "{safe_input}"
 Service type: {service_type}
 
 Provide a brief, conversational response that:
@@ -2512,7 +2563,7 @@ Provide a brief, conversational response that:
             # Generic feedback for other actions
             prompt = f"""You are r3LAY, a helpful automotive maintenance assistant.
 
-User's input: "{user_input}"
+User's input: "{safe_input}"
 Command executed: {executed_command}
 
 Provide a brief, friendly acknowledgment of what was done and ask if they

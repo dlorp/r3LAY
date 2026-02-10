@@ -287,6 +287,81 @@ class TestAppConfigYAMLFormat:
 # ============================================================================
 
 
+class TestIntentRoutingValidation:
+    """Tests for intent_routing field validation (Phase 102 security fix)."""
+
+    def test_intent_routing_default(self):
+        """Default intent_routing is 'auto'."""
+        config = AppConfig()
+        assert config.intent_routing == "auto"
+
+    def test_intent_routing_valid_values(self):
+        """Valid intent_routing values are accepted."""
+        valid_values = ["local", "openclaw", "auto"]
+
+        for value in valid_values:
+            config = AppConfig(intent_routing=value)
+            assert config.intent_routing == value
+
+    def test_intent_routing_invalid_value_raises(self):
+        """Invalid intent_routing value raises ValueError."""
+        import pytest
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError) as exc_info:
+            AppConfig(intent_routing="invalid_value")
+
+        # Should mention validation error
+        error_msg = str(exc_info.value).lower()
+        assert "intent_routing" in error_msg or "validation" in error_msg
+
+    def test_intent_routing_case_sensitive(self):
+        """intent_routing validation is case-sensitive."""
+        import pytest
+        from pydantic import ValidationError
+
+        # Uppercase should fail
+        with pytest.raises(ValidationError):
+            AppConfig(intent_routing="AUTO")
+
+        # Mixed case should fail
+        with pytest.raises(ValidationError):
+            AppConfig(intent_routing="Auto")
+
+    def test_intent_routing_saves_and_loads(self, tmp_path):
+        """intent_routing preference persists through save/load."""
+        # Save with 'local' preference
+        config1 = AppConfig(project_path=tmp_path, intent_routing="local")
+        config1.save()
+
+        # Load and verify
+        config2 = AppConfig.load(tmp_path)
+        assert config2.intent_routing == "local"
+
+        # Save with 'openclaw' preference
+        config3 = AppConfig(project_path=tmp_path, intent_routing="openclaw")
+        config3.save()
+
+        # Load and verify
+        config4 = AppConfig.load(tmp_path)
+        assert config4.intent_routing == "openclaw"
+
+    def test_intent_routing_yaml_format(self, tmp_path):
+        """intent_routing is saved correctly in YAML."""
+        from ruamel.yaml import YAML
+
+        config = AppConfig(project_path=tmp_path, intent_routing="local")
+        config.save()
+
+        yaml = YAML()
+        config_file = tmp_path / ".r3lay" / "config.yaml"
+        with config_file.open() as f:
+            data = yaml.load(f)
+
+        assert "intent_routing" in data
+        assert data["intent_routing"] == "local"
+
+
 class TestModuleExports:
     """Test module exports."""
 

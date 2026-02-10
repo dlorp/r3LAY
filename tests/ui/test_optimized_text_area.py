@@ -40,7 +40,7 @@ async def test_widget_mounts_correctly():
             yield OptimizedTextArea(cursor_blink_rate=1.0)
 
     app = TestApp()
-    async with app.run_test() as pilot:
+    async with app.run_test():
         # Widget should mount successfully
         widget = app.query_one(OptimizedTextArea)
         assert widget is not None
@@ -56,9 +56,9 @@ async def test_blink_timer_updates():
             yield OptimizedTextArea(cursor_blink_rate=1.5)
 
     app = TestApp()
-    async with app.run_test() as pilot:
+    async with app.run_test():
         widget = app.query_one(OptimizedTextArea)
         # After mount, the blink timer should be set
         # We can't directly check timer interval, but we can verify the widget mounts
         assert widget._cursor_blink_rate == 1.5
-        assert hasattr(widget, 'blink_timer')
+        assert hasattr(widget, "blink_timer")

@@ -1018,24 +1018,23 @@ class ModelPanel(Vertical):
         - commands: List of available commands
         - agents: List of available agents
         """
+        # Use generic capability descriptions to avoid exposing attack surface
         capabilities = [
-            "Web search",
-            "File operations",
-            "Browser control",
-            "Message handling",
-            "Node control",
-            "Canvas presentation",
+            "Internet access",
+            "Document processing",
+            "UI interaction",
+            "Communication",
+            "Device integration",
+            "Visual output",
         ]
 
+        # Generic command categories instead of specific APIs
         commands = [
-            "web_search",
-            "web_fetch",
-            "browser",
-            "exec",
-            "read/write files",
-            "message (Discord, etc.)",
-            "nodes (camera, screen, location)",
-            "canvas",
+            "Search and research",
+            "Read and write content",
+            "Interact with web pages",
+            "Execute tasks",
+            "Send messages",
         ]
 
         # Try to read workspace files for more context
