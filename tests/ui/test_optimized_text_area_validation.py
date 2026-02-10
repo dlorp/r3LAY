@@ -22,7 +22,7 @@ class TestBlinkIntervalValidation:
         """Test that blink intervals between 0 and 0.1 raise ValueError."""
         with pytest.raises(ValueError, match="must be >= 0.1 seconds"):
             OptimizedTextArea(cursor_blink_rate=0.05)
-        
+
         with pytest.raises(ValueError, match="must be >= 0.1 seconds"):
             OptimizedTextArea(cursor_blink_rate=0.001)
 

@@ -236,6 +236,6 @@ See [Docker Deployment Guide](docker.md) for Docker-specific troubleshooting.
 
 If you're still stuck:
 
-1. **Check logs**: Enable debug logging with `--debug` flag
+1. **Check logs**: Logs are in `~/.r3lay/logs/r3lay.log`. Enable debug logging with `R3LAY_DEBUG=1 r3lay`
 2. **Report issues**: https://github.com/dlorp/r3LAY/issues
 3. **Include**: OS version, Python version, model being used, full error message
