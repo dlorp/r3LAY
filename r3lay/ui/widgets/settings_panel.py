@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Button, Input, Label, RadioButton, RadioSet, Static
+from textual.widgets import Button, Input, Label, Static
 
 from ... import __version__
 
@@ -62,8 +62,7 @@ class SettingsPanel(Vertical):
     def compose(self) -> ComposeResult:
         # Version and project info
         yield Static(
-            f"**r3LAY** v{__version__}\n"
-            f"Project: {self.state.project_path}",
+            f"**r3LAY** v{__version__}\nProject: {self.state.project_path}",
             classes="settings-section",
         )
 
