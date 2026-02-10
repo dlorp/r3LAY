@@ -121,14 +121,21 @@ class TestMainScreen:
         screen = MainScreen(mock_state)
 
         # Actions that should be defined on MainScreen itself
-        custom_actions = ["new_session", "reindex", "tab_models", "tab_index",
-                         "tab_axioms", "tab_log", "tab_due", "tab_sessions",
-                         "tab_settings"]
+        custom_actions = [
+            "new_session",
+            "reindex",
+            "tab_models",
+            "tab_index",
+            "tab_axioms",
+            "tab_log",
+            "tab_due",
+            "tab_sessions",
+            "tab_settings",
+        ]
 
         for action in custom_actions:
             action_name = f"action_{action}"
-            assert hasattr(screen, action_name), \
-                f"Missing action method: {action_name}"
+            assert hasattr(screen, action_name), f"Missing action method: {action_name}"
 
 
 # =============================================================================

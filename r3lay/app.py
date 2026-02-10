@@ -32,9 +32,7 @@ def _setup_logging() -> logging.Logger:
         backupCount=3,
         encoding="utf-8",
     )
-    handler.setFormatter(
-        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-    )
+    handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
 
     # Configure root logger
     root_logger = logging.getLogger()
