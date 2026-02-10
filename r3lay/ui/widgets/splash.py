@@ -60,38 +60,15 @@ class SplashScreen(ModalScreen[None]):
 
     Uses simple typewriter for reliability - TTE effects can be
     slow to generate for complex ASCII art.
-    """
-
-    CSS = """
-    SplashScreen {
-        align: center middle;
-        background: rgba(13, 13, 13, 0.95);
-    }
-
-    #splash-container {
-        width: auto;
-        height: auto;
-        padding: 1 2;
-        background: #0d0d0d;
-        border: double #636764;
-    }
-
-    #splash-text {
-        color: #F4E409;
-        text-align: center;
-    }
-
-    #splash-version {
-        color: #636764;
-        text-align: center;
-        margin-top: 1;
-    }
+    
+    CSS is managed in garage.tcss for consistent theming.
     """
 
     BINDINGS = [
         ("escape", "dismiss", "Skip"),
         ("enter", "dismiss", "Skip"),
         ("space", "dismiss", "Skip"),
+        ("q", "dismiss", "Quit"),
     ]
 
     def __init__(
@@ -135,10 +112,11 @@ class SplashScreen(ModalScreen[None]):
         if self._run_animation_enabled:
             self._animation_task = asyncio.create_task(self._do_animation())
         else:
-            # Quick show then dismiss
+            # Show all elements (logo, version, prompt) then dismiss
             splash_widget = self.query_one("#splash-text", Static)
             splash_widget.update(self._selected_logo)
-            await asyncio.sleep(0.5)
+            # Give time for version/prompt to render
+            await asyncio.sleep(0.8)
             self.dismiss()
 
     async def _do_animation(self) -> None:
