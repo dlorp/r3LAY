@@ -758,8 +758,9 @@ class InputPane(Vertical):
         elif cmd == "sessions":
             await self._handle_list_sessions(response_pane)
         else:
+            from rich.markup import escape
             response_pane.add_system(f"Command `/{cmd}` not implemented yet.")
-            self.notify(f"Unknown command: /{cmd}", severity="error")
+            self.notify(f"Unknown command: /{escape(cmd)}", severity="error")
 
     def _show_session_info(self, response_pane) -> None:
         """Show current session information."""
