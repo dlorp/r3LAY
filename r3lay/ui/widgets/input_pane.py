@@ -2326,6 +2326,7 @@ class InputPane(Vertical):
                 response_pane=response_pane,
             )
 
+
         elif subtype == "query.history":
             # "When did I last change oil?" -> show history
             service_type = entities.get("service_type") or entities.get("part")
@@ -2342,6 +2343,7 @@ class InputPane(Vertical):
                 },
                 response_pane=response_pane,
             )
+
 
         elif subtype == "query.status":
             # "What's the current mileage?" -> show mileage status
