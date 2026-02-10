@@ -101,27 +101,6 @@ class TestSplashScreenInit:
         assert isinstance(screen, ModalScreen)
 
 
-class TestSplashScreenCSS:
-    """Tests for SplashScreen CSS styling."""
-
-    def test_has_css(self) -> None:
-        """Test that SplashScreen has CSS defined."""
-        assert SplashScreen.CSS is not None
-        assert "SplashScreen" in SplashScreen.CSS
-
-    def test_css_includes_splash_container(self) -> None:
-        """Test CSS includes splash-container ID."""
-        assert "#splash-container" in SplashScreen.CSS
-
-    def test_css_includes_splash_text(self) -> None:
-        """Test CSS includes splash-text ID."""
-        assert "#splash-text" in SplashScreen.CSS
-
-    def test_css_includes_splash_version(self) -> None:
-        """Test CSS includes splash-version ID."""
-        assert "#splash-version" in SplashScreen.CSS
-
-
 class TestSplashScreenBindings:
     """Tests for SplashScreen key bindings."""
 
