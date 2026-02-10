@@ -1,4 +1,19 @@
-/* r3LAY TUI Stylesheet - EVA-inspired amber/orange theme */
+/* r3LAY TUI Stylesheet - HDLS Brand Palette
+ * 
+ * This file provides base styling using the HDLS brand palette.
+ * Detailed component styling is in garage.tcss.
+ */
+
+/* HDLS Color Variables */
+$granite-gray: #636764;
+$dark-orange: #FB8B24;
+$titanium-yellow: #F4E409;
+$medium-turquoise: #50D8D7;
+$royal-blue: #3B60E4;
+
+/* Background shades */
+$bg-darkest: #0d0d0d;
+$bg-dark: #1a1a1a;
 
 /* Main layout */
 #main-layout {
@@ -33,28 +48,32 @@ ModelPanel, IndexPanel, AxiomPanel, SessionPanel, SettingsPanel {
     height: 100%;
 }
 
-/* Header customization - uses theme colors */
+/* Header customization - HDLS colors */
 Header {
-    background: $primary-darken-3;
-    color: $text-muted;
+    background: $bg-darkest;
+    color: $titanium-yellow;
 }
 
 Header > HeaderTitle {
-    color: white;
+    color: $titanium-yellow;
 }
 
 Header > HeaderIcon {
-    color: white;
+    color: $medium-turquoise;
 }
 
-/* Footer - uses theme colors */
+/* Footer - HDLS colors */
 Footer {
-    background: $surface;
+    background: $bg-darkest;
 }
 
 FooterKey > .footer-key--key {
-    background: $primary;
-    color: $text;
+    background: $royal-blue;
+    color: $bg-darkest;
+}
+
+FooterKey > .footer-key--description {
+    color: $medium-turquoise;
 }
 
 /* Init screen */
@@ -63,14 +82,15 @@ FooterKey > .footer-key--key {
     height: auto;
     margin: 2 4;
     padding: 1 2;
-    border: solid #FF6600;
+    border: heavy $dark-orange;
+    background: $bg-darkest;
 }
 
 #init-title {
     text-align: center;
     text-style: bold;
     margin-bottom: 1;
-    color: #FFCC00;
+    color: $titanium-yellow;
 }
 
 #theme-list {

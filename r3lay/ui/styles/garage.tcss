@@ -1,148 +1,156 @@
-/* r3LAY Garage Terminal Theme
+/* r3LAY Garage Terminal Theme - HDLS Brand Palette Integration
  * ═══════════════════════════════════════════════════════════════════════════
- * Retrofuturistic terminal aesthetic with dlorp brand colors.
+ * Retrofuturistic terminal aesthetic with HDLS brand colors.
  * 
- * Brand Palette:
+ * HDLS Brand Palette:
  *   #636764 - Granite Gray   (backgrounds, borders, muted text)
  *   #FB8B24 - Dark Orange    (warnings, alerts, urgent)
  *   #F4E409 - Titanium Yellow (highlights, active states, headers)
  *   #50D8D7 - Medium Turquoise (info, links, secondary actions)
  *   #3B60E4 - Royal Blue Light (primary actions, focus)
  * 
- * Amber Accent Palette (for focus and highlights):
- *   $amber: #FB8B24 (main amber accent)
- *   $amber-dim: #E67E22 (dimmed amber)
- *   $amber-bright: #FFA500 (bright amber highlight)
+ * Design Principles:
+ * - Heavy borders for demoscene aesthetic
+ * - Dense information displays (minimal padding)
+ * - Status icons with color coding
+ * - High contrast terminal character art
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-$amber: #FB8B24;
-$amber-dim: #E67E22;
-$amber-bright: #FFA500;
+/* Color Variables */
+$granite-gray: #636764;
+$dark-orange: #FB8B24;
+$titanium-yellow: #F4E409;
+$medium-turquoise: #50D8D7;
+$royal-blue: #3B60E4;
+
+/* Background shades */
+$bg-darkest: #0d0d0d;
+$bg-dark: #1a1a1a;
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Root / App styling
    ───────────────────────────────────────────────────────────────────────────── */
 
 Screen {
-    background: #1a1a1a;
+    background: $bg-dark;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Header - Project identity
+   Header - Project identity with heavy border
    ───────────────────────────────────────────────────────────────────────────── */
 
 Header {
-    background: #0d0d0d;
-    color: #F4E409;
+    background: $bg-darkest;
+    color: $titanium-yellow;
     dock: top;
     height: 3;
-    border-bottom: solid #636764;
+    border-bottom: heavy $dark-orange;
 }
 
 Header > HeaderTitle {
-    color: #F4E409;
+    color: $titanium-yellow;
     text-style: bold;
 }
 
 Header > HeaderIcon {
-    color: #50D8D7;
+    color: $medium-turquoise;
 }
 
 HeaderClock {
-    color: #636764;
+    color: $granite-gray;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Footer - Keybinds and status
+   Footer - Keybinds and status with heavy border
    ───────────────────────────────────────────────────────────────────────────── */
 
 Footer {
-    background: #0d0d0d;
-    color: #636764;
+    background: $bg-darkest;
+    color: $granite-gray;
     dock: bottom;
     height: 1;
-    border-top: solid #636764;
+    border-top: heavy $granite-gray;
 }
 
 FooterKey {
     background: transparent;
-    color: #636764;
+    color: $granite-gray;
 }
 
 FooterKey > .footer-key--key {
-    background: #3B60E4;
-    color: #0d0d0d;
+    background: $royal-blue;
+    color: $bg-darkest;
     text-style: bold;
     padding: 0 1;
 }
 
 FooterKey > .footer-key--description {
-    color: #50D8D7;
+    color: $medium-turquoise;
 }
 
 FooterKey:hover {
-    background: #1a1a1a;
+    background: $bg-dark;
 }
 
 FooterKey:hover > .footer-key--key {
-    background: #50D8D7;
+    background: $medium-turquoise;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Main layout
+   Main layout - Dense spacing
    ───────────────────────────────────────────────────────────────────────────── */
 
 #main-layout {
     width: 100%;
     height: 100%;
-    background: #1a1a1a;
+    background: $bg-dark;
 }
 
 #right-column {
     width: 40%;
     height: 100%;
-    border-left: solid #636764;
+    border-left: heavy $granite-gray;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Tabbed content - Control panels
+   Tabbed content - Control panels with heavy borders
    ───────────────────────────────────────────────────────────────────────────── */
 
 #control-tabs {
     width: 100%;
     height: 1fr;
-    background: #1a1a1a;
+    background: $bg-dark;
 }
 
 TabbedContent > ContentSwitcher {
     height: 1fr;
-    background: #1a1a1a;
+    background: $bg-dark;
 }
 
 /* Tab bar styling */
 Tabs {
-    background: #0d0d0d;
+    background: $bg-darkest;
     dock: top;
     height: 3;
 }
 
 Tab {
     background: transparent;
-    color: #636764;
-    padding: 0 2;
+    color: $granite-gray;
+    padding: 0 1;
 }
 
 Tab:hover {
-    background: #1a1a1a;
-    color: #50D8D7;
+    background: $bg-dark;
+    color: $medium-turquoise;
 }
 
 Tab.-active {
-    background: #1a1a1a;
-    color: #F4E409;
+    background: $bg-dark;
+    color: $titanium-yellow;
     text-style: bold;
-    border-bottom: solid #F4E409;
+    border-bottom: heavy $titanium-yellow;
 }
 
 Tab:focus {
@@ -150,33 +158,33 @@ Tab:focus {
 }
 
 Underline {
-    color: #F4E409;
+    color: $titanium-yellow;
 }
 
 TabPane {
     padding: 0;
     height: 100%;
-    background: #1a1a1a;
+    background: $bg-dark;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Panel widgets
+   Panel widgets - Reduced padding for density
    ───────────────────────────────────────────────────────────────────────────── */
 
 ModelPanel, IndexPanel, AxiomPanel, SessionPanel, SettingsPanel, HistoryPanel, MaintenancePanel {
     height: 100%;
-    background: #1a1a1a;
-    padding: 1;
+    background: $bg-dark;
+    padding: 0 1;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Response pane - Main content area
+   Response pane - Main content area with heavy border
    ───────────────────────────────────────────────────────────────────────────── */
 
 #response-pane {
-    background: #0d0d0d;
-    border: round #636764;
-    padding: 1 2;
+    background: $bg-darkest;
+    border: heavy $granite-gray;
+    padding: 0 1;
 }
 
 ResponsePane {
@@ -184,14 +192,14 @@ ResponsePane {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Input pane - User input area
+   Input pane - User input area with heavy focus border
    ───────────────────────────────────────────────────────────────────────────── */
 
 #input-pane {
     height: auto;
     max-height: 12;
-    background: #0d0d0d;
-    border: round #636764;
+    background: $bg-darkest;
+    border: heavy $granite-gray;
     margin: 1;
     padding: 0 1;
 }
@@ -201,54 +209,54 @@ InputPane {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Text inputs
+   Text inputs - Heavy focus borders
    ───────────────────────────────────────────────────────────────────────────── */
 
 Input {
-    background: #0d0d0d;
-    color: #F4E409;
-    border: solid #636764;
+    background: $bg-darkest;
+    color: $titanium-yellow;
+    border: solid $granite-gray;
     padding: 0 1;
 }
 
 Input:focus {
-    border: solid #3B60E4;
+    border: heavy $royal-blue;
 }
 
 Input.-invalid {
-    border: solid #FB8B24;
+    border: heavy $dark-orange;
 }
 
 Input > .input--cursor {
-    background: #F4E409;
-    color: #0d0d0d;
+    background: $titanium-yellow;
+    color: $bg-darkest;
 }
 
 Input > .input--placeholder {
-    color: #636764;
+    color: $granite-gray;
 }
 
 TextArea {
-    background: #0d0d0d;
-    color: #F4E409;
-    border: solid #636764;
+    background: $bg-darkest;
+    color: $titanium-yellow;
+    border: solid $granite-gray;
 }
 
 TextArea:focus {
-    border: solid #3B60E4;
+    border: heavy $royal-blue;
 }
 
 TextArea > .text-area--cursor {
-    background: #F4E409;
-    color: #0d0d0d;
+    background: $titanium-yellow;
+    color: $bg-darkest;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Buttons
+   Buttons - HDLS brand colors
    ───────────────────────────────────────────────────────────────────────────── */
 
 Button {
-    background: #3B60E4;
+    background: $royal-blue;
     color: #ffffff;
     border: none;
     padding: 0 2;
@@ -256,138 +264,138 @@ Button {
 }
 
 Button:hover {
-    background: #50D8D7;
-    color: #0d0d0d;
+    background: $medium-turquoise;
+    color: $bg-darkest;
 }
 
 Button:focus {
-    background: #3B60E4;
-    border: solid #F4E409;
+    background: $royal-blue;
+    border: heavy $titanium-yellow;
 }
 
 Button.-primary {
-    background: #3B60E4;
+    background: $royal-blue;
 }
 
 Button.-primary:hover {
-    background: #50D8D7;
+    background: $medium-turquoise;
 }
 
 Button.-warning {
-    background: #FB8B24;
-    color: #0d0d0d;
+    background: $dark-orange;
+    color: $bg-darkest;
 }
 
 Button.-warning:hover {
-    background: #F4E409;
-    color: #0d0d0d;
+    background: $titanium-yellow;
+    color: $bg-darkest;
 }
 
 Button.-success {
-    background: #50D8D7;
-    color: #0d0d0d;
+    background: $medium-turquoise;
+    color: $bg-darkest;
 }
 
 Button:disabled {
-    background: #636764;
-    color: #1a1a1a;
+    background: $granite-gray;
+    color: $bg-dark;
     text-style: none;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Lists and selections
+   Lists and selections - Heavy borders
    ───────────────────────────────────────────────────────────────────────────── */
 
 ListView {
-    background: #0d0d0d;
-    border: solid #636764;
+    background: $bg-darkest;
+    border: heavy $granite-gray;
 }
 
 ListItem {
     background: transparent;
-    color: #50D8D7;
+    color: $medium-turquoise;
     padding: 0 1;
 }
 
 ListItem:hover {
-    background: #1a1a1a;
+    background: $bg-dark;
 }
 
 ListItem.-selected {
-    background: #3B60E4;
+    background: $royal-blue;
     color: #ffffff;
 }
 
 ListItem.-selected:hover {
-    background: #50D8D7;
-    color: #0d0d0d;
+    background: $medium-turquoise;
+    color: $bg-darkest;
 }
 
 OptionList {
-    background: #0d0d0d;
-    border: solid #636764;
+    background: $bg-darkest;
+    border: heavy $granite-gray;
 }
 
 OptionList > .option-list--option {
-    color: #50D8D7;
+    color: $medium-turquoise;
     padding: 0 1;
 }
 
 OptionList > .option-list--option-highlighted {
-    background: #1a1a1a;
-    color: #F4E409;
+    background: $bg-dark;
+    color: $titanium-yellow;
 }
 
 OptionList > .option-list--option-highlighted-selected {
-    background: #3B60E4;
+    background: $royal-blue;
     color: #ffffff;
 }
 
 Select {
-    background: #0d0d0d;
-    border: solid #636764;
+    background: $bg-darkest;
+    border: solid $granite-gray;
 }
 
 Select:focus {
-    border: solid #3B60E4;
+    border: heavy $royal-blue;
 }
 
 SelectCurrent {
-    background: #0d0d0d;
-    color: #F4E409;
+    background: $bg-darkest;
+    color: $titanium-yellow;
 }
 
 SelectOverlay {
-    background: #0d0d0d;
-    border: solid #636764;
+    background: $bg-darkest;
+    border: heavy $granite-gray;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Data tables
+   Data tables - Dense display
    ───────────────────────────────────────────────────────────────────────────── */
 
 DataTable {
-    background: #0d0d0d;
-    color: #50D8D7;
+    background: $bg-darkest;
+    color: $medium-turquoise;
 }
 
 DataTable > .datatable--header {
-    background: #1a1a1a;
-    color: #F4E409;
+    background: $bg-dark;
+    color: $titanium-yellow;
     text-style: bold;
 }
 
 DataTable > .datatable--cursor {
-    background: #3B60E4;
+    background: $royal-blue;
     color: #ffffff;
 }
 
 DataTable > .datatable--hover {
-    background: #1a1a1a;
+    background: $bg-dark;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Progress indicators
+   Progress indicators - HDLS colors
    ───────────────────────────────────────────────────────────────────────────── */
 
 ProgressBar {
@@ -395,86 +403,112 @@ ProgressBar {
 }
 
 ProgressBar > .bar--bar {
-    color: #3B60E4;
+    color: $royal-blue;
 }
 
 ProgressBar > .bar--complete {
-    color: #50D8D7;
+    color: $medium-turquoise;
 }
 
 ProgressBar > .bar--indeterminate {
-    color: #F4E409;
+    color: $titanium-yellow;
 }
 
 LoadingIndicator {
-    color: #F4E409;
+    color: $titanium-yellow;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Scrollbars
+   Scrollbars - HDLS colors
    ───────────────────────────────────────────────────────────────────────────── */
 
 ScrollBar > .scrollbar--bar {
-    background: #636764;
+    background: $granite-gray;
 }
 
 ScrollBar > .scrollbar--bar:hover {
-    background: #50D8D7;
+    background: $medium-turquoise;
 }
 
 ScrollBar > .scrollbar--bar-active {
-    background: #3B60E4;
+    background: $royal-blue;
 }
 
 ScrollBar > .scrollbar--grabber {
-    background: #F4E409;
+    background: $titanium-yellow;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Labels and static content
+   Labels and static content - Status icon color classes
    ───────────────────────────────────────────────────────────────────────────── */
 
 Static {
     background: transparent;
-    color: #50D8D7;
+    color: $medium-turquoise;
 }
 
 Label {
-    color: #636764;
+    color: $granite-gray;
 }
 
 .title {
     text-style: bold;
-    color: #F4E409;
+    color: $titanium-yellow;
 }
 
 .subtitle {
-    color: #50D8D7;
+    color: $medium-turquoise;
 }
 
 .muted {
-    color: #636764;
+    color: $granite-gray;
 }
 
 .warning {
-    color: #FB8B24;
+    color: $dark-orange;
 }
 
 .error {
-    color: #FB8B24;
+    color: $dark-orange;
     text-style: bold;
 }
 
 .success {
-    color: #50D8D7;
+    color: $medium-turquoise;
 }
 
 .info {
-    color: #3B60E4;
+    color: $royal-blue;
+}
+
+/* Status icon color classes */
+.status-success {
+    color: $medium-turquoise;  /* ✓ */
+}
+
+.status-warning {
+    color: $dark-orange;  /* ⚠ */
+}
+
+.status-inactive {
+    color: $granite-gray;  /* ○ */
+}
+
+.status-error {
+    color: $dark-orange;  /* ✗ */
+    text-style: bold;
+}
+
+.status-active {
+    color: $titanium-yellow;  /* ◉ */
+}
+
+.status-loading {
+    color: $royal-blue;  /* ◈ */
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Containers and panels
+   Containers and panels - Minimal padding
    ───────────────────────────────────────────────────────────────────────────── */
 
 Container {
@@ -489,21 +523,21 @@ Horizontal {
     background: transparent;
 }
 
-/* Box-drawing aesthetic for panels */
+/* Heavy border panels for demoscene aesthetic */
 .panel {
-    border: round #636764;
-    background: #0d0d0d;
-    padding: 1;
+    border: heavy $granite-gray;
+    background: $bg-darkest;
+    padding: 0 1;
 }
 
 .panel-title {
-    color: #F4E409;
+    color: $titanium-yellow;
     text-style: bold;
     padding: 0 1;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Markdown rendering
+   Markdown rendering - HDLS colors
    ───────────────────────────────────────────────────────────────────────────── */
 
 Markdown {
@@ -511,46 +545,46 @@ Markdown {
 }
 
 MarkdownH1 {
-    color: #F4E409;
+    color: $titanium-yellow;
     text-style: bold;
-    border-bottom: solid #636764;
-    padding-bottom: 1;
+    border-bottom: heavy $granite-gray;
+    padding-bottom: 0;
     margin-bottom: 1;
 }
 
 MarkdownH2 {
-    color: #F4E409;
+    color: $titanium-yellow;
     text-style: bold;
     margin-top: 1;
 }
 
 MarkdownH3 {
-    color: #50D8D7;
+    color: $medium-turquoise;
     text-style: bold;
 }
 
 MarkdownBlockQuote {
-    border-left: outer #636764;
-    color: #636764;
+    border-left: heavy $granite-gray;
+    color: $granite-gray;
     padding-left: 2;
 }
 
 MarkdownFence {
-    background: #0d0d0d;
-    border: solid #636764;
+    background: $bg-darkest;
+    border: solid $granite-gray;
     padding: 1;
 }
 
 MarkdownBulletList {
-    color: #50D8D7;
+    color: $medium-turquoise;
 }
 
 MarkdownOrderedList {
-    color: #50D8D7;
+    color: $medium-turquoise;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Splash screen
+   Splash screen - Heavy borders
    ───────────────────────────────────────────────────────────────────────────── */
 
 SplashScreen {
@@ -562,49 +596,49 @@ SplashScreen {
     width: 65;
     height: 18;
     padding: 1 2;
-    background: #0d0d0d;
-    border: double #636764;
+    background: $bg-darkest;
+    border: heavy $granite-gray;
 }
 
 #splash-text {
-    color: #F4E409;
+    color: $titanium-yellow;
     text-align: center;
 }
 
 #splash-version {
-    color: #636764;
+    color: $granite-gray;
     text-align: center;
     margin-top: 1;
 }
 
 #splash-prompt {
-    color: #50D8D7;
+    color: $medium-turquoise;
     text-align: center;
     margin-top: 2;
     text-style: italic;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Notifications and toasts
+   Notifications and toasts - Heavy borders with color coding
    ───────────────────────────────────────────────────────────────────────────── */
 
 Toast {
-    background: #1a1a1a;
-    border: solid #636764;
-    color: #50D8D7;
+    background: $bg-dark;
+    border: heavy $granite-gray;
+    color: $medium-turquoise;
 }
 
 Toast.-information {
-    border-left: outer #3B60E4;
+    border-left: heavy $royal-blue;
 }
 
 Toast.-warning {
-    border-left: outer #FB8B24;
+    border-left: heavy $dark-orange;
 }
 
 Toast.-error {
-    border-left: outer #FB8B24;
-    color: #FB8B24;
+    border-left: heavy $dark-orange;
+    color: $dark-orange;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -617,105 +651,90 @@ ModalScreen {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Tree views
+   Tree views - Heavy borders
    ───────────────────────────────────────────────────────────────────────────── */
 
 Tree {
-    background: #0d0d0d;
-    border: solid #636764;
+    background: $bg-darkest;
+    border: heavy $granite-gray;
 }
 
 Tree > .tree--guides {
-    color: #636764;
+    color: $granite-gray;
 }
 
 Tree > .tree--guides-hover {
-    color: #50D8D7;
+    color: $medium-turquoise;
 }
 
 Tree > .tree--guides-selected {
-    color: #3B60E4;
+    color: $royal-blue;
 }
 
 Tree > .tree--cursor {
-    background: #3B60E4;
+    background: $royal-blue;
     color: #ffffff;
 }
 
 Tree > .tree--highlight {
-    background: #1a1a1a;
+    background: $bg-dark;
 }
 
 TreeNode {
-    color: #50D8D7;
+    color: $medium-turquoise;
 }
 
 TreeNode.-selected {
-    background: #3B60E4;
+    background: $royal-blue;
     color: #ffffff;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Checkboxes and switches
+   Checkboxes and switches - HDLS colors
    ───────────────────────────────────────────────────────────────────────────── */
 
 Checkbox {
     background: transparent;
-    color: #50D8D7;
+    color: $medium-turquoise;
 }
 
 Checkbox:hover {
-    color: #F4E409;
+    color: $titanium-yellow;
 }
 
 Checkbox.-on > .toggle--button {
-    color: #3B60E4;
+    color: $royal-blue;
 }
 
 Switch {
-    background: #636764;
+    background: $granite-gray;
 }
 
 Switch.-on {
-    background: #3B60E4;
+    background: $royal-blue;
 }
 
 Switch > .switch--slider {
-    background: #F4E409;
+    background: $titanium-yellow;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Rich text / Log display
+   Rich text / Log display - Minimal padding
    ───────────────────────────────────────────────────────────────────────────── */
 
 RichLog {
-    background: #0d0d0d;
-    border: solid #636764;
+    background: $bg-darkest;
+    border: heavy $granite-gray;
     padding: 0 1;
 }
 
 Log {
-    background: #0d0d0d;
-    color: #50D8D7;
+    background: $bg-darkest;
+    color: $medium-turquoise;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Scanline effect (subtle background pattern)
-   ───────────────────────────────────────────────────────────────────────────── */
-
-/* Note: True scanline effects would require custom widget rendering.
-   This provides a subtle visual separation using alternate row hints. */
-
-.scanline-odd {
-    background: #1a1a1a;
-}
-
-.scanline-even {
-    background: #0d0d0d;
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   Init screen (from original)
+   Init screen - Heavy warning border
    ───────────────────────────────────────────────────────────────────────────── */
 
 #init-container {
@@ -723,15 +742,15 @@ Log {
     height: auto;
     margin: 2 4;
     padding: 1 2;
-    border: solid #FB8B24;
-    background: #0d0d0d;
+    border: heavy $dark-orange;
+    background: $bg-darkest;
 }
 
 #init-title {
     text-align: center;
     text-style: bold;
     margin-bottom: 1;
-    color: #F4E409;
+    color: $titanium-yellow;
 }
 
 #theme-list {
@@ -758,13 +777,13 @@ Log {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   GarageHeader - Custom header widget
+   GarageHeader - Custom header widget with heavy borders
    ───────────────────────────────────────────────────────────────────────────── */
 
 GarageHeader {
     height: 3;
-    background: #0d0d0d;
-    border-bottom: solid $amber;
+    background: $bg-darkest;
+    border-bottom: heavy $dark-orange;
     padding: 0 2;
 }
 
@@ -775,33 +794,33 @@ GarageHeader Static {
 
 GarageHeader .project-name {
     text-style: bold;
-    color: #F4E409;
+    color: $titanium-yellow;
 }
 
 GarageHeader .model-info {
-    color: #50D8D7;
+    color: $medium-turquoise;
 }
 
 GarageHeader .mileage-info {
-    color: $amber;
+    color: $dark-orange;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Settings Panel - Expanded controls
+   Settings Panel - Dense controls
    ───────────────────────────────────────────────────────────────────────────── */
 
 .settings-section {
-    border: round #636764;
-    background: #0d0d0d;
-    padding: 1;
+    border: heavy $granite-gray;
+    background: $bg-darkest;
+    padding: 0 1;
     margin: 1 0;
 }
 
 .settings-section .section-title {
-    color: #F4E409;
+    color: $titanium-yellow;
     text-style: bold;
-    padding-bottom: 1;
-    border-bottom: solid #636764;
+    padding-bottom: 0;
+    border-bottom: solid $granite-gray;
     margin-bottom: 1;
 }
 
@@ -813,7 +832,7 @@ GarageHeader .mileage-info {
 
 #temperature-row Label {
     width: 20;
-    color: #50D8D7;
+    color: $medium-turquoise;
 }
 
 #temperature-row Input {
@@ -832,29 +851,29 @@ GarageHeader .mileage-info {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Response Block Styling - Amber left edge accent
+   Response Block Styling - Heavy accent border
    ───────────────────────────────────────────────────────────────────────────── */
 
 .response-block {
-    border-left: outer $amber;
+    border-left: heavy $dark-orange;
     padding-left: 2;
     margin: 1 0;
 }
 
 .response-header {
-    color: $amber;
+    color: $dark-orange;
     text-style: bold;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Focus Glow Effect - Amber accent
+   Focus Glow Effect - Heavy focus borders
    ───────────────────────────────────────────────────────────────────────────── */
 
 Input:focus, TextArea:focus, Select:focus, Button:focus {
-    border: solid $amber-bright;
+    border: heavy $titanium-yellow;
     text-style: bold;
 }
 
 ListView:focus, DataTable:focus, Tree:focus, OptionList:focus {
-    border: solid $amber-bright;
+    border: heavy $titanium-yellow;
 }
