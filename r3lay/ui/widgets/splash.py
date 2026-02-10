@@ -1,7 +1,8 @@
-"""Startup splash widget with TTE decrypt effect.
+"""Startup splash widget with demoscene-style animation.
 
-Shows on app launch, runs the decrypt animation, then auto-dismisses.
-Falls back to simple typewriter effect if TTE is slow or unavailable.
+Shows on app launch with a chaotic, energetic character burst animation
+that captures the underground garage hacker aesthetic. Auto-dismisses
+after animation completes or when user presses any key.
 """
 
 from __future__ import annotations
@@ -53,13 +54,14 @@ SPLASH_LOGO_COMPACT = r"""
 
 
 class SplashScreen(ModalScreen[None]):
-    """Modal splash screen with animated startup effect.
+    """Modal splash screen with demoscene-style animated startup effect.
 
-    Displays the r3LAY logo with a typewriter animation effect,
-    then auto-dismisses after the animation completes.
+    Displays the r3LAY logo with a variable-burst typewriter animation
+    featuring garage hacker energy: chaotic, energetic, dramatic timing.
+    Auto-dismisses after the animation completes.
 
-    Uses simple typewriter for reliability - TTE effects can be
-    slow to generate for complex ASCII art.
+    The demoscene animation uses variable character bursts and random
+    rhythm for that underground feel—think old-school demo intros.
     
     CSS is managed in garage.tcss for consistent theming.
     """
@@ -120,23 +122,18 @@ class SplashScreen(ModalScreen[None]):
             self.dismiss()
 
     async def _do_animation(self) -> None:
-        """Run the typewriter animation effect.
+        """Run the demoscene-style typewriter animation effect.
 
-        Uses simple character-by-character reveal for reliability.
-        TTE effects are too slow for complex ASCII art.
+        Uses custom demoscene effect with variable character bursts for that
+        underground garage hacker aesthetic—chaotic, energetic, and dramatic.
+        Falls back to static display on any error.
         """
         splash_widget = self.query_one("#splash-text", Static)
 
         try:
-            # Calculate characters per frame based on duration
-            total_chars = len(self._selected_logo)
-            target_fps = 30
-            total_frames = int(self.duration * target_fps)
-            chars_per_frame = max(1, total_chars // total_frames)
+            frame_delay = 1 / 30  # 30 FPS target
 
-            frame_delay = 1 / target_fps
-
-            for frame in Effects.simple_typewriter(self._selected_logo, chars_per_frame):
+            for frame in Effects.demoscene_typewriter(self._selected_logo, self.duration):
                 splash_widget.update(frame)
                 await asyncio.sleep(frame_delay)
 
