@@ -33,11 +33,11 @@ BG_DARK = "1a1a1a"
 
 # Status icon constants for consistent use across widgets
 STATUS_SUCCESS = MEDIUM_TURQUOISE  # ✓
-STATUS_WARNING = DARK_ORANGE       # ⚠
-STATUS_INACTIVE = GRANITE_GRAY     # ○
-STATUS_ERROR = DARK_ORANGE         # ✗
-STATUS_ACTIVE = TITANIUM_YELLOW    # ◉
-STATUS_LOADING = ROYAL_BLUE        # ◈
+STATUS_WARNING = DARK_ORANGE  # ⚠
+STATUS_INACTIVE = GRANITE_GRAY  # ○
+STATUS_ERROR = DARK_ORANGE  # ✗
+STATUS_ACTIVE = TITANIUM_YELLOW  # ◉
+STATUS_LOADING = ROYAL_BLUE  # ◈
 
 # Text color roles
 TEXT_PRIMARY = TITANIUM_YELLOW
@@ -194,9 +194,7 @@ class Effects:
         yield text
 
     @staticmethod
-    def retro_progress_bar(
-        percent: float, width: int = 20
-    ) -> Generator[str, None, None]:
+    def retro_progress_bar(percent: float, width: int = 20) -> Generator[str, None, None]:
         """Retro progress bar using block characters.
 
         Args:

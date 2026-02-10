@@ -523,14 +523,14 @@ def detect_capabilities_from_name(name: str) -> set[ModelCapability]:
 
 def validate_model_name(name: str) -> bool:
     """Validate model name doesn't contain path traversal or shell metacharacters.
-    
+
     Args:
         name: Model name to validate
-        
+
     Returns:
         True if name is safe, False if it contains dangerous patterns
     """
-    dangerous_patterns = ['..', '~/', '$', '`', '|', '&', ';', '\n', '\r']
+    dangerous_patterns = ["..", "~/", "$", "`", "|", "&", ";", "\n", "\r"]
     return not any(pattern in name for pattern in dangerous_patterns)
 
 
@@ -578,7 +578,7 @@ def scan_huggingface_cache(
                 continue
 
             repo_id = "/".join(parts[1:])
-            
+
             # Validate model name for security (path traversal, shell metacharacters)
             if not validate_model_name(repo_id):
                 continue
@@ -723,7 +723,7 @@ def scan_mlx_folder(
 
             # Model name is the directory name
             model_name = f"mlx-community/{item.name}"
-            
+
             # Validate model name for security (path traversal, shell metacharacters)
             if not validate_model_name(model_name):
                 continue
@@ -807,7 +807,7 @@ def scan_gguf_folder(
 
             # Extract model name from filename (remove .gguf extension)
             model_name = item.stem
-            
+
             # Validate model name for security (path traversal, shell metacharacters)
             if not validate_model_name(model_name):
                 continue
@@ -908,7 +908,7 @@ def scan_llm_models_folder(
 
             # Model name is the directory name
             model_name = item.name
-            
+
             # Validate model name for security (path traversal, shell metacharacters)
             if not validate_model_name(model_name):
                 continue
