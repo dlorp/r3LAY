@@ -36,17 +36,19 @@ SPLASH_LOGO = r"""
 ╚═══════════════════════════════════════════════════════════╝
 """
 
-# Simpler logo for narrower terminals (63 chars wide)
-SPLASH_LOGO_COMPACT = """
-╔═════════════════════════════════════════╗
-║                                         ║
-║      ┏━┓ ╺━╸┓   ┏━┓┓ ┓                 ║
-║      ┏┻┛   ━╋┓  ┣━┫ ┃                  ║
-║      ┗━ ━━━╸╹┗━╸╹ ╹ ╹                  ║
-║                                         ║
-║      Research Assistant                 ║
-║                                         ║
-╚═════════════════════════════════════════╝
+# Simpler logo for narrower terminals (pure ASCII, 45 chars wide)
+SPLASH_LOGO_COMPACT = r"""
++-------------------------------------------+
+|                                           |
+|    ____  _____ _       _ __   __         |
+|   |  _ \|___ /| |     / \\ \ / /         |
+|   | |_) | |_ \| |    / _ \\ V /          |
+|   |  _ < ___) | |___/ ___ \| |           |
+|   |_| \_\____/|_____/_/   \_\_|          |
+|                                           |
+|        Research Assistant                 |
+|                                           |
++-------------------------------------------+
 """
 
 
@@ -67,8 +69,8 @@ class SplashScreen(ModalScreen[None]):
     }
 
     #splash-container {
-        width: 65;
-        height: 18;
+        width: auto;
+        height: auto;
         padding: 1 2;
         background: #0d0d0d;
         border: double #636764;
@@ -120,7 +122,7 @@ class SplashScreen(ModalScreen[None]):
 
     async def on_mount(self) -> None:
         """Start animation on mount.
-        
+
         Automatically selects compact or full logo based on terminal width.
         """
         # Detect terminal width and select appropriate logo
@@ -129,7 +131,7 @@ class SplashScreen(ModalScreen[None]):
             self._selected_logo = SPLASH_LOGO_COMPACT
         else:
             self._selected_logo = SPLASH_LOGO
-        
+
         if self._run_animation_enabled:
             self._animation_task = asyncio.create_task(self._do_animation())
         else:
