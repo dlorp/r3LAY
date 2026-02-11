@@ -226,7 +226,7 @@ Connect r3LAY to an OpenClaw agent for remote inference via Claude.
 
 Select OpenClaw backend in the Models panel (`Tab+M`), then configure:
 - **Model name:** Provider/model (e.g., `anthropic/claude-sonnet-4-20250514`)
-- **Endpoint:** OpenClaw gateway URL (default: `http://localhost:4444`)
+- **Endpoint:** OpenClaw gateway URL (default: `http://localhost:18789`)
 - **API Key:** Optional Bearer token for authentication
 
 **Pros:**

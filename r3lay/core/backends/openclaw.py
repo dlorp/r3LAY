@@ -47,14 +47,14 @@ class OpenClawBackend(InferenceBackend):
     def __init__(
         self,
         model_name: str,
-        endpoint: str = "http://localhost:4444",
+        endpoint: str = "http://localhost:18789",
         api_key: str | None = None,
     ) -> None:
         """Initialize the OpenClaw backend.
 
         Args:
             model_name: Name of the model to use (e.g., "anthropic/claude-sonnet-4-20250514")
-            endpoint: OpenClaw API base URL. Default: http://localhost:4444
+            endpoint: OpenClaw API base URL. Default: http://localhost:18789
             api_key: Optional API key for Bearer token authentication
         """
         self._name = model_name
@@ -276,7 +276,7 @@ class OpenClawBackend(InferenceBackend):
             raise GenerationError("Timeout during generation - OpenClaw may be overloaded") from e
 
     @classmethod
-    async def is_available(cls, endpoint: str = "http://localhost:4444") -> bool:
+    async def is_available(cls, endpoint: str = "http://localhost:18789") -> bool:
         """Check if OpenClaw is running and accessible.
 
         Makes a GET request to /v1/models to verify connectivity.
