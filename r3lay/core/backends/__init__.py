@@ -106,7 +106,7 @@ def create_backend(model_info: "ModelInfo") -> InferenceBackend:
         from .openclaw import OpenClawBackend
 
         # Get endpoint and API key from metadata if provided
-        endpoint = model_info.metadata.get("endpoint", "http://localhost:4444")
+        endpoint = model_info.metadata.get("endpoint", "http://localhost:18789")
         api_key = model_info.metadata.get("api_key")
         return OpenClawBackend(model_info.name, endpoint=endpoint, api_key=api_key)
 
