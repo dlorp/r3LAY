@@ -1,6 +1,5 @@
 """Tests for the ContradictionMonitor."""
 
-import pytest
 
 from r3lay.core.contradiction_monitor import ContradictionMonitor
 

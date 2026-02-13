@@ -143,7 +143,7 @@ class ContradictionMonitor:
 
                 return ContradictionSignal(
                     source="llm_response",
-                    description=f"LLM detected conflicting information",
+                    description="LLM detected conflicting information",
                     conflicting_statements=[contradiction_context],
                     suggested_query=contradiction_context[:200],
                     confidence=0.6,
