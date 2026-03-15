@@ -400,3 +400,25 @@ ruff check r3lay/
 <p align="center">
   <strong>Built for people who read service manuals for fun.</strong>
 </p>
+
+## User Configuration
+
+r3LAY stores your vehicle data in `~/.r3lay/` (or `~/.config/r3lay/`).
+
+**Quick start:**
+```bash
+r3lay init              # Create workspace
+r3lay vehicle add       # Add your vehicle
+```
+
+See [docs/user-config.md](docs/user-config.md) for full guide.
+
+### Philosophy
+
+**r3LAY ships as a tool, not a vehicle encyclopedia.**
+
+- Core repo: Universal framework
+- User workspace: YOUR vehicle data
+- Sharing: Opt-in only
+
+Your data stays yours. Share knowledge, not personal logs.
