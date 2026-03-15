@@ -1,0 +1,240 @@
+{
+  "schema_version": "1.0.0",
+  "standard": "SAE J2012 (ISO 15031-6)",
+  "description": "Generic OBD-II diagnostic trouble codes (P0XXX)",
+  "last_updated": "2026-03-15",
+  "codes": {
+    "P0000": {
+      "description": "No DTCs detected",
+      "category": "system"
+    },
+    "P0100": {
+      "description": "Mass or Volume Air Flow Circuit Malfunction",
+      "category": "fuel_air_metering",
+      "common_causes": [
+        "Dirty or failed MAF sensor",
+        "Damaged wiring harness",
+        "Vacuum leak",
+        "Air filter restriction"
+      ]
+    },
+    "P0101": {
+      "description": "Mass or Volume Air Flow Circuit Range/Performance",
+      "category": "fuel_air_metering"
+    },
+    "P0102": {
+      "description": "Mass or Volume Air Flow Circuit Low Input",
+      "category": "fuel_air_metering"
+    },
+    "P0103": {
+      "description": "Mass or Volume Air Flow Circuit High Input",
+      "category": "fuel_air_metering"
+    },
+    "P0105": {
+      "description": "Manifold Absolute Pressure/Barometric Pressure Circuit Malfunction",
+      "category": "fuel_air_metering"
+    },
+    "P0106": {
+      "description": "Manifold Absolute Pressure/Barometric Pressure Circuit Range/Performance",
+      "category": "fuel_air_metering"
+    },
+    "P0110": {
+      "description": "Intake Air Temperature Circuit Malfunction",
+      "category": "fuel_air_metering"
+    },
+    "P0115": {
+      "description": "Engine Coolant Temperature Circuit Malfunction",
+      "category": "fuel_air_metering"
+    },
+    "P0116": {
+      "description": "Engine Coolant Temperature Circuit Range/Performance",
+      "category": "fuel_air_metering"
+    },
+    "P0117": {
+      "description": "Engine Coolant Temperature Circuit Low Input",
+      "category": "fuel_air_metering"
+    },
+    "P0118": {
+      "description": "Engine Coolant Temperature Circuit High Input",
+      "category": "fuel_air_metering"
+    },
+    "P0120": {
+      "description": "Throttle Position Sensor/Switch A Circuit Malfunction",
+      "category": "fuel_air_metering"
+    },
+    "P0125": {
+      "description": "Insufficient Coolant Temperature for Closed Loop Fuel Control",
+      "category": "fuel_air_metering",
+      "common_causes": [
+        "Stuck open thermostat",
+        "Low coolant level",
+        "Failed coolant temperature sensor"
+      ]
+    },
+    "P0130": {
+      "description": "O2 Sensor Circuit Malfunction (Bank 1 Sensor 1)",
+      "category": "fuel_air_metering"
+    },
+    "P0131": {
+      "description": "O2 Sensor Circuit Low Voltage (Bank 1 Sensor 1)",
+      "category": "fuel_air_metering"
+    },
+    "P0132": {
+      "description": "O2 Sensor Circuit High Voltage (Bank 1 Sensor 1)",
+      "category": "fuel_air_metering"
+    },
+    "P0133": {
+      "description": "O2 Sensor Circuit Slow Response (Bank 1 Sensor 1)",
+      "category": "fuel_air_metering"
+    },
+    "P0134": {
+      "description": "O2 Sensor Circuit No Activity Detected (Bank 1 Sensor 1)",
+      "category": "fuel_air_metering"
+    },
+    "P0135": {
+      "description": "O2 Sensor Heater Circuit Malfunction (Bank 1 Sensor 1)",
+      "category": "fuel_air_metering"
+    },
+    "P0140": {
+      "description": "O2 Sensor Circuit Malfunction (Bank 1 Sensor 2)",
+      "category": "fuel_air_metering"
+    },
+    "P0141": {
+      "description": "O2 Sensor Heater Circuit Malfunction (Bank 1 Sensor 2)",
+      "category": "fuel_air_metering"
+    },
+    "P0171": {
+      "description": "System Too Lean (Bank 1)",
+      "category": "fuel_air_metering",
+      "common_causes": [
+        "Vacuum leak (intake manifold, hoses)",
+        "MAF sensor contamination or failure",
+        "Weak fuel pump or clogged fuel filter",
+        "Faulty fuel pressure regulator",
+        "Exhaust leak before O2 sensor"
+      ]
+    },
+    "P0172": {
+      "description": "System Too Rich (Bank 1)",
+      "category": "fuel_air_metering",
+      "common_causes": [
+        "Dirty MAF sensor",
+        "Leaking fuel injector",
+        "Excessive fuel pressure",
+        "Failed O2 sensor"
+      ]
+    },
+    "P0300": {
+      "description": "Random/Multiple Cylinder Misfire Detected",
+      "category": "ignition",
+      "common_causes": [
+        "Worn spark plugs",
+        "Faulty ignition coils",
+        "Vacuum leak",
+        "Low compression",
+        "Fuel delivery issue"
+      ]
+    },
+    "P0301": {
+      "description": "Cylinder 1 Misfire Detected",
+      "category": "ignition"
+    },
+    "P0302": {
+      "description": "Cylinder 2 Misfire Detected",
+      "category": "ignition"
+    },
+    "P0303": {
+      "description": "Cylinder 3 Misfire Detected",
+      "category": "ignition"
+    },
+    "P0304": {
+      "description": "Cylinder 4 Misfire Detected",
+      "category": "ignition"
+    },
+    "P0325": {
+      "description": "Knock Sensor 1 Circuit Malfunction (Bank 1)",
+      "category": "ignition"
+    },
+    "P0335": {
+      "description": "Crankshaft Position Sensor A Circuit Malfunction",
+      "category": "ignition"
+    },
+    "P0340": {
+      "description": "Camshaft Position Sensor Circuit Malfunction",
+      "category": "ignition"
+    },
+    "P0420": {
+      "description": "Catalyst System Efficiency Below Threshold (Bank 1)",
+      "category": "emissions",
+      "common_causes": [
+        "Failed catalytic converter",
+        "Oxygen sensor degradation",
+        "Exhaust leak upstream of catalyst",
+        "Engine running rich or lean",
+        "Misfiring cylinders"
+      ]
+    },
+    "P0421": {
+      "description": "Warm Up Catalyst Efficiency Below Threshold (Bank 1)",
+      "category": "emissions"
+    },
+    "P0440": {
+      "description": "Evaporative Emission Control System Malfunction",
+      "category": "emissions",
+      "common_causes": [
+        "Loose or damaged gas cap",
+        "Cracked EVAP hoses",
+        "Failed purge valve",
+        "Leaking fuel tank or filler neck"
+      ]
+    },
+    "P0441": {
+      "description": "Evaporative Emission Control System Incorrect Purge Flow",
+      "category": "emissions"
+    },
+    "P0442": {
+      "description": "Evaporative Emission Control System Leak Detected (Small Leak)",
+      "category": "emissions"
+    },
+    "P0443": {
+      "description": "Evaporative Emission Control System Purge Control Valve Circuit Malfunction",
+      "category": "emissions"
+    },
+    "P0455": {
+      "description": "Evaporative Emission Control System Leak Detected (Gross Leak)",
+      "category": "emissions"
+    },
+    "P0500": {
+      "description": "Vehicle Speed Sensor Malfunction",
+      "category": "speed_idle"
+    },
+    "P0505": {
+      "description": "Idle Control System Malfunction",
+      "category": "speed_idle"
+    },
+    "P0506": {
+      "description": "Idle Control System RPM Lower Than Expected",
+      "category": "speed_idle"
+    },
+    "P0507": {
+      "description": "Idle Control System RPM Higher Than Expected",
+      "category": "speed_idle"
+    },
+    "P0560": {
+      "description": "System Voltage Malfunction",
+      "category": "electrical"
+    },
+    "P0600": {
+      "description": "Serial Communication Link Malfunction",
+      "category": "computer"
+    },
+    "P0705": {
+      "description": "Transmission Range Sensor Circuit Malfunction (PRNDL Input)",
+      "category": "transmission"
+    },
+    "P0720": {
+      "description": "Output Speed Sensor Circuit Malfunction",
+      "category": "transmission"
+    }
+  }
+}
