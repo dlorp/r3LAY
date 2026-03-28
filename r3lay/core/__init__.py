@@ -209,6 +209,7 @@ class R3LayState:
                 hf_cache_path=config.hf_cache_path,
                 mlx_folder=config.mlx_folder,
                 gguf_folder=config.gguf_folder,
+                llm_models_folder=config.llm_models_folder,
                 ollama_endpoint=config.ollama_endpoint,
             )
             self._config = config

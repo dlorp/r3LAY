@@ -986,6 +986,12 @@ def scan_llm_models_folder(
             # Find GGUF files in this directory
             gguf_files = list(item.glob("*.gguf"))
             if not gguf_files:
+                # Recurse one level deeper for org-level dirs (e.g., lmstudio-community/)
+                for subitem in item.iterdir():
+                    if subitem.is_dir() and not subitem.name.startswith("."):
+                        sub_models = scan_llm_models_folder(item)
+                        models.extend(sub_models)
+                        break
                 continue
 
             # Separate main model from mmproj file
