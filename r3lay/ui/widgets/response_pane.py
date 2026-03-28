@@ -2,16 +2,53 @@
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 from rich.markdown import Markdown
 from rich.syntax import Syntax
 from textual.app import ComposeResult
 from textual.containers import ScrollableContainer, Vertical
-from textual.widgets import Static
+from textual.widgets import Collapsible, Static
+
+# Pattern to match <think>...</think> blocks (including multiline)
+_THINK_PATTERN = re.compile(r"<think>(.*?)</think>", re.DOTALL)
 
 if TYPE_CHECKING:
     from ...core import R3LayState
+
+
+def _split_thinking(text: str) -> tuple[str, str]:
+    """Split LLM response into thinking and response content.
+
+    Models like Qwen3.5 emit chain-of-thought in <think>...</think> blocks.
+    Handles both closed tags and unclosed tags (model ran out of tokens
+    mid-thinking).
+
+    Args:
+        text: Raw LLM response text.
+
+    Returns:
+        Tuple of (thinking_content, response_content). Either may be empty.
+    """
+    thinking_parts: list[str] = []
+    response = text
+
+    # Handle closed <think>...</think> blocks
+    for match in _THINK_PATTERN.finditer(text):
+        thinking_parts.append(match.group(1).strip())
+    response = _THINK_PATTERN.sub("", response).strip()
+
+    # Handle unclosed <think> (model ran out of tokens mid-thinking)
+    if "<think>" in response and "</think>" not in response:
+        idx = response.index("<think>")
+        before = response[:idx].strip()
+        after = response[idx + len("<think>") :].strip()
+        thinking_parts.append(after)
+        response = before
+
+    thinking = "\n\n".join(thinking_parts)
+    return thinking, response
 
 
 class ResponseBlock(Vertical):
@@ -81,7 +118,14 @@ class ResponseBlock(Vertical):
         if self.role == "code" and self.language:
             yield Static(Syntax(self.content, self.language, theme="monokai"))
         elif self.role in ("assistant", "system"):
-            yield Static(Markdown(self.content))
+            thinking, response = _split_thinking(self.content)
+            if thinking:
+                yield Collapsible(
+                    Static(Markdown(thinking)),
+                    title="Thinking...",
+                    collapsed=True,
+                )
+            yield Static(Markdown(response if response else self.content))
         else:
             yield Static(self.content)
 
@@ -164,16 +208,38 @@ class StreamingBlock(Vertical):
         """Finalize the streaming block with full Markdown rendering.
 
         Call this when the LLM has finished generating the response.
-        The content will be re-rendered with proper Markdown formatting.
+        Thinking blocks (<think>...</think>) are stripped. The thinking
+        content is placed in a Collapsible that the user can expand.
+        Only the response content gets prominent Markdown rendering.
         """
         self._is_streaming = False
         self.remove_class("streaming")
 
-        # Re-render with full Markdown formatting
         if self._content_widget is not None:
-            self._content_widget.update(Markdown(self._buffer))
+            thinking, response = _split_thinking(self._buffer)
+
+            if thinking:
+                # Strip thinking from the main content, show response only
+                self._content_widget.update(
+                    Markdown(response if response else "(no response after thinking)")
+                )
+                # Mount a collapsed thinking block after the content
+                self.call_after_refresh(self._mount_thinking, thinking)
+            else:
+                self._content_widget.update(Markdown(self._buffer))
 
         self.scroll_visible()
+
+    def _mount_thinking(self, thinking: str) -> None:
+        """Mount a collapsed Collapsible with thinking content after refresh."""
+        if self._content_widget is None or not self.is_attached:
+            return  # Widget removed before callback fired
+        collapsible = Collapsible(
+            Static(Markdown(thinking)),
+            title="Thinking...",
+            collapsed=True,
+        )
+        self.mount(collapsible, after=self._content_widget)
 
     def clear(self) -> None:
         """Clear the buffer and display."""

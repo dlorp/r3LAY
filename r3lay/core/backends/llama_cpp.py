@@ -33,12 +33,53 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
 import gc
 import logging
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, AsyncGenerator
 
 from .base import InferenceBackend
+
+
+@contextlib.contextmanager
+def _suppress_c_stdout():
+    """Suppress C-level stdout/stderr that bypasses Python.
+
+    llama.cpp's CLIP/mtmd code writes directly to C file descriptors
+    during image processing. This corrupts the Textual TUI. Redirect
+    both fd 1 (stdout) and fd 2 (stderr) to /dev/null temporarily.
+    """
+    import sys
+
+    # Flush Python buffers before redirecting C fds
+    sys.stdout.flush()
+    sys.stderr.flush()
+
+    devnull = os.open(os.devnull, os.O_WRONLY)
+    try:
+        old_stdout = os.dup(1)
+    except OSError:
+        os.close(devnull)
+        raise
+    try:
+        old_stderr = os.dup(2)
+    except OSError:
+        os.close(old_stdout)
+        os.close(devnull)
+        raise
+    try:
+        os.dup2(devnull, 1)
+        os.dup2(devnull, 2)
+        os.close(devnull)
+        yield
+    finally:
+        os.dup2(old_stdout, 1)
+        os.dup2(old_stderr, 2)
+        os.close(old_stdout)
+        os.close(old_stderr)
+
 
 if TYPE_CHECKING:
     from llama_cpp import Llama
@@ -69,6 +110,14 @@ class LlamaCppBackend(InferenceBackend):
         "<|end_of_text|>",
     ]
 
+    def _is_thinking_model(self) -> bool:
+        """Check if the loaded model has a thinking/reasoning template (Qwen3+)."""
+        if self._llm is None:
+            return False
+        metadata = getattr(self._llm, "metadata", {})
+        template = metadata.get("tokenizer.chat_template", "")
+        return "enable_thinking" in template
+
     def __init__(
         self,
         model_path: Path,
@@ -87,6 +136,7 @@ class LlamaCppBackend(InferenceBackend):
         self._mmproj_path = mmproj_path
         self._llm: Llama | None = None
         self._chat_handler: Any = None  # Llava15ChatHandler when vision
+        self._generation_lock = asyncio.Lock()
 
     @property
     def model_name(self) -> str:
@@ -144,8 +194,10 @@ class LlamaCppBackend(InferenceBackend):
                 logger.info("Creating LLaVA chat handler with mmproj: %s", self._mmproj_path)
                 self._chat_handler = Llava15ChatHandler(
                     clip_model_path=str(self._mmproj_path),
-                    verbose=True,  # Required for mtmd initialization to work properly
+                    verbose=False,
                 )
+                # Prevent LLaVA's default system message from overriding ours
+                self._chat_handler.DEFAULT_SYSTEM_MESSAGE = ""
             except ImportError as e:
                 raise DependencyError(
                     "LLaVA chat handler not available. "
@@ -161,10 +213,10 @@ class LlamaCppBackend(InferenceBackend):
             def _load_model():
                 return Llama(
                     model_path=str(self._path),
-                    n_ctx=8192,  # Context window
+                    n_ctx=32768,  # 32K context — fits 24GB with most quantized models
                     n_gpu_layers=-1,  # Full GPU offload (Metal or CUDA)
-                    chat_handler=self._chat_handler,  # LLaVA handler if vision
                     verbose=False,
+                    # Don't pass chat_handler — it overrides the native GGUF template
                 )
 
             self._llm = await loop.run_in_executor(None, _load_model)
@@ -211,7 +263,7 @@ class LlamaCppBackend(InferenceBackend):
     async def generate_stream(
         self,
         messages: list[dict[str, str]],
-        max_tokens: int = 512,
+        max_tokens: int = 4096,
         temperature: float = 0.7,
         images: list[Path] | None = None,
     ) -> AsyncGenerator[str, None]:
@@ -322,24 +374,47 @@ class LlamaCppBackend(InferenceBackend):
         logger.debug("Vision generation with %d messages, %d images", len(messages), len(images))
 
         try:
-            # Use create_chat_completion for LLaVA (supports streaming)
-            response = self._llm.create_chat_completion(
-                messages=formatted_messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                stream=True,
-            )
+            # Lock prevents concurrent text/vision requests from seeing wrong handler
+            async with self._generation_lock:
+                # Temporarily attach vision handler for this request only
+                self._llm.chat_handler = self._chat_handler
 
-            for chunk in response:
-                if "choices" in chunk and len(chunk["choices"]) > 0:
-                    choice = chunk["choices"][0]
-                    delta = choice.get("delta", {})
-                    content = delta.get("content", "")
-                    if content:
-                        yield content
+                try:
+                    # Suppress C-level stdout during CLIP image encoding
+                    # (add_text, image_tokens, encoding image slice, etc.)
+                    with _suppress_c_stdout():
+                        response = self._llm.create_chat_completion(
+                            messages=formatted_messages,
+                            max_tokens=max_tokens,
+                            temperature=temperature,
+                            stream=True,
+                        )
+                        # Use explicit iterator to safely consume first chunk
+                        # while C stdout is suppressed (CLIP encoding happens here)
+                        response_iter = iter(response)
+                        first_chunk = next(response_iter, None)
 
-                # Yield to event loop
-                await asyncio.sleep(0)
+                    # Yield first chunk if it had content
+                    if first_chunk and "choices" in first_chunk and len(first_chunk["choices"]) > 0:
+                        delta = first_chunk["choices"][0].get("delta", {})
+                        content = delta.get("content", "")
+                        if content:
+                            yield content
+
+                    for chunk in response_iter:
+                        if "choices" in chunk and len(chunk["choices"]) > 0:
+                            choice = chunk["choices"][0]
+                            delta = choice.get("delta", {})
+                            content = delta.get("content", "")
+                            if content:
+                                yield content
+
+                        # Yield to event loop
+                        await asyncio.sleep(0)
+
+                finally:
+                    # Restore native template for text requests
+                    self._llm.chat_handler = None
 
         except Exception as e:
             logger.error("Vision generation error: %s", e)
@@ -502,7 +577,12 @@ class LlamaCppBackend(InferenceBackend):
             parts.append(f"<|im_start|>{role}\n{content}<|im_end|>")
 
         # Add the assistant prompt start
-        parts.append("<|im_start|>assistant\n")
+        # For thinking models (Qwen3+), prefill an empty think block to disable
+        # chain-of-thought and get a direct response
+        if self._is_thinking_model():
+            parts.append("<|im_start|>assistant\n<think>\n\n</think>\n\n")
+        else:
+            parts.append("<|im_start|>assistant\n")
 
         return "\n".join(parts)
 
