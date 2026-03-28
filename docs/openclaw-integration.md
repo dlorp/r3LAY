@@ -7,14 +7,14 @@ r3LAY can use OpenClaw as an LLM backend via its OpenAI-compatible HTTP API, ena
 ```
 ┌─────────────┐      HTTP API       ┌─────────────┐     Provider     ┌─────────────┐
 │   r3LAY     │ ←─────────────────→ │  OpenClaw   │ ←──────────────→ │  Anthropic  │
-│   (TUI)     │  localhost:4444     │  Gateway    │    API calls     │   OpenAI    │
+│   (TUI)     │  localhost:18789    │  Gateway    │    API calls     │   OpenAI    │
 │             │  /v1/chat/completions│             │                  │   Ollama    │
 └─────────────┘                     └─────────────┘                  └─────────────┘
 ```
 
 ## How It Works
 
-1. **r3LAY connects** to OpenClaw's HTTP API (`http://localhost:4444`)
+1. **r3LAY connects** to OpenClaw's HTTP API (`http://localhost:18789`)
 2. **Sends requests** to `/v1/chat/completions` (OpenAI-compatible format)
 3. **OpenClaw Gateway** routes the request to the configured LLM provider
 4. **Streams response** back via Server-Sent Events (SSE)
@@ -32,7 +32,7 @@ openclaw gateway start
 openclaw gateway status
 ```
 
-The gateway listens on `http://localhost:4444` by default.
+The gateway listens on `http://localhost:18789` by default.
 
 ### 2. Configure r3LAY Backend
 
@@ -68,7 +68,7 @@ The `openclaw/` prefix tells r3LAY to use the OpenClaw backend. The rest is pass
 
 r3LAY's OpenClaw backend is an HTTP client (`r3lay/core/backends/openclaw.py`) that:
 
-- Connects to `http://localhost:4444` (configurable via `endpoint` parameter)
+- Connects to `http://localhost:18789` (configurable via `endpoint` parameter)
 - Uses the OpenAI-compatible `/v1/chat/completions` endpoint
 - Streams responses via Server-Sent Events (SSE)
 - Supports vision models with base64-encoded images
@@ -140,7 +140,7 @@ backend = OpenClawBackend(
 You can configure the OpenClaw endpoint via environment:
 
 ```bash
-export OPENCLAW_ENDPOINT="http://localhost:4444"
+export OPENCLAW_ENDPOINT="http://localhost:18789"
 export OPENCLAW_API_KEY="your-token"  # Optional
 ```
 
@@ -158,7 +158,7 @@ export OPENCLAW_API_KEY="your-token"  # Optional
 ### Connection Refused
 
 ```
-Cannot connect to OpenClaw at http://localhost:4444.
+Cannot connect to OpenClaw at http://localhost:18789.
 Is OpenClaw running? Try: openclaw gateway start
 ```
 
@@ -194,14 +194,14 @@ backend = OpenClawBackend(
 from r3lay.core.backends.openclaw import OpenClawBackend
 
 # Check if gateway is running
-is_running = await OpenClawBackend.is_available("http://localhost:4444")
+is_running = await OpenClawBackend.is_available("http://localhost:18789")
 ```
 
 ### Manual Request
 
 ```bash
 # Test the gateway directly
-curl -X POST http://localhost:4444/v1/chat/completions \
+curl -X POST http://localhost:18789/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "anthropic/claude-sonnet-4-20250514",

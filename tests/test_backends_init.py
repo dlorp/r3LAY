@@ -131,7 +131,7 @@ class TestCreateBackend:
             create_backend(model_info)
             mock_cls.assert_called_once_with(
                 "gpt-4",
-                endpoint="http://localhost:4444",
+                endpoint="http://localhost:18789",
                 api_key=None,
             )
 

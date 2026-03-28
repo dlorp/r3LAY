@@ -9,7 +9,7 @@
 
 > *The manual says one thing, but the forums know the truth.*
 
-A TUI research assistant for hobbyists who wrench on their own stuff. Whether you're maintaining a fleet of motorcycles, restoring vintage gear, or keeping your homelab alive - r³LAY helps you track what you did, find what you need, and discover what the community actually knows.
+A TUI research assistant for hobbyists who wrench on their own stuff. Whether you're maintaining a fleet of motorcycles, restoring vintage gear, or keeping your homelab alive r³LAY helps you track what you did, find what you need, and discover what the community actually knows.
 
 <p align="center">
   <img src="docs/screenshot.png" alt="r³LAY TUI showing maintenance tracking and research interface" width="700">
@@ -40,7 +40,7 @@ The core ideas:
 
 ```
 r3lay/
-├── automotive/       ← active development (motorcycles, vehicles, FSMs)
+├── automotive/       ← active development (motorcycles, vehicles)
 ├── home/             ← planned (home maintenance, appliances)
 ├── electronics/      ← planned (lab gear, repairs, builds)
 └── ...               ← your categories here
@@ -50,7 +50,7 @@ Each category folder contains its own knowledge base, maintenance logs, axioms, 
 
 ### Contributing Categories
 
-New categories are welcome! If you have a domain where you track projects, wrench on things, or maintain equipment — it probably fits. Open an issue to request a category or submit a PR with a new one, i'll probably get around to it eventually.
+New categories are welcome! If you have a domain where you track projects, wrench on things, or maintain equipment — it probably fits. Open an issue to request a category or submit a PR with a new one.
 
 ---
 
@@ -66,7 +66,7 @@ New categories are welcome! If you have a domain where you track projects, wrenc
 - 💬 **Natural Language Input** - "oil change at 98k" just works in a prompt
 - 🧠 **Flexible LLM Backends** - MLX, llama.cpp, Ollama, vLLM, or OpenClaw
 - 🔍 **Hybrid RAG Search** - BM25 + vector search with source attribution
-- 📚 **Deep Research (R³)** - Multi-cycle expeditions with contradiction detection
+- 📚 **Deep Research (R³)** - Multi cycle expeditions with contradiction detection
 
 No cloud. No subscriptions. Your data stays on your machine.
 
@@ -90,7 +90,7 @@ pip install mlx mlx-lm
 CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python
 ```
 
-**CPU-only:** Works out of the box (slower, but gets the job done)
+**CPU only:** Works out of the box (slower, but gets the job done)
 
 ### Run
 
@@ -136,7 +136,7 @@ pip install mlx mlx-lm
 
 ### 🦙 llama.cpp (Universal)
 
-**Best for:** Cross-platform flexibility, NVIDIA GPUs, CPU-only systems
+**Best for:** Cross platform flexibility, NVIDIA GPUs, CPU-only systems
 
 Highly optimized GGUF inference engine with broad hardware support.
 
@@ -181,11 +181,11 @@ ollama pull llama3.2:1b
 - Separate daemon to manage
 - Not as fast as native backends
 
-### ⚡ vLLM (High-Performance NVIDIA)
+### ⚡ vLLM (High Performance NVIDIA)
 
 **Best for:** NVIDIA GPUs when you need maximum throughput
 
-High-performance inference server with PagedAttention and continuous batching.
+High performance inference server with PagedAttention and continuous batching.
 
 ```bash
 pip install vllm
@@ -226,7 +226,7 @@ Connect r3LAY to an OpenClaw agent for remote inference via Claude.
 
 Select OpenClaw backend in the Models panel (`Tab+M`), then configure:
 - **Model name:** Provider/model (e.g., `anthropic/claude-sonnet-4-20250514`)
-- **Endpoint:** OpenClaw gateway URL (default: `http://localhost:4444`)
+- **Endpoint:** OpenClaw gateway URL (default: `http://localhost:18789`)
 - **API Key:** Optional Bearer token for authentication
 
 **Pros:**
@@ -286,7 +286,7 @@ r³LAY supports a rich set of slash commands for managing sessions, attachments,
 ```
 
 **Research features:**
-- Multi-cycle exploration with convergence detection
+- Multi cycle exploration with convergence detection
 - Parallel web and local RAG searches
 - Automatic axiom extraction with provenance tracking
 - Contradiction detection and resolution

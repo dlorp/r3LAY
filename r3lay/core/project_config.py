@@ -140,6 +140,36 @@ class AutomotiveConfig(BaseModel):
             parts.append(self.transmission)
         return " ".join(parts)
 
+    def get_obd2_context(self) -> str:
+        """Get vehicle-specific context for OBD2 diagnostics.
+
+        Returns formatted context string for display in diagnostic tools.
+        Includes vehicle details, mileage, and current issues.
+
+        Returns:
+            Multi-line string with vehicle context
+
+        Example:
+            >>> config = AutomotiveConfig(
+            ...     make="Subaru", model="Impreza", year_start=1997,
+            ...     engine_code="EJ22", mileage=180000
+            ... )
+            >>> print(config.get_obd2_context())
+            Vehicle: 1997 Subaru Impreza (EJ22)
+            Mileage: 180,000
+        """
+        parts = [f"Vehicle: {self.get_vehicle_string()}"]
+
+        if self.mileage:
+            parts.append(f"Mileage: {self.mileage:,}")
+
+        if self.current_issues:
+            parts.append(f"Current issues: {', '.join(self.current_issues)}")
+
+        return "\n".join(parts)
+
+
+
 
 class ElectronicsConfig(BaseModel):
     """Configuration for electronics research projects.

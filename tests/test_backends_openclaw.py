@@ -30,7 +30,7 @@ def backend_with_auth() -> OpenClawBackend:
     """Create OpenClawBackend with API key."""
     return OpenClawBackend(
         "anthropic/claude-sonnet-4-20250514",
-        endpoint="http://localhost:4444",
+        endpoint="http://localhost:18789",
         api_key="test-api-key",
     )
 
@@ -38,7 +38,7 @@ def backend_with_auth() -> OpenClawBackend:
 @pytest.fixture
 def backend_custom_endpoint() -> OpenClawBackend:
     """Create OpenClawBackend with custom endpoint."""
-    return OpenClawBackend("gpt-4o-mini", endpoint="http://192.168.1.100:4444")
+    return OpenClawBackend("gpt-4o-mini", endpoint="http://192.168.1.100:18789")
 
 
 @pytest.fixture
@@ -62,16 +62,16 @@ class TestOpenClawBackendInit:
         backend = OpenClawBackend("anthropic/claude-sonnet-4-20250514")
 
         assert backend.model_name == "anthropic/claude-sonnet-4-20250514"
-        assert backend._endpoint == "http://localhost:4444"
+        assert backend._endpoint == "http://localhost:18789"
         assert backend._api_key is None
         assert backend._client is None
 
     def test_init_with_custom_endpoint(self):
         """Test initialization with custom endpoint."""
-        backend = OpenClawBackend("gpt-4o", endpoint="http://192.168.1.50:4444")
+        backend = OpenClawBackend("gpt-4o", endpoint="http://192.168.1.50:18789")
 
         assert backend.model_name == "gpt-4o"
-        assert backend._endpoint == "http://192.168.1.50:4444"
+        assert backend._endpoint == "http://192.168.1.50:18789"
 
     def test_init_with_api_key(self):
         """Test initialization with API key."""
@@ -82,10 +82,10 @@ class TestOpenClawBackendInit:
     def test_init_strips_trailing_slash(self):
         """Test that trailing slash is stripped from endpoint."""
         backend = OpenClawBackend(
-            "anthropic/claude-sonnet-4-20250514", endpoint="http://localhost:4444/"
+            "anthropic/claude-sonnet-4-20250514", endpoint="http://localhost:18789/"
         )
 
-        assert backend._endpoint == "http://localhost:4444"
+        assert backend._endpoint == "http://localhost:18789"
 
     def test_model_name_property(self, backend):
         """Test model_name property returns correct value."""
@@ -395,10 +395,10 @@ class TestOpenClawBackendIsAvailable:
             mock_client.__aexit__ = AsyncMock(return_value=None)
             MockClient.return_value = mock_client
 
-            result = await OpenClawBackend.is_available(endpoint="http://192.168.1.100:4444")
+            result = await OpenClawBackend.is_available(endpoint="http://192.168.1.100:18789")
 
             assert result is True
-            mock_client.get.assert_called_with("http://192.168.1.100:4444/v1/models")
+            mock_client.get.assert_called_with("http://192.168.1.100:18789/v1/models")
 
 
 # =============================================================================
