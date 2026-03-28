@@ -33,12 +33,44 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
 import gc
 import logging
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, AsyncGenerator
 
 from .base import InferenceBackend
+
+
+@contextlib.contextmanager
+def _suppress_c_stdout():
+    """Suppress C-level stdout/stderr that bypasses Python.
+
+    llama.cpp's CLIP/mtmd code writes directly to C file descriptors
+    during image processing. This corrupts the Textual TUI. Redirect
+    both fd 1 (stdout) and fd 2 (stderr) to /dev/null temporarily.
+    """
+    import sys
+
+    # Flush Python buffers before redirecting C fds
+    sys.stdout.flush()
+    sys.stderr.flush()
+
+    devnull = os.open(os.devnull, os.O_WRONLY)
+    old_stdout = os.dup(1)
+    old_stderr = os.dup(2)
+    try:
+        os.dup2(devnull, 1)
+        os.dup2(devnull, 2)
+        os.close(devnull)  # Safe to close after dup2 copies the fd
+        yield
+    finally:
+        os.dup2(old_stdout, 1)
+        os.dup2(old_stderr, 2)
+        os.close(old_stdout)
+        os.close(old_stderr)
+
 
 if TYPE_CHECKING:
     from llama_cpp import Llama
@@ -68,6 +100,14 @@ class LlamaCppBackend(InferenceBackend):
         "<|eot_id|>",
         "<|end_of_text|>",
     ]
+
+    def _is_thinking_model(self) -> bool:
+        """Check if the loaded model has a thinking/reasoning template (Qwen3+)."""
+        if self._llm is None:
+            return False
+        metadata = getattr(self._llm, "metadata", {})
+        template = metadata.get("tokenizer.chat_template", "")
+        return "enable_thinking" in template
 
     def __init__(
         self,
@@ -144,8 +184,10 @@ class LlamaCppBackend(InferenceBackend):
                 logger.info("Creating LLaVA chat handler with mmproj: %s", self._mmproj_path)
                 self._chat_handler = Llava15ChatHandler(
                     clip_model_path=str(self._mmproj_path),
-                    verbose=True,  # Required for mtmd initialization to work properly
+                    verbose=False,
                 )
+                # Prevent LLaVA's default system message from overriding ours
+                self._chat_handler.DEFAULT_SYSTEM_MESSAGE = ""
             except ImportError as e:
                 raise DependencyError(
                     "LLaVA chat handler not available. "
@@ -161,10 +203,10 @@ class LlamaCppBackend(InferenceBackend):
             def _load_model():
                 return Llama(
                     model_path=str(self._path),
-                    n_ctx=8192,  # Context window
+                    n_ctx=32768,  # 32K context — fits 24GB with most quantized models
                     n_gpu_layers=-1,  # Full GPU offload (Metal or CUDA)
-                    chat_handler=self._chat_handler,  # LLaVA handler if vision
                     verbose=False,
+                    # Don't pass chat_handler — it overrides the native GGUF template
                 )
 
             self._llm = await loop.run_in_executor(None, _load_model)
@@ -211,7 +253,7 @@ class LlamaCppBackend(InferenceBackend):
     async def generate_stream(
         self,
         messages: list[dict[str, str]],
-        max_tokens: int = 512,
+        max_tokens: int = 4096,
         temperature: float = 0.7,
         images: list[Path] | None = None,
     ) -> AsyncGenerator[str, None]:
@@ -322,13 +364,28 @@ class LlamaCppBackend(InferenceBackend):
         logger.debug("Vision generation with %d messages, %d images", len(messages), len(images))
 
         try:
-            # Use create_chat_completion for LLaVA (supports streaming)
-            response = self._llm.create_chat_completion(
-                messages=formatted_messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                stream=True,
-            )
+            # Temporarily attach vision handler for this request only
+            self._llm.chat_handler = self._chat_handler
+
+            # Suppress C-level stdout during CLIP image encoding
+            # (add_text, image_tokens, encoding image slice, etc.) which corrupts TUI
+            # The noisy output happens during create_chat_completion init, not iteration
+            with _suppress_c_stdout():
+                response = self._llm.create_chat_completion(
+                    messages=formatted_messages,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    stream=True,
+                )
+                # Force the first chunk to trigger image encoding while suppressed
+                first_chunk = next(iter(response), None)
+
+            # Yield first chunk if it had content
+            if first_chunk and "choices" in first_chunk and len(first_chunk["choices"]) > 0:
+                delta = first_chunk["choices"][0].get("delta", {})
+                content = delta.get("content", "")
+                if content:
+                    yield content
 
             for chunk in response:
                 if "choices" in chunk and len(chunk["choices"]) > 0:
@@ -344,6 +401,9 @@ class LlamaCppBackend(InferenceBackend):
         except Exception as e:
             logger.error("Vision generation error: %s", e)
             raise GenerationError(f"Vision generation failed: {e}") from e
+        finally:
+            # Restore native template for text requests
+            self._llm.chat_handler = None
 
     def _format_messages_with_images(
         self,
@@ -502,7 +562,12 @@ class LlamaCppBackend(InferenceBackend):
             parts.append(f"<|im_start|>{role}\n{content}<|im_end|>")
 
         # Add the assistant prompt start
-        parts.append("<|im_start|>assistant\n")
+        # For thinking models (Qwen3+), prefill an empty think block to disable
+        # chain-of-thought and get a direct response
+        if self._is_thinking_model():
+            parts.append("<|im_start|>assistant\n<think>\n\n</think>\n\n")
+        else:
+            parts.append("<|im_start|>assistant\n")
 
         return "\n".join(parts)
 
