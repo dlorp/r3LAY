@@ -7,7 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_No unreleased changes._
+### Added
+- Cross-encoder reranking via subprocess isolation (`r3lay/core/reranker.py`, `reranker_worker.py`)
+  - Uses `cross-encoder/ms-marco-MiniLM-L-6-v2` for +15-25% retrieval accuracy
+  - Smart skip for short queries (<5 words)
+  - Threshold filtering (default >0.35)
+- FAISS vector backend (`r3lay/core/vector_store.py`)
+  - `FAISSVectorStore` with IndexFlatIP / IndexIVFFlat auto-selection
+  - `NumpyFallbackStore` for environments without faiss-cpu
+  - `create_vector_store()` factory with graceful degradation
+  - Migration helper: `from_numpy()` for converting existing .npy indexes
+- Adaptive retrieval strategy (`classify_query()` in `r3lay/core/index.py`)
+  - NO_RETRIEVAL: greetings and meta-questions skip search
+  - BM25_ONLY: short keyword queries
+  - HYBRID: standard queries use RRF fusion
+  - HYBRID_RERANK: complex queries get two-stage retrieval
+- Reranker model config in `ModelRoles` (`config.py`)
+- Tests for reranker, vector store, and adaptive retrieval
+
+### Fixed
+- Vector search initialization ordering: embedder now auto-attaches to index
+  when loaded, enabling hybrid search without manual reindex
+- App auto-init now wires embedder to index after background load
+
+### Changed
+- `HybridIndex` constructor accepts optional `reranker` parameter
+- `search_async()` uses adaptive strategy selection and optional reranking
+- `pyproject.toml`: vector deps updated (faiss-cpu replaces chromadb)
 
 ## [0.7.0] - 2026-02-10
 
