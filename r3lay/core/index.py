@@ -517,15 +517,16 @@ def classify_query(
     first_word = words[0].lower().rstrip("?") if words else ""
     has_question = first_word in _QUESTION_WORDS or stripped.endswith("?")
 
-    if word_count <= 3 and not has_question and not has_hybrid:
-        return RetrievalStrategy.BM25_ONLY
-
     # If no hybrid available, BM25-only is the only option
     if not has_hybrid:
         return RetrievalStrategy.BM25_ONLY
 
-    # Complex queries benefit from reranking: long queries, questions, code tokens
+    # Short keyword queries (1-3 words, no question, no code tokens) — BM25 is sufficient
     has_code_tokens = bool(_CODE_TOKEN_PATTERN.search(stripped))
+    if word_count <= 3 and not has_question and not has_code_tokens:
+        return RetrievalStrategy.BM25_ONLY
+
+    # Complex queries benefit from reranking: long queries, questions, code tokens
     is_complex = word_count >= 8 or (has_question and word_count >= 5) or has_code_tokens
 
     if is_complex and has_reranker:
@@ -1203,8 +1204,8 @@ class HybridIndex:
         if strategy == RetrievalStrategy.HYBRID_RERANK and has_reranker:
             results = await self._rerank_results(query, results, n_results)
 
-        # Filter by minimum relevance
-        results = [r for r in results if r.combined_score >= min_relevance]
+        # Filter by minimum relevance (final_score prefers rerank_score when available)
+        results = [r for r in results if r.final_score >= min_relevance]
 
         # Filter by source type if specified
         if source_type_filter:
@@ -1286,13 +1287,12 @@ class HybridIndex:
         return results
 
     def _vector_search_sync(self, query: str, n_results: int) -> list[RetrievalResult]:
-        """Synchronous vector search using pre-computed query embedding.
+        """Synchronous vector search is not supported.
 
-        Only works if the embedder has the query already embedded.
-        For live embedding, use _vector_search async.
+        Embedding generation requires async I/O (subprocess communication).
+        Use search_async() for proper hybrid search with embeddings.
         """
-        # This is a fallback - we need the query embedding
-        # In practice, search_async should be used for proper hybrid search
+        logger.warning("Sync vector search called but not implemented; use search_async()")
         return []
 
     async def _vector_search(self, query: str, n_results: int) -> list[RetrievalResult]:

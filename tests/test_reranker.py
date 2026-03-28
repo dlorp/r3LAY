@@ -338,10 +338,13 @@ class TestCrossEncoderRerankerRerank:
 
     @pytest.mark.asyncio
     async def test_rerank_timeout(self) -> None:
-        """Test rerank timeout when worker never responds."""
+        """Test rerank timeout terminates worker and raises."""
         reranker, mock_process = self._make_loaded_reranker()
 
         mock_process.stdout.read = AsyncMock(side_effect=asyncio.TimeoutError())
+        mock_process.terminate = MagicMock()
+        mock_process.kill = MagicMock()
+        mock_process.wait = AsyncMock()
 
         call_count = 0
 
@@ -352,11 +355,14 @@ class TestCrossEncoderRerankerRerank:
                 return 0.0
             return float(RERANK_TIMEOUT + 1)
 
+        # After terminate, returncode becomes 0
+        rc_values = iter([None, None, None, 0, 0, 0, 0])
+        type(mock_process).returncode = PropertyMock(side_effect=lambda: next(rc_values, 0))
+
         with patch("r3lay.core.reranker.time") as mock_time_mod:
             mock_time_mod.monotonic = fake_monotonic
             with pytest.raises(RuntimeError, match="Timeout waiting for reranking"):
                 await reranker.rerank("query", ["passage"])
-        reranker._process = None
 
     @pytest.mark.asyncio
     async def test_rerank_process_dies(self) -> None:
@@ -918,7 +924,7 @@ class TestWorkerMainRerankCommand:
         assert len(results) == 3
         # All should have uniform score of 1.0
         for r in results:
-            assert r["score"] == 1.0
+            assert r["score"] == 0.5  # Neutral score for short queries
         # Original order preserved
         assert results[0]["index"] == 0
         assert results[1]["index"] == 1

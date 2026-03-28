@@ -233,6 +233,7 @@ class CrossEncoderReranker:
             # Check timeout
             elapsed = time.monotonic() - start_time
             if elapsed > RERANK_TIMEOUT:
+                await self._terminate_process()
                 raise RuntimeError(f"Timeout waiting for reranking results after {RERANK_TIMEOUT}s")
 
             # Check if process died

@@ -155,7 +155,7 @@ def main() -> None:
                 query_words = len(query.split())
                 if query_words < MIN_QUERY_WORDS:
                     # Return all passages with uniform score, preserving original order
-                    uniform_score = 1.0
+                    uniform_score = 0.5  # Neutral: no ranking signal for short queries
                     results = [
                         {"index": i, "score": uniform_score, "passage": p}
                         for i, p in enumerate(passages[:top_k])

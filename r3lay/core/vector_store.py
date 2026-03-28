@@ -205,7 +205,9 @@ class FAISSVectorStore(VectorStoreBase):
                 f"Expected vectors of shape (n, {self._dimension}), got {vectors.shape}"
             )
 
-        vectors = np.ascontiguousarray(vectors, dtype=np.float32)
+        # Always copy to avoid modifying caller's array during normalization
+        vectors = np.array(vectors, dtype=np.float32, copy=True)
+        vectors = np.ascontiguousarray(vectors)
         self._faiss.normalize_L2(vectors)
 
         with self._write_lock:
@@ -235,6 +237,8 @@ class FAISSVectorStore(VectorStoreBase):
         """Search for k nearest neighbors.
 
         The query vector is L2-normalized so inner product equals cosine similarity.
+        Thread-safe: snapshots the index reference to avoid TOCTOU races with
+        concurrent write operations (add/remove/rebuild).
 
         Args:
             query_vector: Query vector of shape (dimension,).
@@ -244,16 +248,19 @@ class FAISSVectorStore(VectorStoreBase):
             List of (index, score) tuples sorted by descending score.
             Score is cosine similarity clamped to [0, 1].
         """
-        if self.count == 0:
+        # Snapshot index reference for thread safety
+        index = self._index
+        count = index.ntotal
+        if count == 0:
             return []
 
         query = np.ascontiguousarray(query_vector.reshape(1, -1), dtype=np.float32)
         self._faiss.normalize_L2(query)
 
         # Clamp k to available vectors
-        effective_k = min(k, self.count)
+        effective_k = min(k, count)
 
-        scores, indices = self._index.search(query, effective_k)
+        scores, indices = index.search(query, effective_k)
 
         results: list[tuple[int, float]] = []
         for idx, score in zip(indices[0], scores[0]):
