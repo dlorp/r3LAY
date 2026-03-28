@@ -97,7 +97,7 @@ class AppConfig(BaseSettings):
     mlx_folder: Optional[Path] = None
     gguf_folder: Path = Field(default_factory=lambda: Path("~/.r3lay/models/").expanduser())
     llm_models_folder: Optional[Path] = Field(
-        default=None,
+        default_factory=lambda: Path("~/Documents/LLM").expanduser(),
         description="Folder containing GGUF model subdirectories with optional mmproj files",
     )
     ollama_endpoint: str = "http://localhost:11434"
