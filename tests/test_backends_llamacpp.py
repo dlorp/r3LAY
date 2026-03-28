@@ -169,9 +169,8 @@ class TestLlamaCppBackendLoad:
 
         mock_llama.assert_called_once_with(
             model_path=str(temp_model_file),
-            n_ctx=8192,
+            n_ctx=32768,
             n_gpu_layers=-1,
-            chat_handler=None,
             verbose=False,
         )
 
