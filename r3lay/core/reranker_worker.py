@@ -30,12 +30,16 @@ from __future__ import annotations
 import gc
 import json
 import os
+import re
 import sys
 from typing import Any
 
 # Minimum number of words in a query to perform actual reranking.
 # Queries shorter than this get uniform scores (reranking would be meaningless).
 MIN_QUERY_WORDS = 5
+
+# Valid HuggingFace model name pattern (org/model-name)
+_MODEL_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+/[a-zA-Z0-9._-]+$")
 
 
 def setup_isolation() -> None:
@@ -85,6 +89,17 @@ def main() -> None:
 
         if cmd_type == "load":
             requested_model = cmd.get("model", "cross-encoder/ms-marco-MiniLM-L-6-v2")
+
+            # Validate model name format to prevent path traversal
+            if not _MODEL_NAME_PATTERN.match(requested_model) or ".." in requested_model:
+                send_response(
+                    {
+                        "type": "loaded",
+                        "success": False,
+                        "error": f"Invalid model name format: {requested_model}",
+                    }
+                )
+                continue
 
             try:
                 from sentence_transformers import CrossEncoder
