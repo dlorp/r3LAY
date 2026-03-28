@@ -463,6 +463,9 @@ class SemanticChunker:
 # RRF fusion constant (standard value from literature)
 RRF_K = 60
 
+# Maximum passages to send to cross-encoder reranker (prevents excessive compute)
+MAX_RERANK_PASSAGES = 100
+
 # Patterns for query classification
 _GREETING_PATTERNS = re.compile(
     r"^(hi|hello|hey|thanks|thank you|ok|okay|sure|yes|no|bye|goodbye)\b",
@@ -677,7 +680,7 @@ class HybridIndex:
 
                 # Load text vectors if they exist
                 if self._vectors_file.exists():
-                    self._chunk_vectors = np.load(self._vectors_file)
+                    self._chunk_vectors = np.load(self._vectors_file, allow_pickle=False)
                     if len(self._chunk_vectors) > 0:
                         self._embedding_dim = self._chunk_vectors.shape[1]
                     logger.debug(
@@ -703,7 +706,7 @@ class HybridIndex:
 
                 # Load image vectors if they exist
                 if self._image_vectors_file.exists():
-                    self._image_vectors = np.load(self._image_vectors_file)
+                    self._image_vectors = np.load(self._image_vectors_file, allow_pickle=False)
                     if len(self._image_vectors) > 0:
                         self._image_embedding_dim = self._image_vectors.shape[1]
                     logger.debug(
@@ -1228,7 +1231,9 @@ class HybridIndex:
         if not results or self.reranker is None:
             return results
 
-        passages = [r.content for r in results]
+        # Cap passages to prevent excessive subprocess load
+        capped_results = results[:MAX_RERANK_PASSAGES]
+        passages = [r.content for r in capped_results]
         try:
             reranked = await self.reranker.rerank(query, passages, top_k=n_results)
         except Exception:
@@ -1238,8 +1243,8 @@ class HybridIndex:
         # Map rerank scores back to results
         reranked_results: list[RetrievalResult] = []
         for rr in reranked:
-            if rr.index < len(results):
-                result = results[rr.index]
+            if rr.index < len(capped_results):
+                result = capped_results[rr.index]
                 result.rerank_score = rr.score
                 reranked_results.append(result)
 

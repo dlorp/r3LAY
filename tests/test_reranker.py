@@ -810,7 +810,7 @@ class TestWorkerMainLoadCommand:
         """Test worker handles load command successfully."""
         from r3lay.core.reranker_worker import main
 
-        load_cmd = json.dumps({"cmd": "load", "model": "test-model"}) + "\n"
+        load_cmd = json.dumps({"cmd": "load", "model": "cross-encoder/test-model"}) + "\n"
         unload_cmd = json.dumps({"cmd": "unload"}) + "\n"
 
         stdin_data = load_cmd + unload_cmd
@@ -836,13 +836,13 @@ class TestWorkerMainLoadCommand:
         loaded_resp = json.loads(output_lines[0])
         assert loaded_resp["type"] == "loaded"
         assert loaded_resp["success"] is True
-        assert loaded_resp["model"] == "test-model"
+        assert loaded_resp["model"] == "cross-encoder/test-model"
 
     def test_load_import_error(self) -> None:
         """Test worker handles missing sentence-transformers."""
         from r3lay.core.reranker_worker import main
 
-        load_cmd = json.dumps({"cmd": "load", "model": "test-model"}) + "\n"
+        load_cmd = json.dumps({"cmd": "load", "model": "cross-encoder/test-model"}) + "\n"
         unload_cmd = json.dumps({"cmd": "unload"}) + "\n"
 
         stdin_data = load_cmd + unload_cmd
@@ -878,7 +878,7 @@ class TestWorkerMainRerankCommand:
         # Build a query with fewer words than MIN_QUERY_WORDS
         short_query = " ".join(["word"] * (MIN_QUERY_WORDS - 1))
 
-        load_cmd = json.dumps({"cmd": "load", "model": "test-model"}) + "\n"
+        load_cmd = json.dumps({"cmd": "load", "model": "cross-encoder/test-model"}) + "\n"
         rerank_cmd = (
             json.dumps(
                 {
@@ -933,7 +933,7 @@ class TestWorkerMainRerankCommand:
         # Build a query with enough words to trigger actual reranking
         long_query = " ".join(["word"] * (MIN_QUERY_WORDS + 2))
 
-        load_cmd = json.dumps({"cmd": "load", "model": "test-model"}) + "\n"
+        load_cmd = json.dumps({"cmd": "load", "model": "cross-encoder/test-model"}) + "\n"
         rerank_cmd = (
             json.dumps(
                 {
@@ -1022,7 +1022,7 @@ class TestWorkerMainRerankCommand:
         """Test rerank with empty passages list returns empty results."""
         from r3lay.core.reranker_worker import main
 
-        load_cmd = json.dumps({"cmd": "load", "model": "test-model"}) + "\n"
+        load_cmd = json.dumps({"cmd": "load", "model": "cross-encoder/test-model"}) + "\n"
         rerank_cmd = (
             json.dumps(
                 {
@@ -1065,7 +1065,7 @@ class TestWorkerMainUnloadCommand:
         """Test unload command triggers model cleanup and exits the loop."""
         from r3lay.core.reranker_worker import main
 
-        load_cmd = json.dumps({"cmd": "load", "model": "test-model"}) + "\n"
+        load_cmd = json.dumps({"cmd": "load", "model": "cross-encoder/test-model"}) + "\n"
         unload_cmd = json.dumps({"cmd": "unload"}) + "\n"
         # This should never be reached because unload breaks the loop
         extra_cmd = json.dumps({"cmd": "rerank", "query": "q", "passages": ["p"]}) + "\n"

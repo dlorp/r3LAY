@@ -15,6 +15,7 @@ Usage:
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import logging
@@ -170,6 +171,22 @@ class FAISSVectorStore(VectorStoreBase):
             return None
         return self._persist_path / "faiss_id_map.json"
 
+    @property
+    def _hash_file(self) -> Path | None:
+        """Path to the FAISS index integrity hash file."""
+        if self._persist_path is None:
+            return None
+        return self._persist_path / "faiss.index.sha256"
+
+    @staticmethod
+    def _compute_file_hash(path: Path) -> str:
+        """Compute SHA-256 hash of a file for integrity verification."""
+        h = hashlib.sha256()
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(8192), b""):
+                h.update(chunk)
+        return h.hexdigest()
+
     def add(self, vectors: np.ndarray, ids: list[str] | None = None) -> None:
         """Add vectors to the index.
 
@@ -311,7 +328,7 @@ class FAISSVectorStore(VectorStoreBase):
         )
 
     def save(self) -> None:
-        """Persist index and ID mapping to disk.
+        """Persist index, ID mapping, and integrity hash to disk.
 
         Raises:
             RuntimeError: If no persist_path was configured.
@@ -322,6 +339,11 @@ class FAISSVectorStore(VectorStoreBase):
         with self._write_lock:
             self._persist_path.mkdir(parents=True, exist_ok=True)
             self._faiss.write_index(self._index, str(self._index_file))
+
+            # Write integrity hash for the FAISS index
+            if self._hash_file is not None:
+                file_hash = self._compute_file_hash(self._index_file)
+                self._hash_file.write_text(file_hash, encoding="utf-8")
 
             # Store ID map with string keys for JSON compatibility
             serializable = {str(k): v for k, v in self._id_map.items()}
@@ -347,6 +369,19 @@ class FAISSVectorStore(VectorStoreBase):
             return False
 
         try:
+            # Verify FAISS index integrity before loading
+            if self._hash_file is not None and self._hash_file.exists():
+                expected = self._hash_file.read_text(encoding="utf-8").strip()
+                actual = self._compute_file_hash(self._index_file)
+                if expected != actual:
+                    logger.error(
+                        "FAISS index integrity check failed: %s (expected %s, got %s)",
+                        self._index_file,
+                        expected[:16],
+                        actual[:16],
+                    )
+                    return False
+
             self._index = self._faiss.read_index(str(self._index_file))
             self._is_ivf = hasattr(self._index, "nprobe")
 
@@ -661,7 +696,7 @@ class NumpyFallbackStore(VectorStoreBase):
             return False
 
         try:
-            self._vectors = np.load(self._vectors_file)
+            self._vectors = np.load(self._vectors_file, allow_pickle=False)
 
             if self._id_map_file.exists():
                 raw = json.loads(self._id_map_file.read_text(encoding="utf-8"))

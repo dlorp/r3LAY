@@ -320,8 +320,10 @@ class CrossEncoderReranker:
 
             # Safety check: prevent unbounded buffer growth
             if len(self._read_buffer) > 50 * 1024 * 1024:  # 50MB max
-                logger.error("Read buffer exceeded 50MB, clearing")
+                logger.error("Read buffer exceeded 50MB, terminating worker")
                 self._read_buffer = b""
+                await self._terminate_process()
+                raise RuntimeError("Worker process produced excessive output")
 
         except asyncio.TimeoutError:
             pass
