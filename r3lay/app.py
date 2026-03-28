@@ -236,6 +236,19 @@ class R3LayApp(App):
                 if vision:
                     logger.info(f"Auto-loaded vision embedder: {roles.vision_embedder}")
 
+            # Init reranker if configured
+            if roles.has_reranker():
+                try:
+                    from r3lay.core.reranker import CrossEncoderReranker
+
+                    reranker = CrossEncoderReranker(model_name=roles.reranker)
+                    await reranker.load()
+                    idx = self.state.init_index()
+                    idx.reranker = reranker
+                    logger.info(f"Auto-loaded reranker: {roles.reranker}")
+                except Exception as e:
+                    logger.warning(f"Failed to auto-load reranker: {e}")
+
         except Exception as e:
             logger.warning(f"Failed to auto-init embedders: {e}")
 
@@ -261,6 +274,17 @@ class R3LayApp(App):
                 if self.state.vision_embedder is not None:
                     await asyncio.wait_for(
                         self.state.unload_vision_embedder(),
+                        timeout=5.0,
+                    )
+
+                # Unload reranker if attached to index
+                if (
+                    hasattr(self.state, "index")
+                    and self.state.index is not None
+                    and self.state.index.reranker is not None
+                ):
+                    await asyncio.wait_for(
+                        self.state.index.reranker.unload(),
                         timeout=5.0,
                     )
 

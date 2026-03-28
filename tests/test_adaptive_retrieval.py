@@ -60,9 +60,9 @@ class TestClassifyQuery:
         assert result == RetrievalStrategy.BM25_ONLY
 
     def test_short_keyword_with_hybrid(self) -> None:
-        # With hybrid available, even short queries get hybrid
+        # Short keyword queries use BM25-only even when hybrid is available
         result = classify_query("python logging", has_hybrid=True)
-        assert result == RetrievalStrategy.HYBRID
+        assert result == RetrievalStrategy.BM25_ONLY
 
     def test_question_forces_hybrid_when_available(self) -> None:
         result = classify_query("what is logging?", has_hybrid=True)
@@ -122,8 +122,8 @@ class TestClassifyQuery:
 
     def test_empty_query(self) -> None:
         result = classify_query("", has_hybrid=True)
-        # Empty string splits to [''], word_count=1, no greeting match, has_hybrid=True
-        assert result == RetrievalStrategy.HYBRID
+        # Empty string: 1 word, no question, no code tokens -> BM25_ONLY
+        assert result == RetrievalStrategy.BM25_ONLY
 
     def test_single_word_non_greeting(self) -> None:
         result = classify_query("python", has_hybrid=False)
@@ -131,8 +131,8 @@ class TestClassifyQuery:
 
     def test_whitespace_only(self) -> None:
         result = classify_query("   ", has_hybrid=True)
-        # "   ".strip() = "", splits to [''], word_count=1, has_hybrid=True
-        assert result == RetrievalStrategy.HYBRID
+        # "   ".strip() = "", 1 word, no question, no code tokens -> BM25_ONLY
+        assert result == RetrievalStrategy.BM25_ONLY
 
     def test_question_mark_triggers_question_detection(self) -> None:
         # "is this correct?" has a question mark

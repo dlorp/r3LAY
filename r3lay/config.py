@@ -143,10 +143,7 @@ class AppConfig(BaseSettings):
             if data and "model_roles" in data:
                 roles = data["model_roles"]
                 config.model_roles = ModelRoles(
-                    text_model=roles.get("text_model"),
-                    vision_model=roles.get("vision_model"),
-                    text_embedder=roles.get("text_embedder"),
-                    vision_embedder=roles.get("vision_embedder"),
+                    **{k: v for k, v in roles.items() if k in ModelRoles.model_fields}
                 )
 
             # Load intent_routing preference if present
@@ -167,12 +164,7 @@ class AppConfig(BaseSettings):
         yaml.default_flow_style = False
 
         data = {
-            "model_roles": {
-                "text_model": self.model_roles.text_model,
-                "vision_model": self.model_roles.vision_model,
-                "text_embedder": self.model_roles.text_embedder,
-                "vision_embedder": self.model_roles.vision_embedder,
-            },
+            "model_roles": self.model_roles.model_dump(exclude_none=False),
             "intent_routing": self.intent_routing,
         }
 
