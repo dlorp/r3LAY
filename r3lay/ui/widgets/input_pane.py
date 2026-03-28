@@ -21,6 +21,7 @@ from textual.containers import Horizontal, Vertical
 from textual.events import Paste
 from textual.widgets import Button, Static, TextArea
 
+from ...core.contradiction_monitor import ContradictionMonitor
 from ...core.intent.parser import IntentParser
 from ...core.intent.taxonomy import IntentType
 
@@ -132,6 +133,8 @@ class InputPane(Vertical):
         self._attachments: list[Path] = []
         # Intent parser for natural language commands
         self._intent_parser = IntentParser()
+        # Contradiction monitor for auto-R³ triggering
+        self._contradiction_monitor = ContradictionMonitor()
 
     def compose(self) -> ComposeResult:
         yield TextArea(id="input-area")
@@ -2213,12 +2216,79 @@ class InputPane(Vertical):
                 content=response_text,
                 model=model_name,
             )
+
+            # Check for contradictions and potentially auto-trigger R³
+            await self._check_and_trigger_research(message, response_text, response_pane)
+
         elif was_cancelled:
             # Add partial response with cancellation note
             session.add_assistant_message(
                 content=response_text + "\n\n*[Generation cancelled]*",
                 model=model_name,
                 metadata={"was_cancelled": True},
+            )
+
+    async def _check_and_trigger_research(
+        self, user_message: str, llm_response: str, response_pane
+    ) -> None:
+        """Check for contradictions in the chat exchange and trigger R³ if configured.
+
+        Runs the ContradictionMonitor against the user message and LLM response.
+        Based on the configured auto_trigger_mode:
+        - 'auto': Immediately runs R³ research
+        - 'prompt': Shows a prompt asking the user to confirm
+        - 'manual': Does nothing (user must use /research explicitly)
+
+        Args:
+            user_message: The user's input text
+            llm_response: The LLM's generated response
+            response_pane: ResponsePane to display results
+        """
+        # Check configured mode
+        trigger_mode = self.state.config.research_auto_trigger
+        if trigger_mode == "manual":
+            return
+
+        # Update monitor with current axiom manager if available
+        if hasattr(self.state, "axiom_manager") and self.state.axiom_manager is not None:
+            self._contradiction_monitor.axiom_manager = self.state.axiom_manager
+        if self.state.index is not None:
+            self._contradiction_monitor.index = self.state.index
+
+        # Run contradiction analysis
+        signal = self._contradiction_monitor.analyze(user_message, llm_response)
+        if signal is None:
+            return
+
+        logger.info(
+            f"Contradiction detected ({signal.source}, confidence={signal.confidence:.2f}): "
+            f"{signal.description}"
+        )
+
+        research_query = signal.suggested_query
+
+        if trigger_mode == "auto":
+            # Auto mode: immediately run R³
+            response_pane.add_system(
+                f"**Contradiction detected** — {signal.description}\n\n"
+                f"Auto-triggering R³ deep research..."
+            )
+            await self._handle_research(research_query, response_pane)
+
+        elif trigger_mode == "prompt":
+            # Prompt mode: show the contradiction and offer to research
+            conflict_detail = ""
+            if signal.conflicting_statements:
+                conflict_detail = "\n".join(
+                    f"  - {s[:120]}" for s in signal.conflicting_statements
+                )
+                conflict_detail = f"\n\n**Conflicting info:**\n{conflict_detail}"
+
+            response_pane.add_system(
+                f"**Contradiction detected** — {signal.description}"
+                f"{conflict_detail}\n\n"
+                f"Run `/research {research_query[:80]}` to investigate, "
+                f"or change mode in config (`research.auto_trigger_mode`)."
             )
 
     async def _handle_maintenance_intent(
@@ -2714,7 +2784,7 @@ need anything else. Keep it concise (1-2 sentences)."""
 
                 # Highlight overdue in red
                 if service_due.is_overdue:
-                    miles_text = f"[red]{miles_text} ⚠️[/red]"
+                    miles_text = f"[red]{miles_text} OVERDUE[/red]"
 
                 lines.append(
                     f"| {interval.service_type} | {miles_text} | "
@@ -2835,7 +2905,7 @@ need anything else. Keep it concise (1-2 sentences)."""
             lines = [f"## Current Mileage: {new_mileage:,} miles\n"]
 
             if overdue:
-                lines.append(f"⚠️  **{len(overdue)} Service(s) Overdue**\n")
+                lines.append(f"**{len(overdue)} Service(s) Overdue**\n")
                 for service_due in overdue[:3]:
                     interval = service_due.interval
                     lines.append(
