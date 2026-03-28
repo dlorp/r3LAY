@@ -214,7 +214,9 @@ class R3LayApp(App):
         """Auto-initialize configured embedders after UI renders.
 
         Checks config.model_roles for configured embedders and initializes
-        them in the background. Non-blocking to avoid delaying startup.
+        them in the background. Once loaded, attaches to the hybrid index
+        so hybrid search is available immediately. Non-blocking to avoid
+        delaying startup.
         """
         try:
             roles = self.config.model_roles
@@ -224,6 +226,9 @@ class R3LayApp(App):
                 embedder = await self.state.init_embedder()
                 if embedder:
                     logger.info(f"Auto-loaded text embedder: {roles.text_embedder}")
+                    # Attach to index so hybrid search works without manual reindex
+                    self.state.init_index(with_embedder=True)
+                    logger.info("Hybrid search enabled — embedder attached to index")
 
             # Init vision embedder if configured
             if roles.has_vision_embedder():

@@ -37,13 +37,11 @@ dev = [
     "ruff>=0.3.0",
 ]
 rerank = [
-    "torch>=2.0.0",
-    "transformers>=4.35.0",
+    "sentence-transformers>=2.2.0",
 ]
-# Vector search - disabled by default due to Textual fd conflicts
-# Can be enabled via subprocess isolation in future
+# Vector search with FAISS (subprocess-isolated embedders avoid Textual fd conflicts)
 vector = [
-    "chromadb>=0.4.0",
+    "faiss-cpu>=1.7.0",
     "sentence-transformers>=2.2.0",
 ]
 # macOS clipboard image support (better browser image paste handling)

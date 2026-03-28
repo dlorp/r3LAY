@@ -40,6 +40,10 @@ class ModelRoles(BaseModel):
         description="Default embedding model for RAG",
     )
     vision_embedder: Optional[str] = None
+    reranker: Optional[str] = Field(
+        default=None,
+        description="Cross-encoder model for reranking",
+    )
 
     def has_text_model(self) -> bool:
         """Check if a text model is configured."""
@@ -60,6 +64,10 @@ class ModelRoles(BaseModel):
     def has_vision_embedder(self) -> bool:
         """Check if a vision embedder is configured."""
         return self.vision_embedder is not None
+
+    def has_reranker(self) -> bool:
+        """Check if a reranker model is configured."""
+        return self.reranker is not None
 
 
 class AppConfig(BaseSettings):

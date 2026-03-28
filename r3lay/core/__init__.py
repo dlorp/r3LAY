@@ -20,8 +20,10 @@ from .index import (
     DocumentLoader,
     HybridIndex,
     RetrievalResult,
+    RetrievalStrategy,
     SemanticChunker,
     SourceType,
+    classify_query,
     detect_source_type_from_path,
 )
 from .models import (
@@ -37,6 +39,7 @@ from .project_context import (
     ProjectContext,
     extract_project_context,
 )
+from .reranker import CrossEncoderReranker, RerankResult
 from .research import (
     Contradiction,
     ContradictionDetector,
@@ -81,6 +84,12 @@ from .sources import (
     SourceInfo,
     detect_source_type_from_url,
     format_citation,
+)
+from .vector_store import (
+    FAISSVectorStore,
+    NumpyFallbackStore,
+    VectorStoreBase,
+    create_vector_store,
 )
 
 if TYPE_CHECKING:
@@ -347,23 +356,33 @@ class R3LayState:
     ) -> HybridIndex:
         """Lazy-initialize the hybrid index.
 
+        Automatically attaches the text embedder if one is loaded, enabling
+        hybrid (vector + BM25) search. Falls back to BM25-only when no
+        embedder is available.
+
         Args:
-            with_embedder: If True, attach the text embedder to enable hybrid search.
-                          The embedder must be loaded separately before generating embeddings.
+            with_embedder: If True, explicitly request embedder attachment.
+                          The embedder is also auto-attached when already loaded.
 
         Returns:
             HybridIndex instance (creates new one if needed).
         """
+        # Auto-detect: attach embedder if it's loaded, regardless of with_embedder flag
+        has_embedder = with_embedder or (
+            self.text_embedder is not None and self.text_embedder.is_loaded
+        )
+
         if self.index is None:
             index_path = self.project_path / ".r3lay"
             index_path.mkdir(exist_ok=True)
             self.index = HybridIndex(
                 persist_path=index_path,
-                text_embedder=self.text_embedder if with_embedder else None,
+                text_embedder=self.text_embedder if has_embedder else None,
             )
-        elif with_embedder and self.index.text_embedder is None:
+        elif has_embedder and self.index.text_embedder is None:
             # Attach embedder to existing index
             self.index.text_embedder = self.text_embedder
+            logger.info("Attached text embedder to existing index — hybrid search enabled")
         return self.index
 
     async def init_embedder(self) -> "EmbeddingBackend | None":
@@ -573,9 +592,19 @@ __all__ = [
     "HybridIndex",
     "Chunk",
     "RetrievalResult",
+    "RetrievalStrategy",
+    "classify_query",
     "CodeAwareTokenizer",
     "SemanticChunker",
     "DocumentLoader",
+    # Reranker
+    "CrossEncoderReranker",
+    "RerankResult",
+    # Vector Store
+    "VectorStoreBase",
+    "FAISSVectorStore",
+    "NumpyFallbackStore",
+    "create_vector_store",
     # Source Classification
     "SourceType",
     "SourceInfo",

@@ -26,6 +26,7 @@ import re
 import shutil
 import tempfile
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -462,6 +463,73 @@ class SemanticChunker:
 # RRF fusion constant (standard value from literature)
 RRF_K = 60
 
+# Patterns for query classification
+_GREETING_PATTERNS = re.compile(
+    r"^(hi|hello|hey|thanks|thank you|ok|okay|sure|yes|no|bye|goodbye)\b",
+    re.IGNORECASE,
+)
+_CODE_TOKEN_PATTERN = re.compile(r"[A-Z][a-z]+[A-Z]|_[a-z]+|def |class |import |function ")
+_QUESTION_WORDS = frozenset({"what", "how", "why", "where", "when", "which", "who", "explain"})
+
+
+class RetrievalStrategy(Enum):
+    """Adaptive retrieval strategy based on query characteristics."""
+
+    NO_RETRIEVAL = "no_retrieval"
+    BM25_ONLY = "bm25_only"
+    HYBRID = "hybrid"
+    HYBRID_RERANK = "hybrid_rerank"
+
+
+def classify_query(
+    query: str,
+    has_hybrid: bool = False,
+    has_reranker: bool = False,
+) -> RetrievalStrategy:
+    """Classify a query to determine the optimal retrieval strategy.
+
+    Uses lightweight heuristics (no ML model) to route queries efficiently:
+    - Skip retrieval entirely for greetings and meta-questions
+    - Use BM25-only for short keyword queries
+    - Use full hybrid for standard questions
+    - Use hybrid + reranking for complex queries
+
+    Args:
+        query: The search query string.
+        has_hybrid: Whether vector search is available.
+        has_reranker: Whether cross-encoder reranking is available.
+
+    Returns:
+        The recommended RetrievalStrategy.
+    """
+    stripped = query.strip()
+    words = stripped.split()
+    word_count = len(words)
+
+    # Skip retrieval for greetings and very short non-queries
+    if word_count <= 2 and _GREETING_PATTERNS.match(stripped):
+        return RetrievalStrategy.NO_RETRIEVAL
+
+    # BM25-only for short keyword queries (1-3 words, no question words)
+    first_word = words[0].lower().rstrip("?") if words else ""
+    has_question = first_word in _QUESTION_WORDS or stripped.endswith("?")
+
+    if word_count <= 3 and not has_question and not has_hybrid:
+        return RetrievalStrategy.BM25_ONLY
+
+    # If no hybrid available, BM25-only is the only option
+    if not has_hybrid:
+        return RetrievalStrategy.BM25_ONLY
+
+    # Complex queries benefit from reranking: long queries, questions, code tokens
+    has_code_tokens = bool(_CODE_TOKEN_PATTERN.search(stripped))
+    is_complex = word_count >= 8 or (has_question and word_count >= 5) or has_code_tokens
+
+    if is_complex and has_reranker:
+        return RetrievalStrategy.HYBRID_RERANK
+
+    return RetrievalStrategy.HYBRID
+
 
 class HybridIndex:
     """
@@ -504,6 +572,7 @@ class HybridIndex:
         collection_name: str = "r3lay_index",
         text_embedder: "EmbeddingBackend | None" = None,
         vision_embedder: "EmbeddingBackend | None" = None,
+        reranker: Any | None = None,
         vector_weight: float = 0.7,
         bm25_weight: float = 0.3,
     ) -> None:
@@ -514,6 +583,7 @@ class HybridIndex:
             collection_name: Name of the collection.
             text_embedder: Optional embedding backend for text vector search.
             vision_embedder: Optional embedding backend for image search.
+            reranker: Optional CrossEncoderReranker for two-stage retrieval.
             vector_weight: Weight for vector search in RRF (default 0.7).
             bm25_weight: Weight for BM25 in RRF (default 0.3).
         """
@@ -521,6 +591,7 @@ class HybridIndex:
         self.collection_name = collection_name
         self.text_embedder = text_embedder
         self.vision_embedder = vision_embedder
+        self.reranker = reranker
         self.vector_weight = vector_weight
         self.bm25_weight = bm25_weight
 
@@ -1067,10 +1138,10 @@ class HybridIndex:
         use_hybrid: bool = True,
         source_type_filter: "SourceType | None" = None,
     ) -> list[RetrievalResult]:
-        """
-        Async version of search that can generate query embedding on-the-fly.
+        """Async search with adaptive strategy selection and optional reranking.
 
-        Use this when vectors exist but you want live query embedding.
+        Automatically selects the best retrieval strategy based on query
+        characteristics. Falls back gracefully when features are unavailable.
 
         Args:
             query: Search query string.
@@ -1081,34 +1152,53 @@ class HybridIndex:
             source_type_filter: Optional SourceType to filter results by.
 
         Returns:
-            List of RetrievalResult sorted by combined score.
+            List of RetrievalResult sorted by best available score.
         """
         if self._bm25 is None or not self._corpus_tokens:
+            return []
+
+        # Adaptive strategy selection
+        has_vectors = (
+            use_hybrid
+            and self.text_embedder is not None
+            and self.text_embedder.is_loaded
+            and self._chunk_vectors is not None
+            and len(self._chunk_vectors) > 0
+        )
+        has_reranker = self.reranker is not None and self.reranker.is_loaded
+        strategy = classify_query(query, has_hybrid=has_vectors, has_reranker=has_reranker)
+
+        # Short-circuit for non-retrieval queries
+        if strategy == RetrievalStrategy.NO_RETRIEVAL:
             return []
 
         # When filtering by source type, search many more results to ensure
         # we find chunks of the requested type (top results may be other types)
         search_multiplier = 50 if source_type_filter else 2
+        # Reranking needs more candidates for effective re-scoring
+        if strategy == RetrievalStrategy.HYBRID_RERANK:
+            search_multiplier = max(search_multiplier, 10)
 
         # Get BM25 results
         bm25_results = self._bm25_search(query, n_results * search_multiplier)
 
-        # If hybrid enabled and requested, combine with vector search
-        if use_hybrid and self.text_embedder is not None and self.text_embedder.is_loaded:
-            if self._chunk_vectors is not None and len(self._chunk_vectors) > 0:
-                vector_results = await self._vector_search(query, n_results * search_multiplier)
-                # When filtering, keep more results from fusion before filtering
-                fusion_results = n_results * search_multiplier if source_type_filter else n_results
-                results = self._rrf_fusion(bm25_results, vector_results, fusion_results)
-            else:
-                for r in bm25_results:
-                    r.combined_score = r.bm25_score
-                results = bm25_results
+        # Hybrid: combine with vector search via RRF
+        if strategy in (RetrievalStrategy.HYBRID, RetrievalStrategy.HYBRID_RERANK):
+            vector_results = await self._vector_search(query, n_results * search_multiplier)
+            fusion_results = n_results * search_multiplier if source_type_filter else n_results
+            # Get more candidates when reranking
+            if strategy == RetrievalStrategy.HYBRID_RERANK:
+                fusion_results = max(fusion_results, n_results * 10)
+            results = self._rrf_fusion(bm25_results, vector_results, fusion_results)
         else:
             # BM25-only
             for r in bm25_results:
                 r.combined_score = r.bm25_score
             results = bm25_results
+
+        # Stage 2: Cross-encoder reranking for complex queries
+        if strategy == RetrievalStrategy.HYBRID_RERANK and has_reranker:
+            results = await self._rerank_results(query, results, n_results)
 
         # Filter by minimum relevance
         results = [r for r in results if r.combined_score >= min_relevance]
@@ -1118,6 +1208,44 @@ class HybridIndex:
             results = [r for r in results if r.source_type == source_type_filter]
 
         return results[:n_results]
+
+    async def _rerank_results(
+        self,
+        query: str,
+        results: list[RetrievalResult],
+        n_results: int,
+    ) -> list[RetrievalResult]:
+        """Apply cross-encoder reranking to refine result ordering.
+
+        Args:
+            query: Original query string.
+            results: Pre-ranked results from RRF fusion.
+            n_results: Maximum results to return after reranking.
+
+        Returns:
+            Reranked results sorted by rerank_score.
+        """
+        if not results or self.reranker is None:
+            return results
+
+        passages = [r.content for r in results]
+        try:
+            reranked = await self.reranker.rerank(query, passages, top_k=n_results)
+        except Exception:
+            logger.warning("Reranking failed, falling back to RRF scores", exc_info=True)
+            return results
+
+        # Map rerank scores back to results
+        reranked_results: list[RetrievalResult] = []
+        for rr in reranked:
+            if rr.index < len(results):
+                result = results[rr.index]
+                result.rerank_score = rr.score
+                reranked_results.append(result)
+
+        # Sort by rerank score (final_score property will use rerank_score)
+        reranked_results.sort(key=lambda r: r.final_score, reverse=True)
+        return reranked_results
 
     def _bm25_search(self, query: str, n_results: int) -> list[RetrievalResult]:
         """Perform BM25 lexical search."""
