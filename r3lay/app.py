@@ -214,7 +214,9 @@ class R3LayApp(App):
         """Auto-initialize configured embedders after UI renders.
 
         Checks config.model_roles for configured embedders and initializes
-        them in the background. Non-blocking to avoid delaying startup.
+        them in the background. Once loaded, attaches to the hybrid index
+        so hybrid search is available immediately. Non-blocking to avoid
+        delaying startup.
         """
         try:
             roles = self.config.model_roles
@@ -224,12 +226,28 @@ class R3LayApp(App):
                 embedder = await self.state.init_embedder()
                 if embedder:
                     logger.info(f"Auto-loaded text embedder: {roles.text_embedder}")
+                    # Attach to index so hybrid search works without manual reindex
+                    self.state.init_index(with_embedder=True)
+                    logger.info("Hybrid search enabled — embedder attached to index")
 
             # Init vision embedder if configured
             if roles.has_vision_embedder():
                 vision = await self.state.init_vision_embedder(model_name=roles.vision_embedder)
                 if vision:
                     logger.info(f"Auto-loaded vision embedder: {roles.vision_embedder}")
+
+            # Init reranker if configured
+            if roles.has_reranker():
+                try:
+                    from r3lay.core.reranker import CrossEncoderReranker
+
+                    reranker = CrossEncoderReranker(model_name=roles.reranker)
+                    await reranker.load()
+                    idx = self.state.init_index()
+                    idx.reranker = reranker
+                    logger.info(f"Auto-loaded reranker: {roles.reranker}")
+                except Exception as e:
+                    logger.warning(f"Failed to auto-load reranker: {e}")
 
         except Exception as e:
             logger.warning(f"Failed to auto-init embedders: {e}")
@@ -256,6 +274,17 @@ class R3LayApp(App):
                 if self.state.vision_embedder is not None:
                     await asyncio.wait_for(
                         self.state.unload_vision_embedder(),
+                        timeout=5.0,
+                    )
+
+                # Unload reranker if attached to index
+                if (
+                    hasattr(self.state, "index")
+                    and self.state.index is not None
+                    and self.state.index.reranker is not None
+                ):
+                    await asyncio.wait_for(
+                        self.state.index.reranker.unload(),
                         timeout=5.0,
                     )
 
