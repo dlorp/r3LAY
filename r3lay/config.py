@@ -105,6 +105,12 @@ class AppConfig(BaseSettings):
     # SearXNG for web search (Phase 7)
     searxng_endpoint: str = "http://localhost:8080"
 
+    # LLM behavior
+    enable_thinking: bool = Field(
+        default=False,
+        description="Allow reasoning models (Qwen3+) to use chain-of-thought thinking",
+    )
+
     # Model role assignments (Phase C)
     model_roles: ModelRoles = Field(default_factory=ModelRoles)
 

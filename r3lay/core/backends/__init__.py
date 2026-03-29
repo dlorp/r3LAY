@@ -53,13 +53,19 @@ class GenerationError(BackendError):
     pass
 
 
-def create_backend(model_info: "ModelInfo") -> InferenceBackend:
+def create_backend(
+    model_info: "ModelInfo",
+    enable_thinking: bool = False,
+) -> InferenceBackend:
     """Create appropriate backend from ModelInfo.
 
     Uses lazy imports to avoid loading unused dependencies.
 
     Args:
         model_info: Model information including path and backend type.
+        enable_thinking: Allow reasoning models to use chain-of-thought.
+            Currently only affects llama.cpp backends with thinking-capable
+            models (Qwen3+). Other backends ignore this parameter.
 
     Returns:
         Configured InferenceBackend instance (not yet loaded).
@@ -90,7 +96,12 @@ def create_backend(model_info: "ModelInfo") -> InferenceBackend:
 
             mmproj_path = Path(model_info.metadata["mmproj_path"])
 
-        return LlamaCppBackend(model_info.path, model_info.name, mmproj_path=mmproj_path)
+        return LlamaCppBackend(
+            model_info.path,
+            model_info.name,
+            mmproj_path=mmproj_path,
+            enable_thinking=enable_thinking,
+        )
 
     elif model_info.backend == Backend.OLLAMA:
         from .ollama import OllamaBackend
