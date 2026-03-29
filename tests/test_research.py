@@ -11,7 +11,9 @@ and are covered separately in integration tests.
 """
 
 from datetime import datetime
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from r3lay.core.research import (
     Contradiction,
@@ -266,13 +268,14 @@ class TestConvergenceDetector:
 class TestContradictionDetector:
     """Tests for ContradictionDetector class."""
 
-    def test_check_finding_no_conflicts(self):
-        """Test check_finding with no conflicts."""
+    @pytest.mark.asyncio
+    async def test_check_finding_no_conflicts_keyword_fallback(self):
+        """Test check_finding with no conflicts (keyword fallback, no backend)."""
         mock_axiom_manager = MagicMock()
         mock_axiom_manager.find_conflicts.return_value = []
         detector = ContradictionDetector(axiom_manager=mock_axiom_manager)
 
-        contradictions = detector.check_finding(
+        contradictions = await detector.check_finding(
             statement="New finding",
             category="procedures",
             signal_ids=["sig_001"],
@@ -280,8 +283,9 @@ class TestContradictionDetector:
         )
         assert len(contradictions) == 0
 
-    def test_check_finding_with_conflict(self):
-        """Test check_finding when conflicts are found."""
+    @pytest.mark.asyncio
+    async def test_check_finding_with_conflict_keyword_fallback(self):
+        """Test check_finding when conflicts are found (keyword fallback)."""
         mock_axiom = MagicMock()
         mock_axiom.id = "axiom_oil001"
         mock_axiom.statement = "Oil change every 5000 miles"
@@ -289,7 +293,7 @@ class TestContradictionDetector:
         mock_axiom_manager.find_conflicts.return_value = [mock_axiom]
         detector = ContradictionDetector(axiom_manager=mock_axiom_manager)
 
-        contradictions = detector.check_finding(
+        contradictions = await detector.check_finding(
             statement="Oil change every 3000 miles",
             category="procedures",
             signal_ids=["sig_001"],
@@ -299,8 +303,118 @@ class TestContradictionDetector:
         assert contradictions[0].existing_axiom_id == "axiom_oil001"
         assert contradictions[0].resolution_status == "pending"
 
-    def test_generate_resolution_queries(self):
-        """Test generating resolution queries for a contradiction."""
+    @pytest.mark.asyncio
+    async def test_check_finding_uses_judge_when_backend_available(self):
+        """Test that check_finding delegates to judge when backend is loaded."""
+        mock_axiom_manager = MagicMock()
+        mock_axiom_manager.search.return_value = [
+            MagicMock(id="ax_001", statement="Oil change every 5000 miles"),
+        ]
+
+        async def _stream(tokens):
+            for t in tokens:
+                yield t
+
+        backend = MagicMock()
+        backend.is_loaded = True
+        backend.generate_stream = MagicMock(
+            return_value=_stream(
+                [
+                    "CONTRADICTION: Says 3000 but should be 5000\n",
+                    "CONFIDENCE: 0.82\n",
+                    "CLAIM: every 3000 miles",
+                ]
+            )
+        )
+
+        detector = ContradictionDetector(
+            axiom_manager=mock_axiom_manager,
+            backend=backend,
+        )
+
+        contradictions = await detector.check_finding(
+            statement="Oil change every 3000 miles",
+            category="procedures",
+            signal_ids=["sig_001"],
+            cycle=1,
+        )
+        assert len(contradictions) == 1
+        assert contradictions[0].existing_axiom_id == "ax_001"
+
+    @pytest.mark.asyncio
+    async def test_check_finding_judge_no_contradiction(self):
+        """Judge finds no contradiction — returns empty list."""
+        mock_axiom_manager = MagicMock()
+        mock_axiom_manager.search.return_value = [
+            MagicMock(id="ax_001", statement="Oil change every 5000 miles"),
+        ]
+
+        async def _stream(tokens):
+            for t in tokens:
+                yield t
+
+        backend = MagicMock()
+        backend.is_loaded = True
+        backend.generate_stream = MagicMock(return_value=_stream(["NO CONTRADICTION"]))
+
+        detector = ContradictionDetector(
+            axiom_manager=mock_axiom_manager,
+            backend=backend,
+        )
+
+        contradictions = await detector.check_finding(
+            statement="Oil change every 5000 miles",
+            category="procedures",
+            signal_ids=["sig_001"],
+            cycle=1,
+        )
+        assert len(contradictions) == 0
+
+    @pytest.mark.asyncio
+    async def test_check_finding_judge_rag_only_skips(self):
+        """Judge contradiction from RAG evidence only — no axiom to resolve against."""
+        mock_axiom_manager = MagicMock()
+        mock_axiom_manager.search.return_value = []  # No axiom evidence
+
+        mock_index = MagicMock()
+        mock_index.search_async = AsyncMock(
+            return_value=[MagicMock(content="Doc says 5000 miles", chunk_id="chunk_aabb")]
+        )
+
+        async def _stream(tokens):
+            for t in tokens:
+                yield t
+
+        backend = MagicMock()
+        backend.is_loaded = True
+        backend.generate_stream = MagicMock(
+            return_value=_stream(
+                [
+                    "CONTRADICTION: Doc says 5000 but finding says 3000\n",
+                    "CONFIDENCE: 0.80\n",
+                    "CLAIM: 3000 miles",
+                ]
+            )
+        )
+
+        detector = ContradictionDetector(
+            axiom_manager=mock_axiom_manager,
+            backend=backend,
+            index=mock_index,
+        )
+
+        contradictions = await detector.check_finding(
+            statement="Oil change every 3000 miles",
+            category="procedures",
+            signal_ids=["sig_001"],
+            cycle=1,
+        )
+        # No axiom evidence means no axiom to resolve against — returns empty
+        assert len(contradictions) == 0
+
+    @pytest.mark.asyncio
+    async def test_generate_resolution_queries_keyword_fallback(self):
+        """Test generating resolution queries via keyword fallback."""
         mock_axiom_manager = MagicMock()
         detector = ContradictionDetector(axiom_manager=mock_axiom_manager)
 
@@ -312,8 +426,74 @@ class TestContradictionDetector:
             category="procedures",
             detected_in_cycle=1,
         )
-        queries = detector.generate_resolution_queries(contradiction)
+        queries = await detector.generate_resolution_queries(contradiction)
 
         assert isinstance(queries, list)
         assert len(queries) > 0
         assert len(queries) <= 5
+
+    @pytest.mark.asyncio
+    async def test_generate_resolution_queries_with_llm(self):
+        """Test generating resolution queries via LLM."""
+
+        async def _stream(tokens):
+            for t in tokens:
+                yield t
+
+        backend = MagicMock()
+        backend.is_loaded = True
+        backend.generate_stream = MagicMock(
+            return_value=_stream(
+                [
+                    "oil change interval 2015 WRX official specification\n",
+                    "Subaru EJ255 oil change frequency forum discussion\n",
+                    "synthetic vs conventional oil change interval EJ engine",
+                ]
+            )
+        )
+
+        mock_axiom_manager = MagicMock()
+        detector = ContradictionDetector(
+            axiom_manager=mock_axiom_manager,
+            backend=backend,
+        )
+
+        contradiction = Contradiction(
+            id="contra_test",
+            new_statement="Oil filter should be replaced every 3000 miles",
+            existing_axiom_id="axiom_001",
+            existing_statement="Oil filter should be replaced every 5000 miles",
+            category="procedures",
+            detected_in_cycle=1,
+        )
+        queries = await detector.generate_resolution_queries(contradiction)
+
+        assert isinstance(queries, list)
+        assert len(queries) == 3
+        assert len(queries) <= 5
+
+    @pytest.mark.asyncio
+    async def test_generate_resolution_queries_llm_fallback_on_error(self):
+        """LLM failure should fall back to keyword queries."""
+        backend = MagicMock()
+        backend.is_loaded = True
+        backend.generate_stream = MagicMock(side_effect=RuntimeError("OOM"))
+
+        mock_axiom_manager = MagicMock()
+        detector = ContradictionDetector(
+            axiom_manager=mock_axiom_manager,
+            backend=backend,
+        )
+
+        contradiction = Contradiction(
+            id="contra_test",
+            new_statement="Oil filter should be replaced every 3000 miles",
+            existing_axiom_id="axiom_001",
+            existing_statement="Oil filter should be replaced every 5000 miles",
+            category="procedures",
+            detected_in_cycle=1,
+        )
+        queries = await detector.generate_resolution_queries(contradiction)
+
+        assert isinstance(queries, list)
+        assert len(queries) > 0

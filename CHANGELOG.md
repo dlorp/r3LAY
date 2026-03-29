@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.7.1] - 2026-03-28
 
 ### Added
 - Cross-encoder reranking via subprocess isolation (`r3lay/core/reranker.py`, `reranker_worker.py`)
@@ -35,6 +35,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Tier 4: LLM judgment with structured prompt, delimiter fencing, 30s timeout
 - `evidence` field on `ContradictionSignal` for provenance tracking
 - `backend` parameter on `ContradictionMonitor` for LLM judge access
+- `ContradictionJudge` shared engine for evidence gathering + LLM judgment
+  - Used by both `ContradictionMonitor` (chat) and `ContradictionDetector` (research)
+  - `JudgmentResult` neutral dataclass for cross-consumer translation
+- `ContradictionDetector` tiered detection with LLM judge + keyword fallback
+  - Async `check_finding()` and `generate_resolution_queries()` methods
+  - Delimiter fencing and system message on LLM query generation
+  - Defensive axiom ID parsing from evidence strings
+  - RAG-only contradictions gracefully skipped (no axiom to resolve against)
+- `KMP_DUPLICATE_LIB_OK=TRUE` environment variable to prevent FAISS/PyTorch libomp crash
 
 ### Fixed
 - Vector search initialization ordering: embedder now auto-attaches to index
