@@ -58,12 +58,21 @@ def _suppress_c_stdout():
     sys.stderr.flush()
 
     devnull = os.open(os.devnull, os.O_WRONLY)
-    old_stdout = os.dup(1)
-    old_stderr = os.dup(2)
+    try:
+        old_stdout = os.dup(1)
+    except OSError:
+        os.close(devnull)
+        raise
+    try:
+        old_stderr = os.dup(2)
+    except OSError:
+        os.close(old_stdout)
+        os.close(devnull)
+        raise
     try:
         os.dup2(devnull, 1)
         os.dup2(devnull, 2)
-        os.close(devnull)  # Safe to close after dup2 copies the fd
+        os.close(devnull)
         yield
     finally:
         os.dup2(old_stdout, 1)
@@ -127,6 +136,7 @@ class LlamaCppBackend(InferenceBackend):
         self._mmproj_path = mmproj_path
         self._llm: Llama | None = None
         self._chat_handler: Any = None  # Llava15ChatHandler when vision
+        self._generation_lock = asyncio.Lock()
 
     @property
     def model_name(self) -> str:
@@ -364,46 +374,47 @@ class LlamaCppBackend(InferenceBackend):
         logger.debug("Vision generation with %d messages, %d images", len(messages), len(images))
 
         try:
-            # Temporarily attach vision handler for this request only
-            self._llm.chat_handler = self._chat_handler
+            # Lock prevents concurrent text/vision requests from seeing wrong handler
+            async with self._generation_lock:
+                self._llm.chat_handler = self._chat_handler
 
-            # Suppress C-level stdout during CLIP image encoding
-            # (add_text, image_tokens, encoding image slice, etc.) which corrupts TUI
-            # The noisy output happens during create_chat_completion init, not iteration
-            with _suppress_c_stdout():
-                response = self._llm.create_chat_completion(
-                    messages=formatted_messages,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    stream=True,
-                )
-                # Force the first chunk to trigger image encoding while suppressed
-                first_chunk = next(iter(response), None)
+                try:
+                    # Suppress C-level stdout during CLIP image encoding
+                    with _suppress_c_stdout():
+                        response = self._llm.create_chat_completion(
+                            messages=formatted_messages,
+                            max_tokens=max_tokens,
+                            temperature=temperature,
+                            stream=True,
+                        )
+                        # Use explicit iterator for safe first-chunk consumption
+                        response_iter = iter(response)
+                        first_chunk = next(response_iter, None)
 
-            # Yield first chunk if it had content
-            if first_chunk and "choices" in first_chunk and len(first_chunk["choices"]) > 0:
-                delta = first_chunk["choices"][0].get("delta", {})
-                content = delta.get("content", "")
-                if content:
-                    yield content
+                    # Yield first chunk if it had content
+                    if first_chunk and "choices" in first_chunk and len(first_chunk["choices"]) > 0:
+                        delta = first_chunk["choices"][0].get("delta", {})
+                        content = delta.get("content", "")
+                        if content:
+                            yield content
 
-            for chunk in response:
-                if "choices" in chunk and len(chunk["choices"]) > 0:
-                    choice = chunk["choices"][0]
-                    delta = choice.get("delta", {})
-                    content = delta.get("content", "")
-                    if content:
-                        yield content
+                    for chunk in response_iter:
+                        if "choices" in chunk and len(chunk["choices"]) > 0:
+                            choice = chunk["choices"][0]
+                            delta = choice.get("delta", {})
+                            content = delta.get("content", "")
+                            if content:
+                                yield content
 
-                # Yield to event loop
-                await asyncio.sleep(0)
+                        # Yield to event loop
+                        await asyncio.sleep(0)
+
+                finally:
+                    self._llm.chat_handler = None
 
         except Exception as e:
             logger.error("Vision generation error: %s", e)
             raise GenerationError(f"Vision generation failed: {e}") from e
-        finally:
-            # Restore native template for text requests
-            self._llm.chat_handler = None
 
     def _format_messages_with_images(
         self,
