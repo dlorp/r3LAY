@@ -24,11 +24,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - HYBRID_RERANK: complex queries get two-stage retrieval
 - Reranker model config in `ModelRoles` (`config.py`)
 - Tests for reranker, vector store, and adaptive retrieval
+- `enable_thinking` config toggle for reasoning models (env: R3LAY_ENABLE_THINKING)
+- `ContradictionBadge` clickable widget for inline contradiction display
+- `flagged_sentence` field on `ContradictionSignal` for precise inline display
+- Tiered contradiction detection architecture replacing regex-based approach
+  - Tier 0: Gate check (response length, data availability)
+  - Tier 1: User phrase regex detection (preserved from original)
+  - Tier 2: Axiom evidence gathering via `AxiomManager.search()`
+  - Tier 3: RAG evidence gathering via `HybridIndex.search_async()`
+  - Tier 4: LLM judgment with structured prompt, delimiter fencing, 30s timeout
+- `evidence` field on `ContradictionSignal` for provenance tracking
+- `backend` parameter on `ContradictionMonitor` for LLM judge access
 
 ### Fixed
 - Vector search initialization ordering: embedder now auto-attaches to index
   when loaded, enabling hybrid search without manual reindex
 - App auto-init now wires embedder to index after background load
+- Vision handler only attached per-request, preserving native GGUF chat template
+- `n_ctx` increased to 32768 (was 8192); `max_tokens` increased to 4096 (was 512)
+- LLaVA default system message nulled to prevent overriding r3LAY's prompt
+- Recursion depth guard + symlink boundary checks in `scan_llm_models_folder`
+- Thread-safe vision handler via `asyncio.Lock` (prevents concurrent text/vision race)
+- Hardened C-level fd redirect to prevent leaks on partial `os.dup()` failure
+- Guard `_mount_thinking` callback against detached widgets
+- Contradiction monitor false positives on greetings (MIN_LLM_RESPONSE_LENGTH=500)
+- Default `research_auto_trigger` from "auto" to "prompt" (prevents auto-research)
+- Badge click handler routed through MainScreen for proper DOM message bubbling
+- Contradiction detection now async (`analyze()`) with proper event loop integration
+
+### Removed
+- `LLM_CONTRADICTION_INDICATORS` regex list (replaced by LLM judge in Tier 4)
+- `check_llm_response()` regex-based LLM self-detection (replaced by evidence-based judgment)
+- `check_against_axioms()` keyword overlap detection (replaced by Tier 2 evidence + Tier 4 judgment)
 
 ### Changed
 - `HybridIndex` constructor accepts optional `reranker` parameter

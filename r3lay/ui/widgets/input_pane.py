@@ -2249,14 +2249,16 @@ class InputPane(Vertical):
         if trigger_mode == "manual":
             return
 
-        # Update monitor with current axiom manager if available
+        # Update monitor with current axiom manager, index, and backend
         if hasattr(self.state, "axiom_manager") and self.state.axiom_manager is not None:
             self._contradiction_monitor.axiom_manager = self.state.axiom_manager
         if self.state.index is not None:
             self._contradiction_monitor.index = self.state.index
+        if self.state.current_backend is not None:
+            self._contradiction_monitor.backend = self.state.current_backend
 
-        # Run contradiction analysis
-        signal = self._contradiction_monitor.analyze(user_message, llm_response)
+        # Run tiered contradiction analysis
+        signal = await self._contradiction_monitor.analyze(user_message, llm_response)
         if signal is None:
             return
 
