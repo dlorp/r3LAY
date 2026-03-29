@@ -232,6 +232,8 @@ class StreamingBlock(Vertical):
 
     def _mount_thinking(self, thinking: str) -> None:
         """Mount a collapsed Collapsible with thinking content after refresh."""
+        if self._content_widget is None or not self.is_attached:
+            return  # Widget removed before callback fired
         collapsible = Collapsible(
             Static(Markdown(thinking)),
             title="Thinking...",

@@ -953,15 +953,18 @@ def scan_all_gguf_folders() -> list[ModelInfo]:
 
 def scan_llm_models_folder(
     folder_path: Path | None = None,
+    _depth: int = 0,
 ) -> list[ModelInfo]:
     """Scan llm-models folder for GGUF models with optional mmproj files.
 
     Looks for subdirectories containing .gguf files and detects
     mmproj files for vision model support (LLaVA, JoyCaption, etc.).
+    Recurses up to 1 level for org-style directories (e.g., lmstudio-community/).
 
     Args:
         folder_path: Path to llm-models folder.
                     Default: ~/.r3lay/models
+        _depth: Internal recursion depth tracker. Do not set manually.
 
     Returns:
         List of ModelInfo for discovered models.
@@ -970,6 +973,16 @@ def scan_llm_models_folder(
         folder_path = Path("~/.r3lay/models")
 
     if not folder_path.exists():
+        return []
+
+    # Prevent unbounded recursion (max: root -> org -> model)
+    if _depth > 1:
+        return []
+
+    # Resolve for symlink boundary checks
+    try:
+        folder_resolved = folder_path.resolve()
+    except (OSError, RuntimeError):
         return []
 
     models: list[ModelInfo] = []
@@ -983,15 +996,20 @@ def scan_llm_models_folder(
             if item.name.startswith(".") or item.name in ("hub", "ollama-models"):
                 continue
 
+            # Symlink boundary check (matches scan_gguf_folder pattern)
+            try:
+                resolved = item.resolve()
+                if not resolved.is_relative_to(folder_resolved):
+                    continue
+            except (OSError, RuntimeError, ValueError):
+                continue
+
             # Find GGUF files in this directory
             gguf_files = list(item.glob("*.gguf"))
             if not gguf_files:
-                # Recurse one level deeper for org-level dirs (e.g., lmstudio-community/)
-                for subitem in item.iterdir():
-                    if subitem.is_dir() and not subitem.name.startswith("."):
-                        sub_models = scan_llm_models_folder(item)
-                        models.extend(sub_models)
-                        break
+                # Recurse into org-level dirs (e.g., lmstudio-community/)
+                sub_models = scan_llm_models_folder(item, _depth=_depth + 1)
+                models.extend(sub_models)
                 continue
 
             # Separate main model from mmproj file
