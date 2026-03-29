@@ -260,7 +260,8 @@ class R3LayState:
         await self.unload_model()
 
         # Create and load new backend
-        backend = create_backend(model_info)
+        enable_thinking = self._config.enable_thinking if self._config else False
+        backend = create_backend(model_info, enable_thinking=enable_thinking)
         await backend.load()
 
         self.current_backend = backend

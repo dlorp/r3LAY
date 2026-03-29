@@ -188,6 +188,28 @@ class TestCreateBackend:
                 Path("/models/model.gguf"),
                 "model.gguf",
                 mmproj_path=None,
+                enable_thinking=False,
+            )
+
+    def test_create_llamacpp_backend_with_thinking(self):
+        """Test llama.cpp backend passes enable_thinking=True."""
+        model_info = ModelInfo(
+            name="qwen3.gguf",
+            path=Path("/models/qwen3.gguf"),
+            source=ModelSource.GGUF_FILE,
+            format=ModelFormat.GGUF,
+            backend=Backend.LLAMA_CPP,
+            size_bytes=1000,
+        )
+
+        with patch("r3lay.core.backends.llama_cpp.LlamaCppBackend") as mock_cls:
+            mock_cls.return_value = MagicMock()
+            create_backend(model_info, enable_thinking=True)
+            mock_cls.assert_called_once_with(
+                Path("/models/qwen3.gguf"),
+                "qwen3.gguf",
+                mmproj_path=None,
+                enable_thinking=True,
             )
 
     def test_create_llamacpp_backend_with_mmproj(self):
@@ -209,6 +231,7 @@ class TestCreateBackend:
                 Path("/models/llava.gguf"),
                 "llava.gguf",
                 mmproj_path=Path("/models/mmproj.gguf"),
+                enable_thinking=False,
             )
 
     def test_create_llamacpp_backend_no_path(self):

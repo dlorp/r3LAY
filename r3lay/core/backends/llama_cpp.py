@@ -123,6 +123,7 @@ class LlamaCppBackend(InferenceBackend):
         model_path: Path,
         model_name: str,
         mmproj_path: Path | None = None,
+        enable_thinking: bool = False,
     ) -> None:
         """Initialize the llama-cpp backend.
 
@@ -130,10 +131,12 @@ class LlamaCppBackend(InferenceBackend):
             model_path: Path to the GGUF model file.
             model_name: Human-readable name for the model.
             mmproj_path: Optional path to mmproj file for vision support.
+            enable_thinking: Allow reasoning models to use chain-of-thought.
         """
         self._path = model_path
         self._name = model_name
         self._mmproj_path = mmproj_path
+        self._enable_thinking = enable_thinking
         self._llm: Llama | None = None
         self._chat_handler: Any = None  # Llava15ChatHandler when vision
         self._generation_lock = asyncio.Lock()
@@ -573,9 +576,9 @@ class LlamaCppBackend(InferenceBackend):
             parts.append(f"<|im_start|>{role}\n{content}<|im_end|>")
 
         # Add the assistant prompt start
-        # For thinking models (Qwen3+), prefill an empty think block to disable
-        # chain-of-thought and get a direct response
-        if self._is_thinking_model():
+        # For thinking models (Qwen3+), prefill empty think block to disable
+        # chain-of-thought unless enable_thinking is True
+        if self._is_thinking_model() and not self._enable_thinking:
             parts.append("<|im_start|>assistant\n<think>\n\n</think>\n\n")
         else:
             parts.append("<|im_start|>assistant\n")
