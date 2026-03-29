@@ -1,11 +1,14 @@
 """r3LAY - TUI Research Assistant - Phase 1 Shell."""
 
-import asyncio
-import logging
 import os
-import signal
-from logging.handlers import RotatingFileHandler
-from pathlib import Path
+
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
+import asyncio  # noqa: E402
+import logging  # noqa: E402
+import signal  # noqa: E402
+from logging.handlers import RotatingFileHandler  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 
 def _setup_logging() -> logging.Logger:
