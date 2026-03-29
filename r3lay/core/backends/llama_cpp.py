@@ -210,10 +210,19 @@ class LlamaCppBackend(InferenceBackend):
             # Run model loading in thread pool to avoid blocking
             loop = asyncio.get_event_loop()
 
+            # Auto-configure context: YAML override > config.json max_context > default
+            cfg = self.model_config_dict
+            n_ctx = cfg.get("n_ctx")
+            if n_ctx is None:
+                n_ctx = cfg.get("max_context")
+            if n_ctx is None:
+                n_ctx = 32768
+            logger.info("Using n_ctx=%d for %s", n_ctx, self._name)
+
             def _load_model():
                 return Llama(
                     model_path=str(self._path),
-                    n_ctx=32768,  # 32K context — fits 24GB with most quantized models
+                    n_ctx=n_ctx,
                     n_gpu_layers=-1,  # Full GPU offload (Metal or CUDA)
                     verbose=False,
                     # Don't pass chat_handler — it overrides the native GGUF template

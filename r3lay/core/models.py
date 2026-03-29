@@ -328,6 +328,89 @@ def _has_cuda() -> bool:
 # =============================================================================
 
 
+def _find_config_json(model_path: Path) -> Path | None:
+    """Find config.json in a model directory.
+
+    Handles both direct model directories and HuggingFace cache structure
+    with snapshots subdirectories.
+
+    Args:
+        model_path: Path to model directory.
+
+    Returns:
+        Path to config.json, or None if not found.
+    """
+    config_path = model_path / "config.json"
+    if config_path.exists():
+        return config_path
+
+    # Try HF cache structure: snapshots/*/config.json
+    snapshots = model_path / "snapshots"
+    if snapshots.exists():
+        for snapshot in snapshots.iterdir():
+            if snapshot.is_dir():
+                candidate = snapshot / "config.json"
+                if candidate.exists():
+                    return candidate
+
+    return None
+
+
+def extract_model_metadata(model_path: Path) -> dict[str, Any]:
+    """Extract model metadata from config.json.
+
+    Reads architecture info, context length, and model dimensions
+    from the model's config.json file. Used to auto-configure
+    inference parameters like n_ctx.
+
+    Args:
+        model_path: Path to model directory containing config.json.
+
+    Returns:
+        Dict with extracted metadata. Empty dict if config.json not found
+        or parsing fails. Keys include:
+        - max_context: Maximum context length (from max_position_embeddings)
+        - hidden_size: Model embedding dimension
+        - num_layers: Number of transformer layers
+        - vocab_size: Tokenizer vocabulary size
+        - architecture: Model architecture class name
+        - model_type: Model type identifier (e.g., "llama", "qwen2")
+    """
+    config_path = _find_config_json(model_path)
+    if config_path is None:
+        return {}
+
+    try:
+        config = json.loads(config_path.read_text())
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+    metadata: dict[str, Any] = {}
+
+    # Context length — different models use different field names
+    for field in ("max_position_embeddings", "max_sequence_length", "n_positions", "seq_length"):
+        if field in config:
+            metadata["max_context"] = config[field]
+            break
+
+    # Model dimensions
+    if "hidden_size" in config:
+        metadata["hidden_size"] = config["hidden_size"]
+    if "num_hidden_layers" in config:
+        metadata["num_layers"] = config["num_hidden_layers"]
+    if "vocab_size" in config:
+        metadata["vocab_size"] = config["vocab_size"]
+
+    # Architecture
+    architectures = config.get("architectures", [])
+    if architectures:
+        metadata["architecture"] = architectures[0]
+    if "model_type" in config:
+        metadata["model_type"] = config["model_type"]
+
+    return metadata
+
+
 def detect_capabilities(model_path: Path) -> set[ModelCapability]:
     """Infer model capabilities from config.json architecture.
 
@@ -344,20 +427,8 @@ def detect_capabilities(model_path: Path) -> set[ModelCapability]:
     """
     capabilities: set[ModelCapability] = set()
 
-    # Find config.json - could be in model_path directly or in a subdirectory
-    config_path = model_path / "config.json"
-    if not config_path.exists():
-        # Try looking in snapshots for HF cache structure
-        snapshots = model_path / "snapshots"
-        if snapshots.exists():
-            for snapshot in snapshots.iterdir():
-                if snapshot.is_dir():
-                    candidate = snapshot / "config.json"
-                    if candidate.exists():
-                        config_path = candidate
-                        break
-
-    if not config_path.exists():
+    config_path = _find_config_json(model_path)
+    if config_path is None:
         return {ModelCapability.TEXT}  # Default assumption
 
     try:
@@ -627,6 +698,13 @@ def scan_huggingface_cache(
             # Select backend based on format and capabilities
             backend = select_backend(fmt, ModelSource.HUGGINGFACE, capabilities)
 
+            # Extract model metadata (context length, architecture, etc.)
+            model_metadata: dict[str, Any] = {
+                "cache_dir": str(item),
+                "snapshot": snapshot_path.name if snapshot_path else None,
+            }
+            model_metadata.update(extract_model_metadata(snapshot_path))
+
             models.append(
                 ModelInfo(
                     name=repo_id,
@@ -637,10 +715,7 @@ def scan_huggingface_cache(
                     backend=backend,
                     capabilities=capabilities,
                     last_accessed=last_accessed,
-                    metadata={
-                        "cache_dir": str(item),
-                        "snapshot": snapshot_path.name if snapshot_path else None,
-                    },
+                    metadata=model_metadata,
                 )
             )
 
@@ -742,6 +817,13 @@ def scan_mlx_folder(
             # Detect capabilities from config.json
             capabilities = detect_capabilities(item)
 
+            # Extract model metadata (context length, architecture, etc.)
+            model_metadata: dict[str, Any] = {
+                "mlx_direct": True,
+                "safetensors_count": len(safetensors_files),
+            }
+            model_metadata.update(extract_model_metadata(item))
+
             models.append(
                 ModelInfo(
                     name=model_name,
@@ -752,10 +834,7 @@ def scan_mlx_folder(
                     backend=Backend.MLX,  # Force MLX backend
                     capabilities=capabilities,
                     last_accessed=last_accessed,
-                    metadata={
-                        "mlx_direct": True,
-                        "safetensors_count": len(safetensors_files),
-                    },
+                    metadata=model_metadata,
                 )
             )
 
@@ -1056,13 +1135,14 @@ def scan_llm_models_folder(
                 capabilities.add(ModelCapability.VISION)
                 capabilities.add(ModelCapability.TEXT)
 
-            # Build metadata
+            # Build metadata (including model config if config.json exists)
             metadata: dict[str, Any] = {
                 "filename": main_model.name,
                 "llm_models_dir": True,
             }
             if mmproj_file:
                 metadata["mmproj_path"] = str(mmproj_file)
+            metadata.update(extract_model_metadata(item))
 
             models.append(
                 ModelInfo(

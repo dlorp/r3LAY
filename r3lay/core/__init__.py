@@ -6,7 +6,7 @@ import importlib.util
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from .axioms import (
     AXIOM_CATEGORIES,
@@ -259,8 +259,19 @@ class R3LayState:
         # Unload existing model first
         await self.unload_model()
 
+        # Build per-model config: metadata from scan + YAML overrides
+        model_config: dict[str, Any] = {}
+        # Auto-detected metadata (max_context from config.json, etc.)
+        for key in ("max_context", "hidden_size", "num_layers", "vocab_size"):
+            if key in model_info.metadata:
+                model_config[key] = model_info.metadata[key]
+        # YAML overrides take precedence
+        if self.config and model_info.name in self.config.model_configs:
+            yaml_config = self.config.model_configs[model_info.name]
+            model_config.update(yaml_config.model_dump(exclude_none=True))
+
         # Create and load new backend
-        backend = create_backend(model_info)
+        backend = create_backend(model_info, model_config=model_config)
         await backend.load()
 
         self.current_backend = backend

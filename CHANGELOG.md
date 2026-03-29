@@ -7,11 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.7.2] - 2026-03-29
 
-### Fixed
-- RAG provenance tracking: axioms created during R3 expeditions now carry `citation_ids`
-  linking back to source Signals (was hardcoded to `[]` at 3 creation sites)
-- RAG search results now register DOCUMENT Signals with source path (was web-only)
-- RAG results now increment `sources_found` counter for convergence detection accuracy
+### Added
+- Auto-extract model metadata from `config.json` during scanning
+  - Context length (`max_position_embeddings`), architecture, hidden size, vocab size
+  - Shared `_find_config_json()` helper for HF cache and direct model dirs
+- `ModelConfig` Pydantic model for per-model YAML overrides (`n_ctx`, `max_tokens`, `temperature`)
+- `InferenceBackend.get_max_tokens()` / `get_temperature()` config accessors with type coercion
+- Auto-configured `n_ctx` in llama.cpp backend (priority: YAML > config.json > 32768 default)
 
 ### Changed
 - `HybridIndex` now uses `VectorStoreBase` (FAISS or numpy fallback) for vector storage
@@ -20,6 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `generate_embeddings()` creates vector store via `create_vector_store()` factory
 - Legacy `.npy` vector files auto-migrate to vector store format on first load
 - `get_stats()` includes `vector_store_type` field (FAISSVectorStore or NumpyFallbackStore)
+- Chat generation uses per-model `max_tokens` and `temperature` from config
+
+### Fixed
+- RAG provenance tracking: axioms created during R3 expeditions now carry `citation_ids`
+  linking back to source Signals (was hardcoded to `[]` at 3 creation sites)
+- RAG search results now register DOCUMENT Signals with source path (was web-only)
+- RAG results now increment `sources_found` counter for convergence detection accuracy
 
 ## [0.7.1] - 2026-03-28
 

@@ -14,10 +14,22 @@ Environment Variables:
 """
 
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class ModelConfig(BaseModel):
+    """Per-model inference settings.
+
+    Any field left as None uses the backend's built-in default.
+    Configured via .r3lay/config.yaml under model_configs.
+    """
+
+    n_ctx: int | None = None
+    max_tokens: int | None = None
+    temperature: float | None = None
 
 
 class ModelRoles(BaseModel):
@@ -108,6 +120,9 @@ class AppConfig(BaseSettings):
     # Model role assignments (Phase C)
     model_roles: ModelRoles = Field(default_factory=ModelRoles)
 
+    # Per-model inference settings (n_ctx, max_tokens, temperature)
+    model_configs: dict[str, ModelConfig] = Field(default_factory=dict)
+
     # Intent routing preference (Phase 102)
     intent_routing: Literal["local", "openclaw", "auto"] = Field(
         default="auto",
@@ -175,6 +190,19 @@ class AppConfig(BaseSettings):
             if data and "intent_routing" in data:
                 config.intent_routing = data["intent_routing"]
 
+            # Load per-model configs if present
+            if data and "model_configs" in data and isinstance(data["model_configs"], dict):
+                for name, cfg in data["model_configs"].items():
+                    if isinstance(cfg, dict):
+                        try:
+                            config.model_configs[name] = ModelConfig(**cfg)
+                        except Exception:
+                            import logging
+
+                            logging.getLogger(__name__).warning(
+                                "Invalid model_config for '%s', skipping", name
+                            )
+
             # Load research auto-trigger mode if present
             if data and "research" in data and isinstance(data["research"], dict):
                 mode = data["research"].get("auto_trigger_mode")
@@ -196,7 +224,7 @@ class AppConfig(BaseSettings):
         yaml = YAML()
         yaml.default_flow_style = False
 
-        data = {
+        data: dict[str, Any] = {
             "model_roles": self.model_roles.model_dump(exclude_none=False),
             "intent_routing": self.intent_routing,
             "research": {
@@ -204,8 +232,18 @@ class AppConfig(BaseSettings):
             },
         }
 
+        # Only save model_configs with non-empty settings
+        if self.model_configs:
+            configs = {
+                name: dumped
+                for name, cfg in self.model_configs.items()
+                if (dumped := cfg.model_dump(exclude_none=True))
+            }
+            if configs:
+                data["model_configs"] = configs
+
         with config_file.open("w") as f:
             yaml.dump(data, f)
 
 
-__all__ = ["AppConfig", "ModelRoles"]
+__all__ = ["AppConfig", "ModelConfig", "ModelRoles"]

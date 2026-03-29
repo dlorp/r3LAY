@@ -53,13 +53,17 @@ class GenerationError(BackendError):
     pass
 
 
-def create_backend(model_info: "ModelInfo") -> InferenceBackend:
+def create_backend(
+    model_info: "ModelInfo",
+    model_config: dict | None = None,
+) -> InferenceBackend:
     """Create appropriate backend from ModelInfo.
 
     Uses lazy imports to avoid loading unused dependencies.
 
     Args:
         model_info: Model information including path and backend type.
+        model_config: Optional per-model config (n_ctx, max_tokens, temperature).
 
     Returns:
         Configured InferenceBackend instance (not yet loaded).
@@ -70,12 +74,14 @@ def create_backend(model_info: "ModelInfo") -> InferenceBackend:
     """
     from ..models import Backend
 
+    backend: InferenceBackend
+
     if model_info.backend == Backend.MLX:
         from .mlx import MLXBackend
 
         if model_info.path is None:
             raise ModelLoadError(f"MLX backend requires a model path: {model_info.name}")
-        return MLXBackend(model_info.path, model_info.name, model_info.is_vision_model)
+        backend = MLXBackend(model_info.path, model_info.name, model_info.is_vision_model)
 
     elif model_info.backend == Backend.LLAMA_CPP:
         from .llama_cpp import LlamaCppBackend
@@ -90,17 +96,17 @@ def create_backend(model_info: "ModelInfo") -> InferenceBackend:
 
             mmproj_path = Path(model_info.metadata["mmproj_path"])
 
-        return LlamaCppBackend(model_info.path, model_info.name, mmproj_path=mmproj_path)
+        backend = LlamaCppBackend(model_info.path, model_info.name, mmproj_path=mmproj_path)
 
     elif model_info.backend == Backend.OLLAMA:
         from .ollama import OllamaBackend
 
-        return OllamaBackend(model_info.name)
+        backend = OllamaBackend(model_info.name)
 
     elif model_info.backend == Backend.VLLM:
         from .vllm import VLLMBackend
 
-        return VLLMBackend(model_info.name)
+        backend = VLLMBackend(model_info.name)
 
     elif model_info.backend == Backend.OPENCLAW:
         from .openclaw import OpenClawBackend
@@ -108,10 +114,16 @@ def create_backend(model_info: "ModelInfo") -> InferenceBackend:
         # Get endpoint and API key from metadata if provided
         endpoint = model_info.metadata.get("endpoint", "http://localhost:18789")
         api_key = model_info.metadata.get("api_key")
-        return OpenClawBackend(model_info.name, endpoint=endpoint, api_key=api_key)
+        backend = OpenClawBackend(model_info.name, endpoint=endpoint, api_key=api_key)
 
     else:
         raise ValueError(f"Unknown backend: {model_info.backend}")
+
+    # Apply per-model configuration
+    if model_config:
+        backend.model_config_dict = model_config
+
+    return backend
 
 
 __all__ = [

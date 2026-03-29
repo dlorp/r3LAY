@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 
 
 class InferenceBackend(ABC):
@@ -83,6 +83,35 @@ class InferenceBackend(ABC):
         ...
         # Make this a generator
         yield ""
+
+    @property
+    def model_config_dict(self) -> dict[str, Any]:
+        """Per-model configuration (n_ctx, max_tokens, temperature, etc.)."""
+        return getattr(self, "_model_config", {})
+
+    @model_config_dict.setter
+    def model_config_dict(self, config: dict[str, Any]) -> None:
+        self._model_config = config
+
+    def get_max_tokens(self, default: int = 512) -> int:
+        """Get configured max_tokens, or the provided default."""
+        val = self.model_config_dict.get("max_tokens")
+        if val is None:
+            return default
+        try:
+            return int(val)
+        except (TypeError, ValueError):
+            return default
+
+    def get_temperature(self, default: float = 0.7) -> float:
+        """Get configured temperature, or the provided default."""
+        val = self.model_config_dict.get("temperature")
+        if val is None:
+            return default
+        try:
+            return float(val)
+        except (TypeError, ValueError):
+            return default
 
     @classmethod
     @abstractmethod
