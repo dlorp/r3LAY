@@ -2276,19 +2276,12 @@ class InputPane(Vertical):
             await self._handle_research(research_query, response_pane)
 
         elif trigger_mode == "prompt":
-            # Prompt mode: show the contradiction and offer to research
-            conflict_detail = ""
-            if signal.conflicting_statements:
-                conflict_detail = "\n".join(
-                    f"  - {s[:120]}" for s in signal.conflicting_statements
-                )
-                conflict_detail = f"\n\n**Conflicting info:**\n{conflict_detail}"
-
-            response_pane.add_system(
-                f"**Contradiction detected** — {signal.description}"
-                f"{conflict_detail}\n\n"
-                f"Run `/research {research_query[:80]}` to investigate, "
-                f"or change mode in config (`research.auto_trigger_mode`)."
+            # Prompt mode: show clickable badge, user clicks to start R3
+            flagged = signal.flagged_sentence or signal.description
+            response_pane.add_contradiction_badge(
+                flagged_sentence=flagged,
+                query=research_query,
+                confidence=signal.confidence,
             )
 
     async def _handle_maintenance_intent(

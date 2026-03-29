@@ -66,6 +66,12 @@ LLM_CONTRADICTION_INDICATORS: list[re.Pattern] = [
 ]
 
 
+# Minimum response length for LLM contradiction scanning.
+# Short responses (greetings, status messages) contain vocabulary like
+# "discrepancies" in capability listings, not actual contradictions.
+MIN_LLM_RESPONSE_LENGTH = 500
+
+
 @dataclass
 class ContradictionSignal:
     """A detected contradiction signal with context."""
@@ -75,6 +81,7 @@ class ContradictionSignal:
     conflicting_statements: list[str] = field(default_factory=list)
     suggested_query: str = ""
     confidence: float = 0.5
+    flagged_sentence: str = ""  # The specific sentence that triggered detection
 
 
 class ContradictionMonitor:
@@ -107,16 +114,11 @@ class ContradictionMonitor:
         for pattern in CONTRADICTION_PHRASES:
             match = pattern.search(message)
             if match:
-                # Extract surrounding context for the research query
-                start = max(0, match.start() - 50)
-                end = min(len(message), match.end() + 100)
-                context = message[start:end].strip()
-
                 return ContradictionSignal(
                     source="user_phrase",
                     description=f"User indicated contradiction: '{match.group()}'",
                     conflicting_statements=[message],
-                    suggested_query=message,  # Use full message as research query
+                    suggested_query=message[:200],
                     confidence=0.7,
                 )
         return None
@@ -124,29 +126,37 @@ class ContradictionMonitor:
     def check_llm_response(self, response: str) -> ContradictionSignal | None:
         """Check if an LLM response contains self-detected contradiction indicators.
 
+        Skips short responses (greetings, capability listings) that may contain
+        contradiction-related vocabulary without actual contradictions.
+
         Args:
             response: The LLM's generated text
 
         Returns:
             ContradictionSignal if contradiction detected, None otherwise
         """
+        # Skip short responses — greetings and status messages use words like
+        # "discrepancies" in capability listings, not actual contradictions
+        if len(response) < MIN_LLM_RESPONSE_LENGTH:
+            return None
+
         for pattern in LLM_CONTRADICTION_INDICATORS:
             match = pattern.search(response)
             if match:
                 # Extract the sentence containing the contradiction
-                # Find sentence boundaries around the match
                 start = response.rfind(".", 0, match.start())
                 start = start + 1 if start >= 0 else 0
                 end = response.find(".", match.end())
                 end = end + 1 if end >= 0 else len(response)
-                contradiction_context = response[start:end].strip()
+                flagged = response[start:end].strip()
 
                 return ContradictionSignal(
                     source="llm_response",
                     description="LLM detected conflicting information",
-                    conflicting_statements=[contradiction_context],
-                    suggested_query=contradiction_context[:200],
+                    conflicting_statements=[flagged],
+                    suggested_query=flagged[:200],
                     confidence=0.6,
+                    flagged_sentence=flagged,
                 )
         return None
 
@@ -176,7 +186,7 @@ class ContradictionMonitor:
             return None
 
         # Extract key statements from the response (sentences with factual content)
-        sentences = [s.strip() for s in re.split(r'[.!?]\s+', response) if len(s.strip()) > 20]
+        sentences = [s.strip() for s in re.split(r"[.!?]\s+", response) if len(s.strip()) > 20]
 
         for sentence in sentences[:10]:  # Check first 10 sentences
             for axiom in related_axioms:

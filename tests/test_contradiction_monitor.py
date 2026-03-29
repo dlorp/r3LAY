@@ -1,6 +1,5 @@
 """Tests for the ContradictionMonitor."""
 
-
 from r3lay.core.contradiction_monitor import ContradictionMonitor
 
 
@@ -53,26 +52,47 @@ class TestContradictionMonitor:
     # --- LLM response contradiction detection ---
 
     def test_detects_llm_conflicting_sources(self):
+        # Response must be >500 chars to pass min length threshold
         response = (
-            "The timing belt interval is 105,000 miles. However, some sources "
-            "suggest it should be replaced at 60,000 miles for severe conditions."
+            "Based on the indexed service manual and community forum data, "
+            "the timing belt interval for the EJ22 engine is specified at 105,000 miles "
+            "under normal driving conditions. The factory service manual recommends "
+            "inspection at every 30,000 miles with replacement at the specified interval. "
+            "The belt material is HNBR (Hydrogenated Nitrile Butadiene Rubber) which "
+            "provides improved heat resistance over standard NBR compounds. "
+            "However, some sources suggest it should be replaced at 60,000 miles "
+            "for severe conditions including frequent short trips and extreme temps."
         )
         signal = self.monitor.check_llm_response(response)
         assert signal is not None
         assert signal.source == "llm_response"
+        assert signal.flagged_sentence != ""
 
     def test_detects_llm_discrepancy(self):
         response = (
-            "There is a discrepancy between the official specs and community reports "
-            "regarding the head gasket material used in 2006+ models."
+            "The Subaru EJ25 engine used in the 2006-2009 Impreza and Legacy models "
+            "has undergone several revisions to address known issues. The cylinder head "
+            "gasket material was changed from composite to multi-layer steel (MLS) in "
+            "certain production runs. The factory parts catalog lists part number 11044AA633 "
+            "for the updated gasket. Community forums extensively document the head gasket "
+            "failure patterns in pre-revision engines. There is a discrepancy between "
+            "the official specs and community reports regarding the head gasket material "
+            "used in 2006+ models, with some owners reporting composite gaskets in "
+            "vehicles that should have received the MLS update."
         )
         signal = self.monitor.check_llm_response(response)
         assert signal is not None
 
     def test_detects_llm_inconsistency(self):
         response = (
-            "The data shows an inconsistency between the factory service manual "
-            "and the technical service bulletin regarding torque values."
+            "The torque specifications for the EJ22 cylinder head bolts are critical "
+            "for proper sealing. The factory service manual specifies a multi-step "
+            "torque sequence starting at 22 ft-lbs, then 51 ft-lbs, with a final "
+            "angle-torque of 90 degrees. The data shows an inconsistency between "
+            "the factory service manual and the technical service bulletin regarding "
+            "torque values. TSB 02-157-07 revised the final torque specification to "
+            "80 degrees for engines with updated head bolts. Community mechanics "
+            "report better sealing results with the TSB values."
         )
         signal = self.monitor.check_llm_response(response)
         assert signal is not None
@@ -90,12 +110,29 @@ class TestContradictionMonitor:
     def test_analyze_returns_highest_confidence(self):
         user_msg = "But I read that it's different."
         llm_response = (
-            "There is conflicting information between the manual and forums."
+            "The factory service manual specifies the EJ22 timing belt replacement "
+            "interval at 105,000 miles under normal driving conditions. The belt uses "
+            "HNBR material rated for extended service life. Routine inspection is "
+            "recommended at 30,000 mile intervals to check for wear, cracking, and "
+            "proper tension. The tensioner and idler pulleys should be replaced at "
+            "the same interval as the belt. There is conflicting information between "
+            "the manual and forums regarding whether the water pump should be replaced "
+            "simultaneously, with most community mechanics recommending it."
         )
         signal = self.monitor.analyze(user_msg, llm_response)
         assert signal is not None
-        # Should return the higher confidence one
-        assert signal.confidence > 0
+        # user_phrase confidence is 0.7, llm_response is 0.6 — user wins
+        assert signal.source == "user_phrase"
+        assert signal.confidence == 0.7
+
+    def test_short_llm_response_not_scanned(self):
+        """Regression: greetings with contradiction vocabulary should not trigger."""
+        response = (
+            "Hello! I can help with research, finding discrepancies in documentation, "
+            "and resolving conflicting information from different sources."
+        )
+        signal = self.monitor.check_llm_response(response)
+        assert signal is None
 
     def test_analyze_returns_none_when_clean(self):
         user_msg = "What's the oil capacity?"
