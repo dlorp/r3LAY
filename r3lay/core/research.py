@@ -1009,11 +1009,20 @@ class ResearchOrchestrator:
                 try:
                     rag_results = self.index.search(q, n_results=3)
                     for rag_result in rag_results:
+                        source_path = rag_result.metadata.get("source", "Local document")
+                        signal = self.signals.register_signal(
+                            signal_type=SignalType.DOCUMENT,
+                            title=source_path,
+                            path=rag_result.metadata.get("source"),
+                        )
+                        expedition.signal_ids.append(signal.id)
+                        sources_found += 1
                         all_content.append(
                             {
-                                "title": rag_result.metadata.get("source", "Local document"),
+                                "title": source_path,
                                 "content": rag_result.content,
                                 "score": rag_result.final_score,
+                                "signal_id": signal.id,
                                 "source_type": "rag",
                             }
                         )
@@ -1055,7 +1064,7 @@ class ResearchOrchestrator:
                         axiom = self.axioms.create(
                             statement=item["statement"],
                             category=item.get("category", "specifications"),
-                            citation_ids=[],
+                            citation_ids=signal_ids,
                             tags=item.get("tags", []),
                             confidence=item.get("confidence", 0.7),
                         )
@@ -1127,11 +1136,20 @@ class ResearchOrchestrator:
                 try:
                     rag_results = self.index.search(q, n_results=3)
                     for rag_result in rag_results:
+                        source_path = rag_result.metadata.get("source", "Local")
+                        signal = self.signals.register_signal(
+                            signal_type=SignalType.DOCUMENT,
+                            title=source_path,
+                            path=rag_result.metadata.get("source"),
+                        )
+                        expedition.signal_ids.append(signal.id)
+                        sources_found += 1
                         all_content.append(
                             {
-                                "title": rag_result.metadata.get("source", "Local"),
+                                "title": source_path,
                                 "content": rag_result.content,
                                 "score": rag_result.final_score,
+                                "signal_id": signal.id,
                             }
                         )
                 except Exception:
@@ -1145,6 +1163,11 @@ class ResearchOrchestrator:
 
         axioms_generated = 0
         findings: list[str] = []
+
+        # Extract signal IDs from resolution search results
+        resolution_signal_ids: list[str] = [
+            str(c.get("signal_id")) for c in all_content if c.get("signal_id") is not None
+        ]
 
         # Apply resolution
         if resolution_outcome["resolution"] == "CONFIRMED":
@@ -1160,7 +1183,7 @@ class ResearchOrchestrator:
             new_axiom = self.axioms.supersede(
                 old_axiom_id=contradiction.existing_axiom_id,
                 new_statement=new_statement,
-                citation_ids=[],
+                citation_ids=resolution_signal_ids,
                 confidence=resolution_outcome.get("confidence", 0.8),
             )
             if new_axiom:
@@ -1178,7 +1201,7 @@ class ResearchOrchestrator:
                 new_axiom = self.axioms.supersede(
                     old_axiom_id=contradiction.existing_axiom_id,
                     new_statement=merged_statement,
-                    citation_ids=[],
+                    citation_ids=resolution_signal_ids,
                     confidence=resolution_outcome.get("confidence", 0.75),
                 )
                 if new_axiom:
