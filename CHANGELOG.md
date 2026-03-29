@@ -5,7 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.7.2] - 2026-03-29
+
+### Fixed
+- RAG provenance tracking: axioms created during R3 expeditions now carry `citation_ids`
+  linking back to source Signals (was hardcoded to `[]` at 3 creation sites)
+- RAG search results now register DOCUMENT Signals with source path (was web-only)
+- RAG results now increment `sources_found` counter for convergence detection accuracy
 
 ### Changed
 - `HybridIndex` now uses `VectorStoreBase` (FAISS or numpy fallback) for vector storage
@@ -155,7 +161,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Various type checking import issues
 - Signal test stability improvements
 
-[Unreleased]: https://github.com/dlorp/r3LAY/compare/v0.7.0...HEAD
+[0.7.2]: https://github.com/dlorp/r3LAY/compare/v0.7.1...v0.7.2
+[0.7.1]: https://github.com/dlorp/r3LAY/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/dlorp/r3LAY/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/dlorp/r3LAY/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/dlorp/r3LAY/compare/v0.5.0...v0.6.0
