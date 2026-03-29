@@ -9,6 +9,7 @@ from rich.markdown import Markdown
 from rich.syntax import Syntax
 from textual.app import ComposeResult
 from textual.containers import ScrollableContainer, Vertical
+from textual.message import Message
 from textual.widgets import Collapsible, Static
 
 # Pattern to match <think>...</think> blocks (including multiline)
@@ -248,6 +249,50 @@ class StreamingBlock(Vertical):
             self._content_widget.update("")
 
 
+class ContradictionBadge(Static):
+    """Clickable badge shown when a contradiction is detected in a response.
+
+    Displays the flagged sentence and a button to investigate with R3 research.
+    Posts a ResearchRequest message when clicked.
+    """
+
+    DEFAULT_CSS = """
+    ContradictionBadge {
+        width: 100%;
+        height: auto;
+        padding: 1 2;
+        margin: 0 0 1 0;
+        background: #1a1a0d;
+        border: round #FB8B24;
+        color: #FB8B24;
+    }
+
+    ContradictionBadge:hover {
+        background: #2a2a1d;
+    }
+    """
+
+    class ResearchRequest(Message):
+        """Posted when user clicks the badge to investigate a contradiction."""
+
+        def __init__(self, query: str) -> None:
+            super().__init__()
+            self.query = query
+
+    def __init__(self, flagged: str, query: str, confidence: float) -> None:
+        truncated = flagged[:120] + "..." if len(flagged) > 120 else flagged
+        pct = int(confidence * 100)
+        super().__init__(
+            f'[!] Possible contradiction ({pct}%) -- "{truncated}"\n'
+            "    Click to investigate with R3 research"
+        )
+        self._query = query
+
+    def on_click(self) -> None:
+        """Post research request when badge is clicked."""
+        self.post_message(self.ResearchRequest(self._query))
+
+
 class ResponsePane(ScrollableContainer):
     """Main response/output pane."""
 
@@ -268,6 +313,7 @@ class ResponsePane(ScrollableContainer):
         self.state = state
         self._blocks: list[ResponseBlock] = []
         self._streaming_blocks: list[StreamingBlock] = []
+        self._badges: list[ContradictionBadge] = []
         self._welcome_block: ResponseBlock | None = None
 
     async def on_mount(self) -> None:
@@ -361,6 +407,24 @@ class ResponsePane(ScrollableContainer):
         block.scroll_visible()
         return block
 
+    def add_contradiction_badge(
+        self,
+        flagged_sentence: str,
+        query: str,
+        confidence: float,
+    ) -> None:
+        """Add a clickable contradiction badge after the last response.
+
+        Args:
+            flagged_sentence: The sentence that triggered detection.
+            query: Suggested research query for R3.
+            confidence: Detection confidence (0-1).
+        """
+        badge = ContradictionBadge(flagged_sentence, query, confidence)
+        self._badges.append(badge)
+        self.mount(badge)
+        badge.scroll_visible()
+
     def clear(self) -> None:
         """Clear all response blocks from the pane."""
         for block in self._blocks:
@@ -371,5 +435,9 @@ class ResponsePane(ScrollableContainer):
             block.remove()
         self._streaming_blocks = []
 
+        for badge in self._badges:
+            badge.remove()
+        self._badges = []
 
-__all__ = ["ResponseBlock", "StreamingBlock", "ResponsePane"]
+
+__all__ = ["ContradictionBadge", "ResponseBlock", "StreamingBlock", "ResponsePane"]

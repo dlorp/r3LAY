@@ -165,6 +165,15 @@ class MainScreen(Screen):
         tabs = self.query_one("#control-tabs", TabbedContent)
         tabs.active = "tab-index"
 
+    async def on_contradiction_badge_research_request(self, message) -> None:
+        """Route badge click to input pane for R3 research."""
+        from .ui.widgets.input_pane import InputPane
+
+        input_pane = self.query_one(InputPane)
+        response_pane = self.query_one(ResponsePane)
+        response_pane.add_system("Starting R3 research on detected contradiction...")
+        await input_pane._handle_research(message.query, response_pane)
+
 
 class R3LayApp(App):
     """Main r3LAY TUI application."""

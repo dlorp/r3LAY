@@ -116,7 +116,7 @@ class AppConfig(BaseSettings):
 
     # R³ auto-trigger mode for contradiction detection
     research_auto_trigger: Literal["auto", "prompt", "manual"] = Field(
-        default="auto",
+        default="prompt",
         description=(
             "How to handle detected contradictions: "
             "'auto' = immediately run R³, "
