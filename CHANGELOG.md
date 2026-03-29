@@ -5,16 +5,6 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Changed
-- `HybridIndex` now uses `VectorStoreBase` (FAISS or numpy fallback) for vector storage
-  and search instead of raw numpy arrays with brute-force cosine similarity
-- Vector search delegates to `VectorStoreBase.search()` for FAISS-accelerated retrieval
-- `generate_embeddings()` creates vector store via `create_vector_store()` factory
-- Legacy `.npy` vector files auto-migrate to vector store format on first load
-- `get_stats()` includes `vector_store_type` field (FAISSVectorStore or NumpyFallbackStore)
-
 ## [0.7.1] - 2026-03-28
 
 ### Added
