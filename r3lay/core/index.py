@@ -8,7 +8,7 @@ Features:
 - Semantic chunking (AST-based for code, section-based for markdown)
 - Image indexing with vision embeddings (optional)
 - PDF extraction to images via pymupdf (optional)
-- JSON file persistence for chunks, .npy for vectors
+- JSON file persistence for chunks, FAISS/numpy vector store for embeddings
 - Token budget management
 
 Vector search requires an EmbeddingBackend (passed to constructor).
@@ -34,6 +34,7 @@ import numpy as np
 from rank_bm25 import BM25Okapi
 
 from .sources import SourceType, detect_source_type_from_path
+from .vector_store import VectorStoreBase, create_vector_store
 
 if TYPE_CHECKING:
     from .embeddings import EmbeddingBackend
@@ -545,7 +546,7 @@ class HybridIndex:
     - RRF fusion for combining BM25 and vector results
     - Image indexing with vision embeddings
     - PDF extraction to images via pymupdf
-    - JSON file persistence for chunks, .npy for vectors
+    - JSON file persistence for chunks, FAISS/numpy vector store for embeddings
     - Token budget management
 
     When text_embedder is None, falls back to BM25-only search.
@@ -613,9 +614,8 @@ class HybridIndex:
         self._chunk_ids: list[str] = []
         self._chunks_by_id: dict[str, Chunk] = {}
 
-        # Text vector components
-        self._chunk_vectors: np.ndarray | None = None
-        self._embedding_dim: int = 0
+        # Text vector store (FAISS or numpy fallback)
+        self._vector_store: VectorStoreBase | None = None
 
         # Image vector components
         self._image_vectors: np.ndarray | None = None
@@ -635,8 +635,8 @@ class HybridIndex:
         return (
             self.text_embedder is not None
             and self.text_embedder.is_loaded
-            and self._chunk_vectors is not None
-            and len(self._chunk_vectors) > 0
+            and self._vector_store is not None
+            and self._vector_store.count > 0
         )
 
     @property
@@ -679,15 +679,8 @@ class HybridIndex:
                 if self._corpus_tokens:
                     self._bm25 = BM25Okapi(self._corpus_tokens)
 
-                # Load text vectors if they exist
-                if self._vectors_file.exists():
-                    self._chunk_vectors = np.load(self._vectors_file, allow_pickle=False)
-                    if len(self._chunk_vectors) > 0:
-                        self._embedding_dim = self._chunk_vectors.shape[1]
-                    logger.debug(
-                        f"Loaded {len(self._chunk_vectors)} text vectors "
-                        f"(dim={self._embedding_dim})"
-                    )
+                # Load vector store (FAISS or numpy fallback)
+                self._vector_store = self._load_vector_store()
 
             except Exception as e:
                 logger.warning(f"Error loading text index from disk: {e}")
@@ -718,6 +711,151 @@ class HybridIndex:
             except Exception as e:
                 logger.warning(f"Error loading image index from disk: {e}")
 
+    def _invalidate_vector_store(self) -> None:
+        """Clear vector store and remove all associated files from disk."""
+        self._vector_store = None
+        # Clean up all possible vector store files
+        for filename in (
+            "faiss.index",
+            "faiss_id_map.json",
+            "faiss.index.sha256",
+            "vectors.npy",
+            "numpy_id_map.json",
+        ):
+            path = self.persist_path / filename
+            if path.exists():
+                try:
+                    path.unlink()
+                except OSError:
+                    logger.warning("Failed to remove vector store file: %s", path)
+
+    def _resolve_vector_dimension(self, faiss_index_file: Path) -> int | None:
+        """Determine embedding dimension from available sources.
+
+        Checks embedder first (cheap), then falls back to reading stored index files.
+
+        Returns:
+            Embedding dimension, or None if it cannot be determined.
+        """
+        # Prefer embedder dimension (avoids reading index files)
+        if (
+            self.text_embedder is not None
+            and self.text_embedder.is_loaded
+            and hasattr(self.text_embedder, "dimension")
+        ):
+            return self.text_embedder.dimension
+
+        # Read dimension from FAISS index file
+        if faiss_index_file.exists():
+            try:
+                import faiss
+
+                index = faiss.read_index(str(faiss_index_file))
+                dimension = index.d
+                del index
+                return dimension
+            except Exception:
+                logger.warning("Failed to read FAISS index dimension")
+                return None
+
+        # Read dimension from numpy vectors file
+        if self._vectors_file.exists():
+            vectors = np.load(self._vectors_file, allow_pickle=False)
+            dimension = vectors.shape[1] if len(vectors) > 0 else 0
+            del vectors
+            return dimension if dimension > 0 else None
+
+        return None
+
+    def _load_vector_store(self) -> VectorStoreBase | None:
+        """Load or migrate vector store from disk.
+
+        Handles three cases:
+        1. FAISS store files exist (faiss.index) -> load via factory
+        2. NumpyFallbackStore files exist (vectors.npy + numpy_id_map.json) -> load via factory
+        3. Old-format vectors.npy (no id_map) -> migrate via from_numpy(), delete old file
+
+        Returns:
+            Loaded VectorStoreBase, or None if no vectors exist on disk.
+        """
+        faiss_index_file = self.persist_path / "faiss.index"
+        numpy_id_map_file = self.persist_path / "numpy_id_map.json"
+
+        # Case 1 & 2: Vector store files exist (FAISS or numpy fallback with id_map)
+        if faiss_index_file.exists() or numpy_id_map_file.exists():
+            # Determine dimension: prefer embedder (avoids double-reading FAISS index)
+            dimension = self._resolve_vector_dimension(faiss_index_file)
+            if dimension is None:
+                return None
+
+            store = create_vector_store(dimension=dimension, persist_path=self.persist_path)
+            logger.debug(
+                "Loaded vector store (%s, %d vectors, dim=%d)",
+                type(store).__name__,
+                store.count,
+                dimension,
+            )
+            return store
+
+        # Case 3: Old-format vectors.npy without id_map -> migrate
+        if self._vectors_file.exists():
+            try:
+                old_vectors = np.load(self._vectors_file, allow_pickle=False)
+                if len(old_vectors) == 0:
+                    return None
+
+                dimension = old_vectors.shape[1]
+                # Create store WITHOUT persist_path to avoid loading the legacy
+                # vectors.npy during construction (NumpyFallbackStore auto-loads)
+                store = create_vector_store(dimension=dimension)
+                # Add vectors with chunk IDs for proper mapping
+                # Build ID mapping, handling count mismatch defensively
+                if self._chunk_ids:
+                    if len(self._chunk_ids) >= len(old_vectors):
+                        ids: list[str] | None = self._chunk_ids[: len(old_vectors)]
+                    else:
+                        logger.warning(
+                            "Chunk ID count (%d) < vector count (%d) during migration, "
+                            "padding with positional IDs",
+                            len(self._chunk_ids),
+                            len(old_vectors),
+                        )
+                        ids = list(self._chunk_ids) + [
+                            str(i) for i in range(len(self._chunk_ids), len(old_vectors))
+                        ]
+                else:
+                    logger.warning(
+                        "Migrating %d legacy vectors without chunk ID mapping — "
+                        "vector search results may not resolve to chunks",
+                        len(old_vectors),
+                    )
+                    ids = None
+                store.add(old_vectors, ids=ids)
+                # Set persist path and save (was created without path to avoid auto-load)
+                store._persist_path = self.persist_path
+                store.save()
+
+                # Remove legacy .npy only if FAISS store was created (different file).
+                # NumpyFallbackStore reuses vectors.npy alongside numpy_id_map.json,
+                # so deleting it would destroy the store's own data.
+                if (self.persist_path / "faiss.index").exists():
+                    self._vectors_file.unlink()
+                elif not (self.persist_path / "numpy_id_map.json").exists():
+                    logger.error(
+                        "Migration save() did not produce expected files, keeping legacy .npy"
+                    )
+                logger.info(
+                    "Migrated %d vectors from legacy .npy to %s",
+                    len(old_vectors),
+                    type(store).__name__,
+                )
+                return store
+            except Exception as e:
+                logger.warning("Failed to migrate legacy vectors: %s", e)
+                return None
+
+        return None
+
     def _save_to_disk(self) -> None:
         """Save index to JSON and numpy files."""
         # Save text chunks
@@ -735,9 +873,9 @@ class HybridIndex:
         }
         self._index_file.write_text(json.dumps(data, indent=2))
 
-        # Save text vectors
-        if self._chunk_vectors is not None and len(self._chunk_vectors) > 0:
-            np.save(self._vectors_file, self._chunk_vectors)
+        # Save vector store
+        if self._vector_store is not None and self._vector_store.count > 0:
+            self._vector_store.save()
 
         # Save image chunks
         if self._image_chunks:
@@ -789,10 +927,8 @@ class HybridIndex:
             self._bm25 = BM25Okapi(self._corpus_tokens)
 
         # Invalidate vectors (need to regenerate)
-        if unique_chunks and self._chunk_vectors is not None:
-            self._chunk_vectors = None
-            if self._vectors_file.exists():
-                self._vectors_file.unlink()
+        if unique_chunks and self._vector_store is not None:
+            self._invalidate_vector_store()
 
         # Persist to disk
         self._save_to_disk()
@@ -833,16 +969,25 @@ class HybridIndex:
             all_embeddings.append(batch_embeddings)
             logger.debug(f"Embedded batch {i // batch_size + 1}")
 
-        # Combine all batches
-        self._chunk_vectors = np.vstack(all_embeddings)
-        self._embedding_dim = self._chunk_vectors.shape[1]
+        # Combine all batches and store in vector store
+        all_vectors = np.vstack(all_embeddings)
+        dimension = all_vectors.shape[1]
 
-        # Save to disk
-        np.save(self._vectors_file, self._chunk_vectors)
+        # Create vector store and add embeddings with chunk ID mapping
+        self._vector_store = create_vector_store(
+            dimension=dimension, persist_path=self.persist_path
+        )
+        self._vector_store.add(all_vectors, ids=self._chunk_ids)
+        self._vector_store.save()
 
-        logger.info(f"Generated {len(self._chunk_vectors)} embeddings (dim={self._embedding_dim})")
+        logger.info(
+            "Generated %d embeddings (dim=%d, store=%s)",
+            len(all_vectors),
+            dimension,
+            type(self._vector_store).__name__,
+        )
 
-        return len(self._chunk_vectors)
+        return len(all_vectors)
 
     # ========================================================================
     # Image and PDF Support
@@ -1166,8 +1311,8 @@ class HybridIndex:
             use_hybrid
             and self.text_embedder is not None
             and self.text_embedder.is_loaded
-            and self._chunk_vectors is not None
-            and len(self._chunk_vectors) > 0
+            and self._vector_store is not None
+            and self._vector_store.count > 0
         )
         has_reranker = self.reranker is not None and self.reranker.is_loaded
         strategy = classify_query(query, has_hybrid=has_vectors, has_reranker=has_reranker)
@@ -1296,11 +1441,12 @@ class HybridIndex:
         return []
 
     async def _vector_search(self, query: str, n_results: int) -> list[RetrievalResult]:
-        """Perform vector similarity search."""
+        """Perform vector similarity search via VectorStoreBase."""
         if (
             self.text_embedder is None
             or not self.text_embedder.is_loaded
-            or self._chunk_vectors is None
+            or self._vector_store is None
+            or self._vector_store.count == 0
         ):
             return []
 
@@ -1308,17 +1454,17 @@ class HybridIndex:
         query_embedding = await self.text_embedder.embed_texts([query])
         query_vector = query_embedding[0]  # Shape: (D,)
 
-        # Compute cosine similarity
-        similarities = self._cosine_similarity(query_vector, self._chunk_vectors)
-
-        # Get top results by similarity
-        top_indices = np.argsort(similarities)[::-1][:n_results]
+        # Search via vector store (returns list of (index, score) tuples)
+        search_results = self._vector_store.search(query_vector, k=n_results)
 
         results: list[RetrievalResult] = []
-
-        for idx in top_indices:
-            if similarities[idx] > 0:
-                chunk_id = self._chunk_ids[idx]
+        for idx, score in search_results:
+            if score > 0:
+                # Resolve chunk ID from store's ID mapping
+                chunk_id = self._vector_store.get_id(idx)
+                if chunk_id is None:
+                    logger.warning("Vector store index %d has no chunk ID mapping", idx)
+                    continue
                 chunk = self._chunks_by_id.get(chunk_id)
                 if chunk:
                     results.append(
@@ -1326,7 +1472,7 @@ class HybridIndex:
                             content=chunk.content,
                             metadata=chunk.metadata,
                             chunk_id=chunk_id,
-                            vector_score=float(similarities[idx]),
+                            vector_score=score,
                             source_type=chunk.source_type,
                         )
                     )
@@ -1470,9 +1616,7 @@ class HybridIndex:
             self._bm25 = None
 
         # Invalidate vectors
-        self._chunk_vectors = None
-        if self._vectors_file.exists():
-            self._vectors_file.unlink()
+        self._invalidate_vector_store()
 
         # Persist changes
         self._save_to_disk()
@@ -1486,8 +1630,7 @@ class HybridIndex:
         self._corpus_tokens = []
         self._chunk_ids = []
         self._chunks_by_id = {}
-        self._chunk_vectors = None
-        self._embedding_dim = 0
+        self._invalidate_vector_store()
 
         # Clear image data
         self._image_vectors = None
@@ -1501,8 +1644,6 @@ class HybridIndex:
         # Delete text files
         if self._index_file.exists():
             self._index_file.unlink()
-        if self._vectors_file.exists():
-            self._vectors_file.unlink()
 
         # Delete image files
         if self._image_chunks_file.exists():
@@ -1518,8 +1659,15 @@ class HybridIndex:
             "collection": self.collection_name,
             "hybrid_enabled": self.hybrid_enabled,
             "bm25_ready": self._bm25 is not None,
-            "vectors_count": (len(self._chunk_vectors) if self._chunk_vectors is not None else 0),
-            "embedding_dim": self._embedding_dim,
+            "vectors_count": (self._vector_store.count if self._vector_store is not None else 0),
+            "embedding_dim": (
+                self._vector_store._dimension
+                if self._vector_store is not None and hasattr(self._vector_store, "_dimension")
+                else 0
+            ),
+            "vector_store_type": (
+                type(self._vector_store).__name__ if self._vector_store is not None else None
+            ),
             "embedder_loaded": (self.text_embedder is not None and self.text_embedder.is_loaded),
             # Image index stats
             "image_count": len(self._image_chunks),

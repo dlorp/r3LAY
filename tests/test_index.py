@@ -855,6 +855,8 @@ class TestHybridIndexAsyncSearch:
     @pytest.fixture
     def populated_index(self, temp_dir, mock_embedder):
         """Create index with embedder and test data."""
+        from r3lay.core.vector_store import create_vector_store
+
         index = HybridIndex(persist_path=temp_dir, text_embedder=mock_embedder)
         chunks = [
             Chunk(content="Python is great for data science", metadata={}),
@@ -862,9 +864,10 @@ class TestHybridIndexAsyncSearch:
             Chunk(content="Rust is safe and fast", metadata={}),
         ]
         index.add_chunks(chunks)
-        # Simulate having vectors
-        index._chunk_vectors = np.random.rand(3, 384).astype(np.float32)
-        index._embedding_dim = 384
+        # Create vector store with matching chunk IDs
+        store = create_vector_store(dimension=384, persist_path=temp_dir)
+        store.add(np.random.rand(3, 384).astype(np.float32), ids=index._chunk_ids)
+        index._vector_store = store
         return index
 
     async def test_async_search_basic(self, populated_index):
@@ -1023,25 +1026,34 @@ class TestHybridIndexPersistence:
         loaded = list(index2._chunks_by_id.values())[0]
         assert loaded.source_type == SourceType.INDEXED_CODE
 
-    def test_vectors_saved_as_npy(self, temp_dir):
-        """Vectors are saved to .npy file."""
+    def test_vectors_saved_via_store(self, temp_dir):
+        """Vector store files are saved to disk."""
+        from r3lay.core.vector_store import create_vector_store
+
         index = HybridIndex(persist_path=temp_dir)
         chunk = Chunk(content="Test", metadata={})
         index.add_chunks([chunk])
 
-        # Simulate having vectors
-        index._chunk_vectors = np.array([[1.0, 2.0, 3.0]])
+        # Simulate having a vector store with data
+        store = create_vector_store(dimension=3, persist_path=temp_dir)
+        store.add(np.array([[1.0, 2.0, 3.0]], dtype=np.float32), ids=["id1"])
+        index._vector_store = store
         index._save_to_disk()
 
-        assert (temp_dir / "vectors.npy").exists()
+        # Either FAISS or numpy fallback files should exist
+        has_faiss = (temp_dir / "faiss.index").exists()
+        has_numpy = (temp_dir / "vectors.npy").exists() and (
+            temp_dir / "numpy_id_map.json"
+        ).exists()
+        assert has_faiss or has_numpy
 
-    def test_vectors_loaded_from_npy(self, temp_dir):
-        """Vectors are loaded from .npy file."""
-        # Create vectors file
-        vectors = np.array([[1.0, 2.0, 3.0]])
+    def test_legacy_npy_migrated_on_load(self, temp_dir):
+        """Legacy vectors.npy (without id_map) is migrated to vector store on load."""
+        # Create old-format vectors file (no id_map)
+        vectors = np.array([[1.0, 2.0, 3.0]], dtype=np.float32)
         np.save(temp_dir / "vectors.npy", vectors)
 
-        # Create index file
+        # Create index file with matching chunk
         data = {
             "collection": "test",
             "chunks": [{"chunk_id": "id1", "content": "Test", "metadata": {}}],
@@ -1049,8 +1061,12 @@ class TestHybridIndexPersistence:
         (temp_dir / "index.json").write_text(json.dumps(data))
 
         index = HybridIndex(persist_path=temp_dir)
-        assert index._chunk_vectors is not None
-        assert len(index._chunk_vectors) == 1
+        assert index._vector_store is not None
+        assert index._vector_store.count == 1
+        # Migration should produce id_map (proves it's no longer raw legacy format)
+        has_faiss = (temp_dir / "faiss.index").exists()
+        has_numpy_store = (temp_dir / "numpy_id_map.json").exists()
+        assert has_faiss or has_numpy_store
 
 
 class TestHybridIndexDelete:
@@ -1098,14 +1114,24 @@ class TestHybridIndexDelete:
         assert not (temp_dir / "index.json").exists()
 
     def test_clear_removes_vectors(self, temp_dir):
-        """Clear removes vector files."""
+        """Clear removes vector store files."""
+        from r3lay.core.vector_store import create_vector_store
+
         index = HybridIndex(persist_path=temp_dir)
-        index._chunk_vectors = np.array([[1.0, 2.0]])
-        index._save_to_disk()
+        chunk = Chunk(content="Test", metadata={})
+        index.add_chunks([chunk])
+
+        store = create_vector_store(dimension=2, persist_path=temp_dir)
+        store.add(np.array([[1.0, 2.0]], dtype=np.float32), ids=["id1"])
+        store.save()
+        index._vector_store = store
 
         index.clear()
 
+        assert index._vector_store is None
+        assert not (temp_dir / "faiss.index").exists()
         assert not (temp_dir / "vectors.npy").exists()
+        assert not (temp_dir / "numpy_id_map.json").exists()
 
 
 class TestHybridIndexStats:
@@ -1139,15 +1165,19 @@ class TestHybridIndexStats:
 
     def test_stats_with_vectors(self, temp_dir):
         """Stats reflect vector state."""
+        from r3lay.core.vector_store import create_vector_store
+
         index = HybridIndex(persist_path=temp_dir)
         chunk = Chunk(content="Test", metadata={})
         index.add_chunks([chunk])
-        index._chunk_vectors = np.array([[1.0, 2.0, 3.0]])
-        index._embedding_dim = 3
+
+        store = create_vector_store(dimension=3, persist_path=temp_dir)
+        store.add(np.array([[1.0, 2.0, 3.0]], dtype=np.float32), ids=["id1"])
+        index._vector_store = store
 
         stats = index.get_stats()
         assert stats["vectors_count"] == 1
-        assert stats["embedding_dim"] == 3
+        assert stats["vector_store_type"] is not None
 
 
 class TestHybridIndexPackContext:
@@ -1295,8 +1325,8 @@ class TestHybridIndexEmbeddings:
         count = await index.generate_embeddings()
 
         assert count == 2
-        assert index._chunk_vectors is not None
-        assert len(index._chunk_vectors) == 2
+        assert index._vector_store is not None
+        assert index._vector_store.count == 2
 
     async def test_generate_embeddings_no_embedder(self, temp_dir):
         """generate_embeddings raises without embedder."""
