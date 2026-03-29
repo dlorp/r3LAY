@@ -1063,8 +1063,10 @@ class TestHybridIndexPersistence:
         index = HybridIndex(persist_path=temp_dir)
         assert index._vector_store is not None
         assert index._vector_store.count == 1
-        # Old vectors.npy should be removed after migration
-        assert not (temp_dir / "vectors.npy").exists()
+        # Migration should produce id_map (proves it's no longer raw legacy format)
+        has_faiss = (temp_dir / "faiss.index").exists()
+        has_numpy_store = (temp_dir / "numpy_id_map.json").exists()
+        assert has_faiss or has_numpy_store
 
 
 class TestHybridIndexDelete:

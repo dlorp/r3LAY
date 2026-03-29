@@ -805,7 +805,9 @@ class HybridIndex:
                     return None
 
                 dimension = old_vectors.shape[1]
-                store = create_vector_store(dimension=dimension, persist_path=self.persist_path)
+                # Create store WITHOUT persist_path to avoid loading the legacy
+                # vectors.npy during construction (NumpyFallbackStore auto-loads)
+                store = create_vector_store(dimension=dimension)
                 # Add vectors with chunk IDs for proper mapping
                 # Build ID mapping, handling count mismatch defensively
                 if self._chunk_ids:
@@ -829,15 +831,16 @@ class HybridIndex:
                     )
                     ids = None
                 store.add(old_vectors, ids=ids)
+                # Set persist path and save (was created without path to avoid auto-load)
+                store._persist_path = self.persist_path
                 store.save()
 
-                # Verify new store files exist before removing legacy file
-                new_files_exist = (self.persist_path / "faiss.index").exists() or (
-                    self.persist_path / "numpy_id_map.json"
-                ).exists()
-                if new_files_exist:
+                # Remove legacy .npy only if FAISS store was created (different file).
+                # NumpyFallbackStore reuses vectors.npy alongside numpy_id_map.json,
+                # so deleting it would destroy the store's own data.
+                if (self.persist_path / "faiss.index").exists():
                     self._vectors_file.unlink()
-                else:
+                elif not (self.persist_path / "numpy_id_map.json").exists():
                     logger.error(
                         "Migration save() did not produce expected files, keeping legacy .npy"
                     )
