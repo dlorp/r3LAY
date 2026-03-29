@@ -2186,8 +2186,8 @@ class InputPane(Vertical):
 
             async for token in self.state.current_backend.generate_stream(
                 conversation,
-                max_tokens=1024,
-                temperature=0.7,
+                max_tokens=self.state.current_backend.get_max_tokens(1024),
+                temperature=self.state.current_backend.get_temperature(0.7),
                 images=self._attachments if self._attachments else None,
             ):
                 if self._cancel_requested:
