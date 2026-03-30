@@ -175,43 +175,58 @@ r3LAY: ✅ Created knowledge-vault/automotive/timing-belt-replacement-log.md
 - "My mileage is now 120500" → r3LAY updates project
 - "I installed a cold air intake" → r3LAY logs modification
 
-**Knowledge Vault Integration:**
+**Knowledge Vault Integration (Bidirectional):**
 
-All project research and findings flow into `~/repos/knowledge-vault/`:
+**r3LAY and Synapse-Engine both contribute to `~/repos/knowledge-vault/`:**
+
 ```
 ~/repos/knowledge-vault/
 ├── automotive/
-│   ├── subaru-ej22-timing-belt.md         # Extracted from FSM
-│   ├── head-gasket-symptoms.md             # Community consensus
-│   └── obd1-ssm-protocol.md                # Protocol research
+│   ├── subaru-ej22-timing-belt.md         # r3LAY: Extracted from FSM
+│   ├── head-gasket-symptoms.md             # r3LAY: Community consensus
+│   └── obd1-ssm-protocol.md                # r3LAY: Protocol research
 ├── embedded/
 └── preservation/
 ```
 
-**Synapse-Engine indexes vault:**
-- Embeddings + metadata → knowledge graph
-- Cross-references related findings
-- Tracks provenance (FSM page, forum post, manual section)
+**Cyclical workflow:**
 
-**r3LAY queries knowledge graph (CGRAG API):**
-```
-r3LAY → "timing belt interval for EJ22"
-       ↓
-Synapse-Engine CGRAG API (semantic search)
-       ↓ 
-Returns: subaru-ej22-timing-belt.md + cross-refs + provenance
-       ↓
-r3LAY → LLM context + response
-```
+1. **r3LAY creates data:**
+   - Research FSMs, manuals, forums, community docs
+   - Synthesizes findings (research-template.md format)
+   - Writes to `~/repos/knowledge-vault/<domain>/<topic>.md`
+
+2. **Synapse-Engine indexes:**
+   - Detects new files in knowledge-vault
+   - Generates embeddings + metadata
+   - Builds knowledge graph (cross-references, provenance)
+   - Exposes CGRAG API for semantic search
+
+3. **r3LAY queries knowledge graph:**
+   - Asks Synapse-Engine CGRAG API for relevant findings
+   - Receives findings + cross-refs + provenance
+   - Injects into LLM context
+   - Generates response with source citations
+
+4. **Cycle repeats:**
+   - New findings from conversation → r3LAY writes to vault
+   - Synapse-Engine re-indexes → knowledge compounds
+
+**Both systems grow the vault together:**
+- **r3LAY:** Research producer (creates structured findings)
+- **Synapse-Engine:** Knowledge graph indexer (makes findings queryable)
+- **knowledge-vault:** Shared data layer (persistent, versioned)
 
 **Benefits:**
 - **No rigid structure:** Dump docs/notes anywhere, r3LAY finds them
 - **Full project memory:** LLM has entire history every conversation
+- **Bidirectional knowledge flow:** r3LAY writes findings → Synapse indexes → r3LAY queries
 - **Knowledge graph:** Synapse-Engine links related findings across domains
 - **Source attribution:** Every claim cites FSM page, forum post, or your notes
 - **Contradiction detection:** Flags conflicts between official docs and community knowledge
 - **Maintenance automation:** Extracts intervals from manuals → schedules services
 - **Cross-project learning:** Findings from one project inform others (e.g., EJ22 → EJ25 similarities)
+- **Collaborative growth:** r3LAY creates data, Synapse makes it queryable, both grow vault together
 
 ### Docker
 
