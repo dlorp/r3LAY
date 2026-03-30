@@ -104,6 +104,71 @@ r3lay
 
 Select a model from the Models panel (`Ctrl+1`) and start chatting.
 
+## Project Folder Management
+
+**r3LAY intelligently manages your project folders** — dump FSMs, service manuals, community docs, research notes, and maintenance logs into your project directory. r3LAY indexes everything and makes it conversationally accessible.
+
+### Example: Automotive Project
+
+```bash
+~/projects/1997-subaru-impreza/
+├── manuals/
+│   ├── FSM-1997-Impreza.pdf               # Factory service manual
+│   ├── EJ22-engine-specs.pdf               # Engine technical docs
+│   └── transmission-rebuild-guide.pdf      # Rebuild procedures
+├── research/
+│   ├── timing-belt-intervals.md            # Your research notes
+│   ├── head-gasket-symptoms.md             # Community findings
+│   └── obd1-ssm-protocol.md                # Protocol reverse engineering
+├── maintenance/
+│   ├── log.json                            # Service history (auto-managed)
+│   └── receipts/                           # Parts/service receipts
+├── community/
+│   ├── nasioc-ej22-timing-belt-thread.pdf  # Forum archives
+│   ├── reddit-subaru-ej22-FAQ.md           # Community knowledge
+│   └── youtube-timing-belt-replacement.md  # Video transcripts
+└── .r3lay/
+    ├── project.yaml                        # Project metadata
+    ├── axioms/                             # Validated findings
+    └── index/                              # RAG index (auto-generated)
+```
+
+**What r3LAY does:**
+1. **Indexes everything:** PDFs, markdown, code, configs → RAG search
+2. **Maintains context:** LLM knows your project history, maintenance records, research
+3. **Extracts knowledge:** Service intervals from manuals → maintenance schedule
+4. **Detects contradictions:** FSM says 60k timing belt, community says 105k → flags for review
+5. **Personalizes responses:** "Your Impreza's EJ22..." (not generic advice)
+
+**Workflow:**
+```bash
+cd ~/projects/1997-subaru-impreza
+r3lay
+
+# Chat naturally:
+You: "When should I change my timing belt?"
+r3LAY: [Searches FSM + research notes + axioms]
+      "Your EJ22's timing belt interval is 105k miles (per 1999+ FSM update,
+       confirmed by NASIOC consensus). You're at 120k miles (60k overdue).
+       EJ22 is interference engine — failure is catastrophic.
+       [Sources: FSM-1997-Impreza.pdf p.142, timing-belt-intervals.md]"
+
+You: "Log timing belt replacement today at 120k miles, $800"
+r3LAY: ✅ Logged. Next timing belt due at 225k miles (105k interval).
+```
+
+**Natural conversation updates** (LLM-confirmed):
+- "I changed the oil today, used 5W-30" → r3LAY confirms → logs to maintenance
+- "My mileage is now 120500" → r3LAY updates project
+- "I installed a cold air intake" → r3LAY logs modification
+
+**Benefits:**
+- **No rigid structure:** Dump docs/notes anywhere, r3LAY finds them
+- **Full project memory:** LLM has entire history every conversation
+- **Source attribution:** Every claim cites FSM page, forum post, or your notes
+- **Contradiction detection:** Flags conflicts between official docs and community knowledge
+- **Maintenance automation:** Extracts intervals from manuals → schedules services
+
 ### Docker
 
 ```bash
