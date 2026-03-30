@@ -1,115 +1,212 @@
-# r³LAY Architecture
+# r3LAY Architecture
 
-## System Overview
+## Design Philosophy
 
-```
-┌─────────────────────────────────────┬─────────────────────────────────┐
-│                                     │  User Input                     │
-│   Response Pane                     │  Multi-line TextArea            │
-│   (Markdown rendering)              ├─────────────────────────────────┤
-│                                     │  Tabbed Panels                  │
-│   60% width                         │  [Models][Index][Axioms]        │
-│                                     │  [Sessions][Settings]           │
-└─────────────────────────────────────┴─────────────────────────────────┘
-```
+**r3LAY is a research augmentation system with domain-specific tools.**
 
-## Core Components
+The GitHub repository contains:
+- ✅ Core systems (research workflow, theme engine, storage layer, command parser)
+- ✅ Category plugin architecture (automotive, embedded, networking, preservation, philosophy, procedural)
+- ✅ TUI framework + shader system
+- ✅ Synapse-Engine CGRAG client (knowledge vault integration)
+- ✅ Documentation + examples
 
-| Component | Purpose |
-|-----------|---------|
-| **LLM Backends** | Pluggable adapters for MLX, llama.cpp, Ollama |
-| **Hybrid Index** | BM25 + vector search with RRF fusion (k=60) |
-| **Signals** | Provenance tracking for all knowledge sources |
-| **Axioms** | Validated knowledge with 7-state lifecycle |
-| **Research Orchestrator** | Multi-cycle expedition with retrospective revision |
-| **Smart Router** | Automatic text/vision model switching |
+The GitHub repository does NOT contain:
+- ❌ User data (research notes, databases)
+- ❌ Knowledge vault (research findings, private)
+- ❌ User prototypes (custom tools)
+- ❌ User themes/shaders (custom aesthetics)
+- ❌ User configurations (local settings)
 
-## LLM Backend Support
+**Separation principle:** Framework (public) vs. Data (private)
 
-| Backend | Platform | Use Case |
-|---------|----------|----------|
-| **MLX** | Apple Silicon | Native Metal acceleration, recommended for M1/M2/M3/M4 |
-| **llama.cpp** | Universal | GGUF models, CPU or CUDA acceleration |
-| **Ollama** | Any | API-based, easiest setup |
+## Cyclical Research Workflow
 
-## Data Flow
+**r3LAY enables continuous knowledge growth:**
 
 ```
-User enters input in TUI
-    ↓
-Intent Parser analyzes input
-    ├─→ /commands → Direct command execution
-    ├─→ Pattern match → Maintenance logging, queries
-    └─→ Fallback → Chat/search with LLM
-    ↓
-Smart Router evaluates content
-    ├─→ Image attachments → Vision model
-    ├─→ Vision keywords (>0.6 score) → Switch to vision
-    ├─→ Text-only for 5+ turns → Switch back to text
-    └─→ Default → Stay on current model
-    ↓
-Hybrid Index (RAG) retrieves context
-    ├─→ BM25 keyword search
-    ├─→ Vector similarity search
-    └─→ RRF fusion (k=60) combines results
-    ↓
-LLM Backend generates response
-    ├─→ MLX (Apple Silicon native)
-    ├─→ llama.cpp (GGUF models)
-    └─→ Ollama (API-based)
-    ↓
-Signals Manager tracks provenance
-    ├─→ Source attribution
-    └─→ Citation chains
-    ↓
-Session Manager persists state
-    ├─→ Conversation history (JSON)
-    └─→ Model context maintained
-    ↓
-Response rendered in TUI
+┌─────────────────────────────────────────────────────┐
+│ 1. Query Knowledge Vault (Synapse-Engine CGRAG)    │
+│    └─> Semantic search over ~/repos/knowledge-vault│
+└───────────────┬─────────────────────────────────────┘
+                │
+                ▼
+┌─────────────────────────────────────────────────────┐
+│ 2. Identify Gaps                                    │
+│    └─> No results? → Research opportunity          │
+└───────────────┬─────────────────────────────────────┘
+                │
+                ▼
+┌─────────────────────────────────────────────────────┐
+│ 3. Perform New Research                            │
+│    ├─> Multi-language (EN/JP/CN/KR)                │
+│    ├─> Source tier tracking (Tier 1-4)             │
+│    └─> Provenance metadata (URL, date, language)   │
+└───────────────┬─────────────────────────────────────┘
+                │
+                ▼
+┌─────────────────────────────────────────────────────┐
+│ 4. Write Findings to Vault                         │
+│    ├─> Structured format (research-template.md)    │
+│    ├─> Frontmatter (topic, domain, sources, tags)  │
+│    ├─> Cross-references (link related findings)    │
+│    └─> Open questions (future research directions) │
+└───────────────┬─────────────────────────────────────┘
+                │
+                ▼
+┌─────────────────────────────────────────────────────┐
+│ 5. Vault Re-indexes (Synapse-Engine)               │
+│    └─> New findings ready for next query           │
+└───────────────┬─────────────────────────────────────┘
+                │
+                └──────> Cycle repeats
 ```
 
-## Project Data Structure
+**Key insight:** Research output becomes input for future research. Knowledge compounds over time.
 
+## Core Systems
+
+### Research System (New)
+
+**Location:** `core/research/`
+
+**Purpose:** Cyclical knowledge growth via knowledge vault integration
+
+**Components:**
+
+1. **CGRAG Client (`cgrag.rs`):**
+   - Connects to Synapse-Engine CGRAG API
+   - Semantic search over `~/repos/knowledge-vault/`
+   - Returns top N findings with context + metadata
+
+2. **Query Interface (`query.rs`):**
+   - User-facing query builder
+   - Supports natural language queries
+   - Cross-references related findings
+
+3. **Multi-Language Search (`search.rs`):**
+   - EN/JP/CN/KR source search
+   - Native language queries (not translations)
+   - Source tier tracking (Tier 1-4)
+
+4. **Synthesizer (`synthesize.rs`):**
+   - Converts research → structured findings
+   - Writes to knowledge vault (research-template.md format)
+   - Triggers Synapse-Engine re-index
+
+5. **Template Validator (`template.rs`):**
+   - Enforces research-template.md structure
+   - Validates frontmatter (topic, domain, sources, tags, confidence)
+   - Checks cross-reference format
+
+**Research Template Format:**
+```markdown
+---
+topic: Subaru OBD-I SSM Protocol
+domain: automotive
+sources:
+  - tier: 1
+    language: EN
+    url: https://...
+    title: Official Subaru SSM Spec
+  - tier: 2
+    language: JP
+    url: https://...
+    title: G-scan Manual (Japanese)
+confidence: high
+tags: [obd1, ssm, subaru, protocol]
+cross_references:
+  - obd2-pid-reference.md
+  - ej22-ecu-pinout.md
+---
+
+# Subaru OBD-I SSM Protocol
+
+## Summary
+[...]
+
+## Source Analysis
+[...]
+
+## Open Questions
+- SSM2 vs SSM1 timing differences?
+- EJ25 support (1999+)?
 ```
-<project>/
-├── .r3lay/
-│   ├── config.yaml          # Model role assignments
-│   ├── project.yaml         # Vehicle profile + mileage
-│   ├── maintenance/
-│   │   ├── log.json         # Maintenance history
-│   │   └── intervals.yaml   # Service intervals
-│   ├── index/               # Hybrid RAG index
-│   ├── sessions/            # Chat history
-│   └── .signals/
-│       ├── sources.yaml     # Signal definitions
-│       └── citations.yaml   # Citation chains
-├── axioms/
-│   └── axioms.yaml          # Validated knowledge
-└── research/
-    └── expedition_*/        # Research results
+
+### Theme Engine
+
+**Location:** `src/theme.rs`
+
+**Capabilities:**
+- Switch between PSX (blue) and Amber (phosphor) themes
+- Toggle with `r3lay theme toggle`
+- Theme config stored in `~/.config/r3lay/theme.toml`
+
+### Category System
+
+**Location:** `categories/*/`
+
+Each category is a Rust workspace member with:
+- `commands/` — Command implementations
+- `adapters/` — Hardware/protocol adapters (templates)
+- `README.md` — Integration guide
+
+**User data stays local:**
+- `data/` — User-specific data (gitignored)
+- `research/` — User notes (gitignored)
+- `prototypes/` — User tools (gitignored)
+
+**Categories:**
+1. **automotive** — OBD2, maintenance, protocols
+2. **embedded** — F91W, Sensor Watch, Arduino
+3. **networking** — myc3lium, LoRa, mesh
+4. **preservation** — NES/GBA tools, MojoWorld 3
+5. **philosophy** — Axioms, reflections
+6. **procedural** — Terrain, sprites, shaders
+
+## Security & Privacy
+
+**What gets pushed to GitHub:**
+- Framework code (Rust)
+- Research workflow (CGRAG client, no vault data)
+- Theme/shader engines
+- Category plugin templates
+- Documentation
+- Example configs (*.example.toml)
+
+**What stays local:**
+- All user data (`data/`)
+- All research notes (`research/`)
+- Knowledge vault (`~/repos/knowledge-vault/`)
+- All prototypes (`prototypes/`)
+- All custom themes/shaders
+- All databases
+- All session logs
+- User config (`config.local.toml`)
+
+**No telemetry. No cloud sync. Local-first by design.**
+
+## Synapse-Engine Integration
+
+**Architecture:**
+```
+r3LAY (client)
+    ├─> Query → Synapse-Engine CGRAG API
+    │              ├─> Semantic search
+    │              └─> Returns findings
+    └─> Synthesize → Write to knowledge vault
+                        └─> Synapse-Engine re-indexes
 ```
 
-## Smart Model Routing
-
-r³LAY automatically switches between text and vision models:
-
-| Trigger | Action |
-|---------|--------|
-| Attach an image | Switch to vision model |
-| Vision keywords | Switch if score > 0.6 |
-| 5+ text-only messages | Switch back to text |
-
-Asymmetric thresholds: high bar (0.6) to switch TO vision, low bar (0.1) to STAY on vision.
-
-## Natural Language Intent Pipeline
-
-1. **Command bypass** (0ms) - `/commands` pass through directly
-2. **Pattern matching** (~1ms) - Regex + keyword scoring
-3. **LLM fallback** (~500ms) - Only for ambiguous input
-
-Example:
+**API endpoints (example):**
 ```
-"logged oil change at 98.5k with Mobil 1 5W-30"
-→ service=oil_change, mileage=98500, product="Mobil 1 5W-30"
+GET  /cgrag/query?q=<query>&limit=10     # Semantic search
+POST /cgrag/index                         # Trigger re-index
+GET  /cgrag/stats                         # Vault statistics
 ```
+
+**Vault format:**
+- Location: `~/repos/knowledge-vault/` (separate git repo, private)
+- Structure: `<domain>/<topic>.md`
+- Template: `_meta/research-template.md`
+- Indexed by Synapse-Engine (embeddings + metadata)
