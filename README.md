@@ -1,112 +1,161 @@
 # r3LAY
 
-**Cyclical research interface & domain-specific tool platform**
+**Domain-aware research assistant with project management & maintenance tracking**
 
-r3LAY is a research augmentation system with knowledge vault integration, multi-domain tools, and dual PSX/Amber aesthetic.
+r3LAY combines cyclical research (knowledge vault integration), project-specific context awareness, and maintenance tracking. Speak naturally with your projects — r3LAY personalizes responses, augments queries, and learns from your work.
 
-## Core Philosophy
+## Core Capabilities
 
-**Research-driven workflow:**
-1. Query knowledge vault (Synapse-Engine CGRAG) for existing findings
-2. Identify gaps/questions
-3. Perform new research (multi-language, tier-tracked sources)
-4. Write structured findings to vault (research-template.md format)
-5. Vault re-indexes → cycle continues
+### 1. Project Management ("Speak to the Project")
+- **Domain-specific projects:** automotive, electronics, software, DIY, workshop
+- **Context awareness:** Personalizes responses ("your Outback" vs "the vehicle")
+- **Smart search augmentation:** "timing belt" → "timing belt 1997 Subaru EJ22"
+- **Natural updates:** Speak to update project data (LLM-confirmed)
+- **CLI:** `r3lay init`, `r3lay status`, `r3lay mileage`
 
-**Framework vs. Data:**
-- **GitHub:** Framework code only (core systems, category templates, documentation)
-- **Local:** All user data, research, prototypes, databases (gitignored, never committed)
+### 2. Maintenance Tracking
+- **Service logging:** Oil, transmission, timing belt, brake fluid, etc.
+- **Default intervals:** Pre-configured for common automotive maintenance
+- **CLI:** `r3lay log oil/service/repair/mod`, `r3lay history`
+- **Research integration:** Extract maintenance info from findings → schedule
 
-## Features
+### 3. Cyclical Research Workflow
+- **Knowledge vault I/O:** Read/write via Synapse-Engine CGRAG
+- **Multi-language:** EN/JP/CN/KR sources with native queries
+- **Source tier tracking:** Tier 1-4 (official docs → news)
+- **Contradiction detection:** Monitors for conflicting axioms
+- **Flow:** Query vault → Research → Synthesize → Re-index → Repeat
 
-### Research System (Cyclical Knowledge Growth)
-
-- **Knowledge vault I/O:** Read from `~/repos/knowledge-vault/` via Synapse-Engine CGRAG
-- **Multi-language research:** EN/JP/CN/KR sources with native queries
-- **Source tier tracking:** Tier 1-4 (official docs → news aggregators)
-- **Structured findings:** Frontmatter + cross-references + provenance
-- **Automatic indexing:** Synapse-Engine re-indexes new findings
-
-### Domain-Specific Categories
-
-- **automotive:** OBD2 diagnostics, maintenance tracking, protocol specs
+### 4. Domain-Specific Categories
+- **automotive:** OBD2 diagnostics, maintenance, protocol specs
 - **embedded:** F91W, Sensor Watch, Arduino projects
 - **networking:** myc3lium mesh, LoRa, protocol analysis
-- **preservation:** NES/GBA ROM tools, legacy software (MojoWorld 3)
-- **philosophy:** Axiom management, reflections, learnings
-- **procedural:** Terrain generation, sprites, shaders, demo scene tools
+- **preservation:** NES/GBA ROM tools, legacy software
+- **philosophy:** Axiom management, reflections
+- **procedural:** Terrain gen, sprites, shaders
 
-### Aesthetic System
-
-- **Dual themes:** PSX (blue + cyan/magenta/yellow) or Amber (phosphor terminal)
-- **GPU shaders:** Per-pane visual effects (scanlines, plasma, phosphor decay)
-- **Consistent palette:** Semantic color coding across all tools
+### 5. Aesthetic System
+- **Dual themes:** PSX (Gran Turismo blue) or Amber (VT100 phosphor)
+- **GPU shaders:** Per-pane effects (scanlines, plasma, phosphor decay)
+- **Consistent palette:** Semantic color coding across tools
 
 ## Quick Start
 
 ```bash
+# Project management
+r3lay init --domain automotive          # Create project
+r3lay status                            # Project overview
+r3lay mileage add 1000                  # Update mileage
+
+# Maintenance tracking
+r3lay log oil "5W-30, 5 quarts"         # Log service
+r3lay history                           # Service history
+
 # Research workflow
-r3lay research query "NES CHR format"       # Query knowledge vault
-r3lay research start "GBA save types"       # Begin new research
-r3lay research synthesize                   # Write findings to vault
+r3lay research query "NES CHR format"   # Query vault
+r3lay research start "GBA save types"   # New research
+r3lay research synthesize               # Write findings
 
 # Theme system
-r3lay theme toggle                          # Switch PSX ↔ Amber
-r3lay theme psx                             # Force PSX theme
-r3lay theme amber                           # Force Amber theme
+r3lay theme toggle                      # PSX ↔ Amber
 
-# Category tools
-r3lay auto live                             # Automotive live diagnostics
-r3lay preservation nes-chr <file>           # NES CHR tile viewer
-r3lay network mesh-status                   # Mesh network status
-
-# Launch interactive TUI
+# Launch TUI (conversational interface)
 r3lay tui
 ```
 
-## Installation
+## Project System
 
+**r3LAY learns your project context from folder structure and explicit config:**
+
+**Example: Automotive project**
 ```bash
-# Build framework
-cargo build --release
-cargo install --path .
+cd ~/projects/1997-subaru-impreza
+r3lay init --domain automotive \
+  --vehicle-year 1997 \
+  --vehicle-make Subaru \
+  --vehicle-model Impreza \
+  --engine EJ22
 
-# Setup user directories (local only)
-mkdir -p data/ research/ prototypes/
-mkdir -p themes/custom/ shaders/custom/
-
-# Initialize config
-cp config.example.toml config.local.toml
+# r3LAY now knows:
+# - Search queries: "timing belt" → "timing belt 1997 Subaru EJ22"
+# - Responses: "Your Impreza's EJ22..." (personalized)
+# - Citations: Part numbers, service manuals, OBD codes
 ```
 
-## Configuration
-
-**System config (committed to GitHub):**
-```toml
-# config.example.toml
-[r3lay]
-theme = "psx"
-shader_quality = "high"
+**Natural conversation updates:**
+```
+You: "I changed the oil today, used 5W-30"
+r3LAY: [Confirms] Log oil change? (5W-30, current mileage)
+You: "yes"
+r3LAY: ✅ Logged. Next oil change due in 3,000 miles.
 ```
 
-**User config (local, gitignored):**
-```toml
-# config.local.toml (never committed)
-[user]
-name = "dlorp"
+**Project state:** `.r3lay/project.yaml` (gitignored, local only)
 
-[research]
-vault_path = "~/repos/knowledge-vault"
-synapse_api = "http://localhost:8000"
+## Maintenance System
 
-[automotive]
-default_vehicle = "1997_impreza"
+**Built-in intervals + custom logging:**
 
-[paths]
-data_dir = "./data"
-research_dir = "./research"
-prototypes_dir = "./prototypes"
+**Default intervals (automotive):**
+- Oil: 3,000 miles / 3 months
+- Transmission: 30,000 miles / 24 months
+- Timing belt: 60,000 miles / 60 months (or manufacturer spec)
+- Brake fluid: 24 months
+- Coolant: 24 months
+
+**Log service:**
+```bash
+r3lay log oil "5W-30, 5 quarts, $45"
+r3lay log service "Timing belt replacement, $800"
+r3lay log repair "Alternator replaced"
+r3lay log mod "Installed cold air intake"
 ```
+
+**View history:**
+```bash
+r3lay history                    # All entries
+r3lay history --type oil         # Oil changes only
+r3lay history --last 5           # Last 5 entries
+```
+
+**Data location:** `.r3lay/maintenance/log.json` (gitignored)
+
+## Research Workflow (Cyclical)
+
+**1. Query knowledge vault:**
+```bash
+r3lay research query "Subaru SSM protocol"
+```
+- Queries Synapse-Engine CGRAG API
+- Returns findings with context
+- Identifies gaps → research opportunity
+
+**2. Start new research:**
+```bash
+r3lay research start "Subaru SSM timing"
+```
+- Multi-language search (EN/JP/CN/KR)
+- Source tier tracking (Tier 1-4)
+- Contradiction detection (flags conflicts)
+
+**3. Write findings to vault:**
+```bash
+r3lay research synthesize
+```
+- Structured format (research-template.md)
+- Writes to `~/repos/knowledge-vault/<domain>/<topic>.md`
+- Cross-references related findings
+
+**4. Vault re-indexes:**
+- Synapse-Engine detects new file
+- Indexes content + embeddings
+- Ready for next query
+
+**5. Research → Maintenance:**
+- Findings mention service intervals → extract → schedule
+- Example: "EJ22 timing belt: 60k miles" → maintenance interval
+
+**Cycle repeats → knowledge compounds, project learns**
 
 ## Architecture
 
@@ -114,170 +163,106 @@ prototypes_dir = "./prototypes"
 
 ```
 r3LAY/
-├── src/                     # Rust CLI + theme engine
-├── core/                    # Core framework
-│   ├── aesthetic/           # Design system
-│   ├── engine/              # Runtime + command system
-│   ├── research/            # Research workflow (CGRAG client)
-│   └── storage/             # Data layer interfaces
-├── categories/              # Category plugin templates
-│   ├── automotive/
-│   ├── embedded/
-│   ├── networking/
-│   ├── preservation/
-│   ├── philosophy/
-│   └── procedural/
-├── ui/                      # TUI framework + shaders
-├── themes/default/          # Built-in themes (PSX, Amber)
-├── shaders/builtin/         # Built-in shaders (scanlines, phosphor)
-└── docs/                    # Documentation
+├── core/
+│   ├── research/           # CGRAG client, synthesizer
+│   ├── project.py          # Project management
+│   ├── project_context.py  # Context awareness
+│   ├── maintenance.py      # Maintenance tracking
+│   ├── axioms.py           # Axiom system
+│   ├── contradiction_monitor.py  # Conflict detection
+│   └── session.py          # Conversational interface
+├── categories/             # Domain plugins
+├── ui/                     # TUI + shaders
+└── docs/
 ```
 
-### What's Local (Gitignored, Never Committed)
+### What's Local (Gitignored)
 
 ```
-~/repos/r3LAY/               # Working directory
-├── data/                    # User data (gitignored)
-│   ├── automotive/
-│   │   ├── vehicles.db      # SQLite databases
-│   │   └── maintenance.json
-│   ├── preservation/
-│   │   ├── roms/            # ROM files
-│   │   └── saves/
-│   └── research/            # Research notes (separate from vault)
-├── prototypes/              # User prototypes (gitignored)
-│   ├── obd2-tui/
-│   └── custom-tool/
-├── themes/custom/           # User themes (gitignored)
-├── shaders/custom/          # User shaders (gitignored)
-└── config.local.toml        # User config (gitignored)
+~/repos/r3LAY/
+├── .r3lay/                 # Project state (gitignored)
+│   ├── project.yaml
+│   ├── maintenance/
+│   │   ├── log.json
+│   │   └── intervals.yaml
+│   └── axioms/
+├── data/                   # User data
+├── research/               # Research notes
+└── prototypes/             # Custom tools
 
-~/repos/knowledge-vault/     # Knowledge vault (separate repo, gitignored)
-├── _meta/
-│   └── research-template.md
+~/repos/knowledge-vault/    # Separate repo (private)
 ├── automotive/
 ├── embedded/
-├── networking/
 └── preservation/
 ```
 
-## Research Workflow (Cyclical)
+## R3 System Integration
 
-**1. Query knowledge vault:**
-```bash
-r3lay research query "Subaru OBD-I SSM protocol"
+**How r3LAY augments responses:**
+
+1. **Project context** → personalizes language, augments queries
+2. **Axioms** (validated findings) → injected into LLM context
+3. **Maintenance history** → informs recommendations
+4. **Contradiction detection** → flags conflicts before response
+
+**Example flow:**
 ```
-- Queries Synapse-Engine CGRAF API
-- Returns top N findings with context
-- Identifies gaps (no results → research opportunity)
+User: "Should I change my timing belt?"
 
-**2. Start new research:**
-```bash
-r3lay research start "Subaru SSM protocol timing"
+r3LAY:
+1. Loads project context (1997 Impreza, EJ22, 120k miles)
+2. Queries axioms ("EJ22 timing belt interval: 60k miles")
+3. Checks maintenance log (last change: 60k miles ago)
+4. Responds: "Your EJ22's timing belt is due (last changed at 60k, 
+   now at 120k). Interference engine — failure is catastrophic. 
+   Schedule soon. [Axiom: ej22-timing-belt.md]"
 ```
-- Multi-language search (EN/JP/CN/KR)
-- Source tier tracking (Tier 1-4)
-- Provenance metadata (URL, date, language, tier)
-
-**3. Write findings to vault:**
-```bash
-r3lay research synthesize
-```
-- Generates research file (research-template.md format)
-- Writes to `~/repos/knowledge-vault/<domain>/<topic>.md`
-- Includes frontmatter, sources, cross-references, open questions
-
-**4. Vault re-indexes:**
-- Synapse-Engine detects new file
-- Indexes content + embeddings
-- Ready for next query
-
-**Cycle repeats → knowledge compounds over time**
 
 ## Themes
 
-### PSX (Default)
-- Background: #0a1628 (dark blue)
-- Primary: #00d9ff (cyan)
-- Critical: #ff006e (magenta)
-- Warning: #ffbe0b (yellow)
-- Shader: CRT scanlines + RGB565 quantization
-- Inspiration: Gran Turismo garage screens
+**PSX:** Dark blue (#0a1628) + cyan/magenta/yellow, CRT scanlines  
+**Amber:** Black (#000000) + amber (#ffb000), phosphor decay
 
-### Amber
-- Background: #000000 (pure black)
-- Primary: #ffb000 (amber)
-- Critical: #ff6400 (orange)
-- Warning: #ffc864 (warm yellow)
-- Shader: Phosphor decay + vertical scanlines
-- Inspiration: VT100 terminals
-
-## Development
-
-**Framework development (commit to GitHub):**
-- Core systems (`core/`, `ui/`)
-- Category plugin templates (`categories/*/commands/`)
-- Research workflow (`core/research/`)
-- Theme/shader engines
-- Documentation
-
-**User development (stay local, never commit):**
-- Research notes (`research/`)
-- Prototypes (`prototypes/`)
-- Custom themes (`themes/custom/`)
-- Custom shaders (`shaders/custom/`)
-- Databases (`data/**/*.db`)
-- Knowledge vault (`~/repos/knowledge-vault/`)
-
-## Integration with Knowledge Vault
-
-**Knowledge vault location:** `~/repos/knowledge-vault/` (separate git repo, private)
-
-**r3LAY → Vault:**
-- Reads via Synapse-Engine CGRAG API (semantic search)
-- Writes via structured research files (research-template.md)
-
-**Vault → r3LAY:**
-- Provides context for new research
-- Cross-references related findings
-- Prevents duplicate research
-
-**Vault structure (example):**
+```bash
+r3lay theme toggle
+r3lay theme psx
+r3lay theme amber
 ```
-knowledge-vault/
-├── _meta/
-│   └── research-template.md
-├── automotive/
-│   ├── subaru-ssm-protocol.md       # r3LAY output
-│   └── obd2-pid-reference.md
-├── embedded/
-│   ├── sensor-watch-firmware.md
-│   └── f91w-pinout.md
-└── preservation/
-    ├── nes-chr-format.md
-    └── gba-save-types.md
+
+## Installation
+
+```bash
+cargo build --release
+cargo install --path .
+
+# Setup user directories
+mkdir -p data/ research/ prototypes/
+cp config.example.toml config.local.toml
+```
+
+## Configuration
+
+**User config (local, gitignored):**
+```toml
+# config.local.toml
+[research]
+vault_path = "~/repos/knowledge-vault"
+synapse_api = "http://localhost:8000"
+
+[project]
+default_domain = "automotive"
+
+[maintenance]
+oil_interval_miles = 3000
+oil_interval_months = 3
 ```
 
 ## Security & Privacy
 
-**What gets pushed to GitHub:**
-- Framework code (Rust)
-- Category plugin templates
-- Theme/shader engines
-- Documentation
-- Example configs (*.example.toml)
+**GitHub:** Framework code only  
+**Local (gitignored):** All user data, research, projects, vault, prototypes
 
-**What stays local (gitignored):**
-- All user data (`data/`)
-- All research notes (`research/`)
-- All prototypes (`prototypes/`)
-- Knowledge vault (`~/repos/knowledge-vault/`)
-- Custom themes/shaders
-- Databases
-- Session logs
-- User config (`config.local.toml`)
-
-**No telemetry. No cloud sync. Local-first by design.**
+**No telemetry. No cloud sync. Local-first.**
 
 ## License
 
