@@ -134,11 +134,12 @@ Select a model from the Models panel (`Ctrl+1`) and start chatting.
 ```
 
 **What r3LAY does:**
-1. **Indexes everything:** PDFs, markdown, code, configs → RAG search
-2. **Maintains context:** LLM knows your project history, maintenance records, research
-3. **Extracts knowledge:** Service intervals from manuals → maintenance schedule
-4. **Detects contradictions:** FSM says 60k timing belt, community says 105k → flags for review
-5. **Personalizes responses:** "Your Impreza's EJ22..." (not generic advice)
+1. **Indexes to knowledge vault:** Project docs/research → `~/repos/knowledge-vault/` → Synapse-Engine knowledge graph
+2. **Queries via CGRAG API:** r3LAY asks Synapse-Engine knowledge graph for relevant findings
+3. **Maintains context:** LLM knows your project history, maintenance records, research
+4. **Extracts knowledge:** Service intervals from manuals → maintenance schedule
+5. **Detects contradictions:** FSM says 60k timing belt, community says 105k → flags for review
+6. **Personalizes responses:** "Your Impreza's EJ22..." (not generic advice)
 
 **Workflow:**
 ```bash
@@ -147,14 +148,26 @@ r3lay
 
 # Chat naturally:
 You: "When should I change my timing belt?"
-r3LAY: [Searches FSM + research notes + axioms]
-      "Your EJ22's timing belt interval is 105k miles (per 1999+ FSM update,
+
+# Behind the scenes:
+# 1. r3LAY queries Synapse-Engine CGRAG API
+# 2. Knowledge graph returns: subaru-ej22-timing-belt.md (from vault)
+# 3. Cross-references: ej25-similarities.md, interference-engines.md
+# 4. Checks project maintenance log (last service 60k miles ago)
+# 5. Injects findings + context into LLM
+
+r3LAY: "Your EJ22's timing belt interval is 105k miles (per 1999+ FSM update,
        confirmed by NASIOC consensus). You're at 120k miles (60k overdue).
        EJ22 is interference engine — failure is catastrophic.
-       [Sources: FSM-1997-Impreza.pdf p.142, timing-belt-intervals.md]"
+       [Sources: FSM-1997-Impreza.pdf p.142, knowledge-vault/automotive/subaru-ej22-timing-belt.md]"
 
 You: "Log timing belt replacement today at 120k miles, $800"
-r3LAY: ✅ Logged. Next timing belt due at 225k miles (105k interval).
+r3LAY: ✅ Logged to maintenance. Next timing belt due at 225k miles (105k interval).
+       Would you like me to add this finding to the knowledge vault?
+
+You: "Yes"
+r3LAY: ✅ Created knowledge-vault/automotive/timing-belt-replacement-log.md
+       Synapse-Engine will re-index on next heartbeat.
 ```
 
 **Natural conversation updates** (LLM-confirmed):
@@ -162,12 +175,43 @@ r3LAY: ✅ Logged. Next timing belt due at 225k miles (105k interval).
 - "My mileage is now 120500" → r3LAY updates project
 - "I installed a cold air intake" → r3LAY logs modification
 
+**Knowledge Vault Integration:**
+
+All project research and findings flow into `~/repos/knowledge-vault/`:
+```
+~/repos/knowledge-vault/
+├── automotive/
+│   ├── subaru-ej22-timing-belt.md         # Extracted from FSM
+│   ├── head-gasket-symptoms.md             # Community consensus
+│   └── obd1-ssm-protocol.md                # Protocol research
+├── embedded/
+└── preservation/
+```
+
+**Synapse-Engine indexes vault:**
+- Embeddings + metadata → knowledge graph
+- Cross-references related findings
+- Tracks provenance (FSM page, forum post, manual section)
+
+**r3LAY queries knowledge graph (CGRAG API):**
+```
+r3LAY → "timing belt interval for EJ22"
+       ↓
+Synapse-Engine CGRAG API (semantic search)
+       ↓ 
+Returns: subaru-ej22-timing-belt.md + cross-refs + provenance
+       ↓
+r3LAY → LLM context + response
+```
+
 **Benefits:**
 - **No rigid structure:** Dump docs/notes anywhere, r3LAY finds them
 - **Full project memory:** LLM has entire history every conversation
+- **Knowledge graph:** Synapse-Engine links related findings across domains
 - **Source attribution:** Every claim cites FSM page, forum post, or your notes
 - **Contradiction detection:** Flags conflicts between official docs and community knowledge
 - **Maintenance automation:** Extracts intervals from manuals → schedules services
+- **Cross-project learning:** Findings from one project inform others (e.g., EJ22 → EJ25 similarities)
 
 ### Docker
 
