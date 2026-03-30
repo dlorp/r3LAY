@@ -108,10 +108,12 @@ Select a model from the Models panel (`Ctrl+1`) and start chatting.
 
 **r3LAY intelligently manages your project folders** — dump FSMs, service manuals, community docs, research notes, and maintenance logs into your project directory. r3LAY indexes everything and makes it conversationally accessible.
 
-### Example: Automotive Project
+### Unified Project Structure (All Domains)
+
+**Each domain follows the same structure:**
 
 ```bash
-~/projects/1997-subaru-impreza/
+~/projects/automotive/1997-subaru-impreza/
 ├── manuals/
 │   ├── FSM-1997-Impreza.pdf               # Factory service manual
 │   ├── EJ22-engine-specs.pdf               # Engine technical docs
@@ -127,11 +129,42 @@ Select a model from the Models panel (`Ctrl+1`) and start chatting.
 │   ├── nasioc-ej22-timing-belt-thread.pdf  # Forum archives
 │   ├── reddit-subaru-ej22-FAQ.md           # Community knowledge
 │   └── youtube-timing-belt-replacement.md  # Video transcripts
+├── prototypes/
+│   ├── obd2-tui/                           # Live OBD2 diagnostics (project-specific)
+│   ├── ej22-tracker/                       # Maintenance tracking tool
+│   └── dtc-timeline/                       # DTC history viewer
 └── .r3lay/
     ├── project.yaml                        # Project metadata
     ├── axioms/                             # Validated findings
     └── index/                              # RAG index (auto-generated)
+
+~/projects/embedded/casio-f91w/
+├── datasheets/
+│   ├── F91W-module-3239.pdf
+│   └── piezo-buzzer-specs.pdf
+├── research/
+│   ├── sensor-watch-pinout.md
+│   └── firmware-reverse-engineering.md
+├── prototypes/
+│   ├── sensor-watch-firmware/              # Custom firmware
+│   └── f91w-mod-guide/                     # Modding tool
+└── .r3lay/
+
+~/projects/preservation/nes-tools/
+├── reference-docs/
+│   ├── NES-dev-manual.pdf
+│   └── CHR-format-spec.md
+├── research/
+│   ├── pattern-table-analysis.md
+│   └── save-format-research.md
+├── prototypes/
+│   ├── nes-pattern-tui/                    # CHR tile viewer
+│   ├── nes-chr-viewer/                     # Static export tool
+│   └── rom-inspector/                      # Header analysis
+└── .r3lay/
 ```
+
+**Key principle:** Prototypes live WITH the project they serve, not in a separate `~/repos/r3LAY/prototypes/` folder.
 
 **What r3LAY does:**
 1. **Indexes to knowledge vault:** Project docs/research → `~/repos/knowledge-vault/` → Synapse-Engine knowledge graph
@@ -143,7 +176,7 @@ Select a model from the Models panel (`Ctrl+1`) and start chatting.
 
 **Workflow:**
 ```bash
-cd ~/projects/1997-subaru-impreza
+cd ~/projects/automotive/1997-subaru-impreza
 r3lay
 
 # Chat naturally:
@@ -179,15 +212,27 @@ r3LAY: ✅ Created knowledge-vault/automotive/timing-belt-replacement-log.md
 
 **r3LAY and Synapse-Engine both contribute to `~/repos/knowledge-vault/`:**
 
+All research from domain projects flows into the vault:
+
 ```
 ~/repos/knowledge-vault/
 ├── automotive/
-│   ├── subaru-ej22-timing-belt.md         # r3LAY: Extracted from FSM
+│   ├── subaru-ej22-timing-belt.md         # From: ~/projects/automotive/1997-subaru-impreza/research/
 │   ├── head-gasket-symptoms.md             # r3LAY: Community consensus
 │   └── obd1-ssm-protocol.md                # r3LAY: Protocol research
 ├── embedded/
+│   ├── sensor-watch-pinout.md              # From: ~/projects/embedded/casio-f91w/research/
+│   └── f91w-firmware-mods.md
 └── preservation/
+    ├── nes-chr-format.md                   # From: ~/projects/preservation/nes-tools/research/
+    └── gba-save-types.md
 ```
+
+**Flow:**
+- Research starts in project folder: `~/projects/<domain>/<project>/research/`
+- r3LAY synthesizes → writes to vault: `~/repos/knowledge-vault/<domain>/<topic>.md`
+- Synapse-Engine indexes vault → builds knowledge graph
+- r3LAY queries knowledge graph for ANY project (cross-project learning)
 
 **Cyclical workflow:**
 
@@ -218,7 +263,8 @@ r3LAY: ✅ Created knowledge-vault/automotive/timing-belt-replacement-log.md
 - **knowledge-vault:** Shared data layer (persistent, versioned)
 
 **Benefits:**
-- **No rigid structure:** Dump docs/notes anywhere, r3LAY finds them
+- **Unified structure:** All domains follow same pattern (`manuals/`, `research/`, `prototypes/`, `maintenance/`)
+- **Project-scoped prototypes:** Tools live with the project they serve (not scattered in `~/repos/`)
 - **Full project memory:** LLM has entire history every conversation
 - **Bidirectional knowledge flow:** r3LAY writes findings → Synapse indexes → r3LAY queries
 - **Knowledge graph:** Synapse-Engine links related findings across domains
@@ -227,6 +273,22 @@ r3LAY: ✅ Created knowledge-vault/automotive/timing-belt-replacement-log.md
 - **Maintenance automation:** Extracts intervals from manuals → schedules services
 - **Cross-project learning:** Findings from one project inform others (e.g., EJ22 → EJ25 similarities)
 - **Collaborative growth:** r3LAY creates data, Synapse makes it queryable, both grow vault together
+
+**Organization:**
+```
+~/projects/
+├── automotive/
+│   ├── 1997-subaru-impreza/         # Active project
+│   └── 2005-honda-civic/            # Another vehicle
+├── embedded/
+│   ├── casio-f91w/                  # Watch modding
+│   └── arduino-weather-station/
+└── preservation/
+    ├── nes-tools/                   # Retro gaming
+    └── gba-tools/
+```
+
+All projects share knowledge via vault, all follow same structure.
 
 ### Docker
 
