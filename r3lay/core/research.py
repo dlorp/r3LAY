@@ -754,6 +754,30 @@ class ResearchOrchestrator:
         self._current: Expedition | None = None
         self._cancelled = False
 
+    def update_refs(
+        self,
+        backend: "InferenceBackend",
+        index: "HybridIndex | None",
+        search: SearXNGClient,
+        signals: SignalsManager,
+        axioms: AxiomManager,
+    ) -> None:
+        """Sync mutable references that may have changed since creation.
+
+        Called by R3LayState.init_research() on the cached-return path to
+        ensure the orchestrator always uses the current index, backend, etc.
+        """
+        self.backend = backend
+        self.index = index
+        self.search = search
+        self.signals = signals
+        self.axioms = axioms
+        # Cascade to nested objects
+        self.contradiction_detector.backend = backend
+        self.contradiction_detector._judge.backend = backend
+        self.contradiction_detector._judge.index = index
+        self.contradiction_detector._judge.axiom_manager = axioms
+
     async def run(
         self,
         query: str,

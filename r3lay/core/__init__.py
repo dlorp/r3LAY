@@ -549,6 +549,15 @@ class R3LayState:
             ValueError: If no LLM backend is loaded
         """
         if self.research_orchestrator is not None:
+            if self.current_backend is None:
+                raise ValueError("No LLM backend loaded - load a model first")
+            self.research_orchestrator.update_refs(
+                backend=self.current_backend,
+                index=self.index,
+                search=self.search_client,
+                signals=self.signals_manager,
+                axioms=self.axiom_manager,
+            )
             return self.research_orchestrator
 
         if self.current_backend is None:
