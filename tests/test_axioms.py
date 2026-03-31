@@ -2031,3 +2031,94 @@ class TestEmbeddingModelDetection:
         assert ax.id in mgr2._embeddings
         mgr2.set_embedder(FakeEmbeddingBackend())
         assert ax.id in mgr2._embeddings
+
+
+class TestFindDuplicates:
+    """Tests for cross-expedition axiom deduplication."""
+
+    @pytest.fixture
+    def semantic_manager(self, temp_project):
+        mgr = AxiomManager(temp_project)
+        mgr.set_embedder(FakeEmbeddingBackend())
+        return mgr
+
+    @pytest.mark.asyncio
+    async def test_finds_near_duplicate(self, semantic_manager):
+        """Nearly identical statements detected as duplicates."""
+        ax1 = semantic_manager.create(
+            statement="Timing belt interval is 100000 miles",
+            category="specifications",
+            auto_validate=True,
+        )
+        await semantic_manager.embed_axiom(ax1.id)
+
+        duplicates = await semantic_manager.find_duplicates(
+            statement="Timing belt interval is 105000 miles",
+            category="specifications",
+        )
+        assert len(duplicates) == 1
+        assert duplicates[0].id == ax1.id
+
+    @pytest.mark.asyncio
+    async def test_no_duplicate_for_different_topic(self, semantic_manager):
+        """Different topics are not duplicates."""
+        ax1 = semantic_manager.create(
+            statement="Oil capacity is five quarts",
+            category="specifications",
+            auto_validate=True,
+        )
+        await semantic_manager.embed_axiom(ax1.id)
+
+        duplicates = await semantic_manager.find_duplicates(
+            statement="Timing belt interval is 100000 miles",
+            category="specifications",
+        )
+        assert len(duplicates) == 0
+
+    @pytest.mark.asyncio
+    async def test_keyword_fallback_no_embedder(self, manager):
+        """Without embedder, uses keyword overlap at 0.70 threshold."""
+        ax1 = manager.create(
+            statement="Timing belt interval is 100000 miles",
+            category="specifications",
+            auto_validate=True,
+        )
+        # High keyword overlap statement should match at 0.70
+        duplicates = await manager.find_duplicates(
+            statement="Timing belt interval is 105000 miles",
+            category="specifications",
+        )
+        assert len(duplicates) == 1
+        assert duplicates[0].id == ax1.id
+
+    @pytest.mark.asyncio
+    async def test_cross_category_no_duplicate(self, semantic_manager):
+        """No duplicates across different categories."""
+        ax1 = semantic_manager.create(
+            statement="Timing belt interval is 100000 miles",
+            category="specifications",
+            auto_validate=True,
+        )
+        await semantic_manager.embed_axiom(ax1.id)
+
+        duplicates = await semantic_manager.find_duplicates(
+            statement="Timing belt interval is 100000 miles",
+            category="procedures",
+        )
+        assert len(duplicates) == 0
+
+    @pytest.mark.asyncio
+    async def test_skips_non_active_axioms(self, semantic_manager):
+        """Non-active (PENDING) axioms are excluded from duplicate detection."""
+        ax1 = semantic_manager.create(
+            statement="Timing belt interval is 100000 miles",
+            category="specifications",
+            # NOT validated — status is PENDING
+        )
+        await semantic_manager.embed_axiom(ax1.id)
+
+        duplicates = await semantic_manager.find_duplicates(
+            statement="Timing belt interval is 105000 miles",
+            category="specifications",
+        )
+        assert len(duplicates) == 0

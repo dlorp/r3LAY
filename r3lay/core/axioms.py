@@ -216,6 +216,10 @@ MAX_CITATION_CONFIDENCE: float = 0.99  # Ceiling for confidence
 # Cosine similarity threshold for semantic conflict detection
 SEMANTIC_CONFLICT_THRESHOLD: float = 0.55
 
+# Higher threshold for near-duplicate detection (corroboration instead of creation)
+SEMANTIC_DUPLICATE_THRESHOLD: float = 0.80
+KEYWORD_DUPLICATE_THRESHOLD: float = 0.70
+
 # Filenames for persisted axiom embeddings
 EMBEDDING_FILE: str = "axiom_embeddings.npz"
 EMBEDDING_META_FILE: str = "axiom_embedding_meta.json"
@@ -431,10 +435,11 @@ class AxiomManager:
                     embedder.model_name,
                 )
                 self._embeddings.clear()
-                if self._embeddings_file.exists():
-                    self._embeddings_file.unlink()
-                if self._embedding_meta_file.exists():
-                    self._embedding_meta_file.unlink()
+                try:
+                    self._embeddings_file.unlink(missing_ok=True)
+                    self._embedding_meta_file.unlink(missing_ok=True)
+                except OSError as e:
+                    logger.warning("Could not delete stale embedding cache: %s", e)
                 self._cached_embedding_meta = None
 
     def _load_embeddings(self) -> None:
@@ -945,6 +950,91 @@ class AxiomManager:
                 logger.debug(f"Keyword conflict: {axiom.id} (overlap={overlap_ratio:.2f})")
 
         return conflicts
+
+    # ========================================================================
+    # Duplicate Detection
+    # ========================================================================
+
+    async def find_duplicates(
+        self,
+        statement: str,
+        category: str,
+    ) -> list[Axiom]:
+        """Find near-duplicate axioms for corroboration instead of creation.
+
+        Uses a higher similarity threshold (0.80) than conflict detection
+        (0.55) to identify axioms making essentially the same claim.
+        Falls back to keyword overlap when embedder is unavailable.
+
+        Args:
+            statement: The new statement to check.
+            category: Category to search within.
+
+        Returns:
+            List of near-duplicate Axioms, sorted by similarity.
+        """
+        if self._embedder is not None and self._embedder.is_loaded:
+            try:
+                query_vec = await self._embed_text(statement)
+                if query_vec is not None:
+                    result = self._find_duplicates_semantic(query_vec, category)
+                    if result is not None:
+                        return result
+            except Exception:
+                logger.warning("Semantic duplicate detection failed, using keyword fallback")
+                logger.debug("Embedder error details:", exc_info=True)
+        return self._find_duplicates_keyword(statement, category)
+
+    def _find_duplicates_semantic(
+        self,
+        query_vec: np.ndarray,
+        category: str,
+    ) -> list[Axiom] | None:
+        """Find duplicates via cosine similarity (threshold 0.80)."""
+        candidates: list[Axiom] = []
+        vecs: list[np.ndarray] = []
+        for ax in self._axioms.values():
+            if ax.category != category or not ax.is_active:
+                continue
+            if ax.id not in self._embeddings:
+                return None  # Incomplete coverage — fall back to keywords
+            candidates.append(ax)
+            vecs.append(self._embeddings[ax.id])
+
+        if not vecs:
+            return None
+
+        scores = self._cosine_scores(query_vec, vecs)
+        results = [
+            (ax, float(score))
+            for ax, score in zip(candidates, scores)
+            if score >= SEMANTIC_DUPLICATE_THRESHOLD
+        ]
+        results.sort(key=lambda x: x[1], reverse=True)
+        return [ax for ax, _ in results]
+
+    def _find_duplicates_keyword(
+        self,
+        statement: str,
+        category: str,
+    ) -> list[Axiom]:
+        """Find duplicates via keyword overlap (threshold 0.70)."""
+        new_keywords = self._extract_keywords(statement)
+        if not new_keywords:
+            return []
+
+        duplicates = []
+        for axiom in self._axioms.values():
+            if axiom.category != category or not axiom.is_active:
+                continue
+            existing_keywords = self._extract_keywords(axiom.statement)
+            if not existing_keywords:
+                continue
+            overlap = len(new_keywords & existing_keywords)
+            overlap_ratio = overlap / min(len(new_keywords), len(existing_keywords))
+            if overlap_ratio >= KEYWORD_DUPLICATE_THRESHOLD:
+                duplicates.append(axiom)
+        return duplicates
 
     # ========================================================================
     # Update Operations

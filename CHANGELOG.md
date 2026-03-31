@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-03-30
+
+### Added
+- `write_and_commit()` atomic vault method — stages only the target file (not `git add -A`),
+  holds asyncio lock across write+stage+commit, validates repo before writing
+- Cross-expedition axiom deduplication — `find_duplicates()` (0.80 semantic / 0.70 keyword threshold)
+  corroborates existing axioms instead of creating duplicates (+0.05 confidence per citation)
+- Auto-validation for high-confidence axioms from trusted backends (`AUTO_VALIDATE_CONFIDENCE=0.85`)
+- `backend_source` metadata stored on research-created axioms for provenance tracking
+- Two-click pull confirmation in Vault panel (matches revert pattern, 5s auto-reset)
+- `_yaml_escape()` now handles tab characters
+
+### Changed
+- Confirmation timers use Textual `set_timer()` instead of raw `asyncio.create_task()`
+  (vault_panel.py revert/pull, index_panel.py clear) — auto-cleanup on widget lifecycle
+- `write_file()` uses resolved path for write (closes TOCTOU gap between validation and I/O)
+- Path containment check uses `Path.is_relative_to()` instead of string prefix comparison
+- `validate_vault_path()` blocks direct children of forbidden system directories
+- Bare `except Exception` in index_panel clear handler narrowed to `except NoMatches`
+- `set_embedder()` unlink uses `missing_ok=True` with OSError guard
+
+### Fixed
+- `write_and_commit()` checks `is_git_repo()` before writing (prevents orphaned files on non-repo)
+- Staged file check scoped to target path via `git diff --cached --name-only` (prevents sweeping unrelated files)
+- `on_unmount()` added to both VaultPanel and IndexPanel for timer cleanup
+
 ## [0.10.0] - 2026-03-30
 
 ### Added

@@ -393,3 +393,70 @@ class TestBackendSource:
 
         backend = FakeBackend()
         assert backend.backend_source == "unknown"
+
+
+# ---------------------------------------------------------------------------
+# write_and_commit() tests
+# ---------------------------------------------------------------------------
+
+
+class TestVaultWriteAndCommit:
+    """Tests for atomic write_and_commit method."""
+
+    @pytest.mark.asyncio
+    async def test_write_and_commit_success(self, tmp_path: Path) -> None:
+        vault_dir = tmp_path / "vault"
+        vault_dir.mkdir()
+        vault = KnowledgeVault(vault_dir)
+        await vault.init()
+
+        ok, msg = await vault.write_and_commit(
+            "research/test.md", "# Test\n\nContent.", "test commit"
+        )
+        assert ok is True
+        assert (vault_dir / "research" / "test.md").exists()
+
+        # Verify it was committed
+        commits = await vault.log(limit=5)
+        assert any("test commit" in c.message for c in commits)
+
+    @pytest.mark.asyncio
+    async def test_write_and_commit_stages_only_target(self, tmp_path: Path) -> None:
+        """Only the specified file is staged, not other untracked files."""
+        vault_dir = tmp_path / "vault"
+        vault_dir.mkdir()
+        vault = KnowledgeVault(vault_dir)
+        await vault.init()
+
+        # Create an unrelated file
+        (vault_dir / "unrelated.txt").write_text("should not be committed")
+
+        ok, _ = await vault.write_and_commit("target.md", "# Target", "commit target only")
+        assert ok is True
+
+        # Check that unrelated.txt is still untracked
+        code, status_out, _ = await vault._run_git("status", "--porcelain")
+        assert "unrelated.txt" in status_out
+
+    @pytest.mark.asyncio
+    async def test_write_and_commit_rejects_bad_message(self, tmp_path: Path) -> None:
+        vault = KnowledgeVault(tmp_path)
+        ok, msg = await vault.write_and_commit("test.md", "content", "")
+        assert ok is False
+        assert "1-4096" in msg
+
+    @pytest.mark.asyncio
+    async def test_write_and_commit_rejects_traversal(self, tmp_path: Path) -> None:
+        vault = KnowledgeVault(tmp_path)
+        ok, msg = await vault.write_and_commit("../escape.md", "bad", "msg")
+        assert ok is False
+
+    @pytest.mark.asyncio
+    async def test_write_and_commit_non_repo(self, tmp_path: Path) -> None:
+        """Non-git directory fails before writing the file."""
+        vault = KnowledgeVault(tmp_path)
+        ok, msg = await vault.write_and_commit("test.md", "content", "msg")
+        assert ok is False
+        assert "Not a git repository" in msg
+        # File should NOT be written (repo check happens first)
+        assert not (tmp_path / "test.md").exists()

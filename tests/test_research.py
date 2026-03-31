@@ -25,6 +25,7 @@ from r3lay.core.research import (
     ResearchCycle,
     ResearchEvent,
     ResearchOrchestrator,
+    _yaml_escape,
 )
 
 # =============================================================================
@@ -562,7 +563,7 @@ class TestWriteToVault:
         mock_vault.is_git_repo = AsyncMock(return_value=False)
         orch = self._make_orchestrator(tmp_project, vault=mock_vault, config=MagicMock())
         await orch._write_to_vault(self._make_expedition())
-        mock_vault.write_file.assert_not_called()
+        mock_vault.write_and_commit.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_skips_when_backend_not_permitted(self, tmp_project):
@@ -573,24 +574,24 @@ class TestWriteToVault:
             tmp_project, vault=mock_vault, config=MagicMock(), backend_source="mlx"
         )
         await orch._write_to_vault(self._make_expedition())
-        mock_vault.write_file.assert_not_called()
+        mock_vault.write_and_commit.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_writes_markdown_and_commits(self, tmp_project):
         mock_vault = MagicMock()
         mock_vault.is_git_repo = AsyncMock(return_value=True)
         mock_vault.can_write.return_value = True
-        mock_vault.write_file = AsyncMock(return_value=(True, "/vault/exp.md"))
-        mock_vault.commit = AsyncMock(return_value=(True, "committed"))
+        mock_vault.write_and_commit = AsyncMock(return_value=(True, "committed"))
         orch = self._make_orchestrator(tmp_project, vault=mock_vault, config=MagicMock())
         await orch._write_to_vault(self._make_expedition())
 
-        mock_vault.write_file.assert_called_once()
-        content = mock_vault.write_file.call_args[0][1]
+        mock_vault.write_and_commit.assert_called_once()
+        args = mock_vault.write_and_commit.call_args[0]
+        assert "research/expedition_test123.md" in args[0]
+        content = args[1]
         assert "---" in content
         assert "EJ25 timing belt" in content
         assert "Test Report" in content
-        mock_vault.commit.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_skips_when_no_config(self, tmp_project):
@@ -600,15 +601,14 @@ class TestWriteToVault:
         mock_vault.is_git_repo.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_write_failure_skips_commit(self, tmp_project):
+    async def test_write_failure_logged(self, tmp_project):
         mock_vault = MagicMock()
         mock_vault.is_git_repo = AsyncMock(return_value=True)
         mock_vault.can_write.return_value = True
-        mock_vault.write_file = AsyncMock(return_value=(False, "disk full"))
-        mock_vault.commit = AsyncMock(return_value=(True, "committed"))
+        mock_vault.write_and_commit = AsyncMock(return_value=(False, "disk full"))
         orch = self._make_orchestrator(tmp_project, vault=mock_vault, config=MagicMock())
+        # Should not raise
         await orch._write_to_vault(self._make_expedition())
-        mock_vault.commit.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_writes_empty_expedition(self, tmp_project):
@@ -616,8 +616,7 @@ class TestWriteToVault:
         mock_vault = MagicMock()
         mock_vault.is_git_repo = AsyncMock(return_value=True)
         mock_vault.can_write.return_value = True
-        mock_vault.write_file = AsyncMock(return_value=(True, "/vault/exp.md"))
-        mock_vault.commit = AsyncMock(return_value=(True, "committed"))
+        mock_vault.write_and_commit = AsyncMock(return_value=(True, "committed"))
         orch = self._make_orchestrator(tmp_project, vault=mock_vault, config=MagicMock())
         empty_exp = Expedition(
             id="expedition_empty",
@@ -632,7 +631,7 @@ class TestWriteToVault:
             completed_at="2026-03-30T12:30:00",
         )
         await orch._write_to_vault(empty_exp)
-        content = mock_vault.write_file.call_args[0][1]
+        content = mock_vault.write_and_commit.call_args[0][1]
         assert "---" in content
         assert "## Extracted Axioms" not in content
 
@@ -642,3 +641,33 @@ class TestWriteToVault:
         mock_vault.is_git_repo = AsyncMock(side_effect=RuntimeError("git broken"))
         orch = self._make_orchestrator(tmp_project, vault=mock_vault, config=MagicMock())
         await orch._write_to_vault(self._make_expedition())
+
+
+# =============================================================================
+# _yaml_escape tests
+# =============================================================================
+
+
+class TestYamlEscape:
+    """Tests for YAML frontmatter sanitization."""
+
+    def test_escapes_double_quote(self):
+        assert _yaml_escape('say "hello"') == 'say \\"hello\\"'
+
+    def test_escapes_backslash(self):
+        assert _yaml_escape("path\\to\\file") == "path\\\\to\\\\file"
+
+    def test_strips_carriage_return(self):
+        assert "\r" not in _yaml_escape("line\r\n")
+
+    def test_escapes_newline(self):
+        assert "\n" not in _yaml_escape("line\nbreak")
+
+    def test_passthrough_safe_string(self):
+        assert _yaml_escape("EJ25 timing belt interval") == "EJ25 timing belt interval"
+
+    def test_injection_attempt(self):
+        result = _yaml_escape('query"\nmalicious: true')
+        assert "\n" not in result
+        assert "\\n" in result
+        assert '\\"' in result
