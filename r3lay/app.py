@@ -135,6 +135,15 @@ class MainScreen(Screen):
         # Focus input
         self.query_one(InputPane).focus_input()
 
+        # Replay auto-restored session messages to response pane
+        if self.state.session and self.state.session.messages:
+            response_pane = self.query_one(ResponsePane)
+            for msg in self.state.session.messages:
+                if msg.role == "user":
+                    response_pane.add_user(msg.content)
+                elif msg.role == "assistant":
+                    response_pane.add_assistant(msg.content)
+
     def on_model_panel_role_assigned(self, message: ModelPanel.RoleAssigned) -> None:
         """Forward model assignment to GarageHeader."""
         if message.role == "text" and message.model_name:
@@ -210,6 +219,10 @@ class R3LayApp(App):
         # Wire config model roles to state for model switching (Phase 5.5)
         self.state.model_roles = self.config.model_roles
 
+        # Auto-restore last session if configured
+        if self.config.auto_save_session:
+            self._auto_restore_session()
+
         # Show splash screen first, then main screen
         if self._show_splash:
             await self.push_screen(MainScreen(self.state))
@@ -228,6 +241,44 @@ class R3LayApp(App):
 
         # Auto-init embedders if configured (non-blocking)
         asyncio.create_task(self._auto_init_embedders())
+
+    def _auto_restore_session(self) -> None:
+        """Auto-restore the most recent session on startup."""
+        import json as _json
+
+        try:
+            sessions_dir = self.state.get_sessions_dir()
+            pointer_file = sessions_dir / "last_session.json"
+            if not pointer_file.exists():
+                return
+
+            import re
+
+            pointer_data = _json.loads(pointer_file.read_text())
+            session_id = pointer_data.get("session_id")
+            if not session_id:
+                return
+
+            # Validate UUID format to prevent path traversal
+            uuid_re = re.compile(
+                r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            )
+            if not uuid_re.match(session_id):
+                logger.warning("Invalid session_id in last_session.json, ignoring")
+                return
+
+            session_file = sessions_dir / f"{session_id}.json"
+            if not session_file.exists():
+                return
+
+            from .core.session import Session
+
+            session = Session.load(session_file)
+            self.state.session = session
+            session._dirty = False
+            logger.info("Auto-restored session %s: %s", session.id, session.title)
+        except Exception as e:
+            logger.warning("Failed to auto-restore session: %s", e)
 
     async def _auto_init_embedders(self) -> None:
         """Auto-initialize configured embedders after UI renders.
@@ -274,6 +325,24 @@ class R3LayApp(App):
     async def _graceful_shutdown(self) -> None:
         """Clean up backends and embedders before exit."""
         if hasattr(self, "state") and self.state is not None:
+            # Auto-save session if configured and dirty
+            if self.config.auto_save_session and self.state.session is not None:
+                if self.state.session.has_unsaved_changes:
+                    try:
+                        import json as _json
+
+                        sessions_dir = self.state.get_sessions_dir()
+                        self.state.session.save(sessions_dir)
+                        pointer = sessions_dir / "last_session.json"
+                        temp_pointer = pointer.with_suffix(".json.tmp")
+                        temp_pointer.write_text(
+                            _json.dumps({"session_id": self.state.session.id})
+                        )
+                        temp_pointer.replace(pointer)
+                        logger.info("Auto-saved session %s", self.state.session.id)
+                    except Exception as e:
+                        logger.warning("Failed to auto-save session: %s", e)
+
             try:
                 # Unload LLM backend
                 if hasattr(self.state, "current_backend") and self.state.current_backend:

@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-03-30
+
+### Added
+- Session auto-persistence — auto-save on exit, auto-restore on startup via `last_session.json`
+  pointer file with `auto_save_session` config toggle (default: `true`)
+- `_dirty` flag on `Session` with `has_unsaved_changes` property for change tracking
+- Axiom panel `backend_source` filter dropdown — dynamically populated from axiom metadata
+- `STATUS_BADGES` with Rich markup badges replacing single-char status icons
+  (`[bold on green] VALIDATED [/]` etc.) with backward-compatible `STATUS_ICONS` alias
+- Backend source tag display on each axiom item (`[dim][mlx][/]`)
+- Ollama live integration tests (`tests/integration/test_ollama_live.py`) with `@pytest.mark.ollama`
+  marker, auto-skip when Ollama unavailable, module-scoped fixtures
+- Auto-restore unit tests in `tests/test_app.py` (6 tests covering all early-return paths)
+- `rich.markup.escape()` on axiom statements and backend_source to prevent Rich markup injection
+
+### Changed
+- `/clear` command now removes `last_session.json` pointer to prevent stale auto-restore
+- `MainScreen.on_mount()` replays restored session messages to ResponsePane
+- `Session.from_dict()` validates session ID is a valid UUID (path traversal prevention)
+- `_auto_restore_session()` validates session_id against UUID regex before path construction
+- Pointer file write uses atomic temp-file-then-replace pattern (matches `Session.save()`)
+- Superseded filter in axiom panel uses `superseded_by` attribute (was incorrectly `supersedes`)
+- All test session IDs updated to valid UUID format across `test_session.py`, `test_session_panel.py`
+
+### Fixed
+- Path traversal via crafted `last_session.json` pointer — session ID now validated as UUID
+- Rich markup injection via LLM-generated axiom statements — escaped before display
+- Superseded axiom filter checking wrong attribute (`supersedes` vs `superseded_by`)
+
 ## [0.11.0] - 2026-03-30
 
 ### Added
@@ -271,6 +300,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Various type checking import issues
 - Signal test stability improvements
 
+[0.12.0]: https://github.com/dlorp/r3LAY/compare/v0.11.0...v0.12.0
 [0.7.2]: https://github.com/dlorp/r3LAY/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/dlorp/r3LAY/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/dlorp/r3LAY/compare/v0.6.1...v0.7.0

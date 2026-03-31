@@ -215,13 +215,13 @@ class TestSessionPanelRefreshSessions:
         # Create test sessions
         create_session_file(
             sessions_dir,
-            "session-1",
+            "aaaa1111-1111-1111-1111-111111111111",
             title="First Session",
             messages=[{"role": "user", "content": "Hello"}],
         )
         create_session_file(
             sessions_dir,
-            "session-2",
+            "aaaa2222-2222-2222-2222-222222222222",
             title="Second Session",
             messages=[
                 {"role": "user", "content": "Hi"},
@@ -264,13 +264,13 @@ class TestSessionPanelRefreshSessions:
 
         create_session_file(
             sessions_dir,
-            "older-session",
+            "bbbb1111-1111-1111-1111-111111111111",
             title="Older",
             updated_at=older,
         )
         create_session_file(
             sessions_dir,
-            "newer-session",
+            "bbbb2222-2222-2222-2222-222222222222",
             title="Newer",
             updated_at=newer,
         )
@@ -303,7 +303,7 @@ class TestSessionPanelRefreshSessions:
         # Sessions are sorted by updated_at descending
         first_item = mount_calls[0]
         assert hasattr(first_item, "session_id")
-        assert first_item.session_id == "newer-session"
+        assert first_item.session_id == "bbbb2222-2222-2222-2222-222222222222"
 
     def test_refresh_limits_to_10_sessions(self, mock_state: MagicMock, sessions_dir: Path) -> None:
         """Test refresh limits display to 10 most recent sessions."""
@@ -312,7 +312,7 @@ class TestSessionPanelRefreshSessions:
             ts = datetime(2025, 1, i + 1, 10, 0, 0, tzinfo=timezone.utc)
             create_session_file(
                 sessions_dir,
-                f"session-{i:02d}",
+                f"00000000-0000-0000-0000-{i:012d}",
                 title=f"Session {i}",
                 updated_at=ts,
             )
@@ -350,7 +350,7 @@ class TestSessionPanelRefreshSessions:
         # Create a valid session
         create_session_file(
             sessions_dir,
-            "valid-session",
+            "cccc1111-1111-1111-1111-111111111111",
             title="Valid",
         )
 
@@ -391,7 +391,7 @@ class TestSessionPanelRefreshSessions:
         """Test refresh handles sessions without titles."""
         create_session_file(
             sessions_dir,
-            "untitled-session",
+            "dddd1111-1111-1111-1111-111111111111",
             title=None,
         )
 
@@ -431,7 +431,7 @@ class TestSessionPanelSessionItem:
         """Test session items have session_id attribute for click handling."""
         create_session_file(
             sessions_dir,
-            "test-session-id",
+            "eeee1111-1111-1111-1111-111111111111",
             title="Test",
         )
 
@@ -461,7 +461,7 @@ class TestSessionPanelSessionItem:
         assert len(mount_calls) == 1
         item = mount_calls[0]
         assert hasattr(item, "session_id")
-        assert item.session_id == "test-session-id"
+        assert item.session_id == "eeee1111-1111-1111-1111-111111111111"
 
     def test_session_item_has_session_item_class(
         self, mock_state: MagicMock, sessions_dir: Path
@@ -469,7 +469,7 @@ class TestSessionPanelSessionItem:
         """Test session items have session-item CSS class."""
         create_session_file(
             sessions_dir,
-            "test-session",
+            "ffff1111-1111-1111-1111-111111111111",
             title="Test",
         )
 

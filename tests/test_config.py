@@ -362,6 +362,48 @@ class TestIntentRoutingValidation:
         assert data["intent_routing"] == "local"
 
 
+class TestAutoSaveSession:
+    """Tests for auto_save_session configuration."""
+
+    def test_default_is_true(self):
+        """Test auto_save_session defaults to True."""
+        config = AppConfig()
+        assert config.auto_save_session is True
+
+    def test_loads_from_yaml(self, tmp_path: Path):
+        """Test auto_save_session loads from config.yaml."""
+        from ruamel.yaml import YAML
+
+        config_dir = tmp_path / ".r3lay"
+        config_dir.mkdir()
+        yaml = YAML()
+        with (config_dir / "config.yaml").open("w") as f:
+            yaml.dump({"auto_save_session": False}, f)
+
+        config = AppConfig.load(tmp_path)
+        assert config.auto_save_session is False
+
+    def test_saves_to_yaml(self, tmp_path: Path):
+        """Test auto_save_session is written to config.yaml."""
+        from ruamel.yaml import YAML
+
+        config = AppConfig(project_path=tmp_path, auto_save_session=False)
+        config.save()
+
+        yaml = YAML()
+        with (tmp_path / ".r3lay" / "config.yaml").open() as f:
+            data = yaml.load(f)
+        assert data["auto_save_session"] is False
+
+    def test_roundtrip(self, tmp_path: Path):
+        """Test auto_save_session survives save/load roundtrip."""
+        config = AppConfig(project_path=tmp_path, auto_save_session=False)
+        config.save()
+
+        loaded = AppConfig.load(tmp_path)
+        assert loaded.auto_save_session is False
+
+
 class TestModuleExports:
     """Test module exports."""
 

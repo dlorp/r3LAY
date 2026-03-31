@@ -122,25 +122,34 @@ class TestAxiomStatus:
 
 
 class TestStatusIcons:
-    """Tests for STATUS_ICONS configuration."""
+    """Tests for STATUS_BADGES / STATUS_ICONS configuration."""
 
-    def test_validated_icon_is_green(self):
-        """Test VALIDATED icon uses green color."""
-        assert "[green]" in STATUS_ICONS[AxiomStatus.VALIDATED]
-        assert "OK" in STATUS_ICONS[AxiomStatus.VALIDATED]
+    def test_validated_badge_has_green_and_text(self):
+        """Test VALIDATED badge uses green color and contains text."""
+        badge = STATUS_ICONS[AxiomStatus.VALIDATED]
+        assert "green" in badge
+        assert "VALIDATED" in badge
+        assert "[bold" in badge
 
-    def test_pending_icon_is_yellow(self):
-        """Test PENDING icon uses yellow color."""
-        assert "[yellow]" in STATUS_ICONS[AxiomStatus.PENDING]
+    def test_pending_badge_has_yellow_and_text(self):
+        """Test PENDING badge uses yellow color and contains text."""
+        badge = STATUS_ICONS[AxiomStatus.PENDING]
+        assert "yellow" in badge
+        assert "PENDING" in badge
+        assert "[bold" in badge
 
-    def test_disputed_icon_is_red(self):
-        """Test DISPUTED icon uses red color."""
-        assert "[red]" in STATUS_ICONS[AxiomStatus.DISPUTED]
-        assert "!!" in STATUS_ICONS[AxiomStatus.DISPUTED]
+    def test_disputed_badge_has_red_and_text(self):
+        """Test DISPUTED badge uses red color and contains text."""
+        badge = STATUS_ICONS[AxiomStatus.DISPUTED]
+        assert "red" in badge
+        assert "DISPUTED" in badge
+        assert "[bold" in badge
 
-    def test_superseded_icon_is_dim(self):
-        """Test SUPERSEDED icon uses dim styling."""
-        assert "[dim]" in STATUS_ICONS[AxiomStatus.SUPERSEDED]
+    def test_superseded_badge_has_styling_and_text(self):
+        """Test SUPERSEDED badge has styling and contains text."""
+        badge = STATUS_ICONS[AxiomStatus.SUPERSEDED]
+        assert "SUPERSEDED" in badge
+        assert "[bold" in badge
 
 
 # =============================================================================
@@ -270,6 +279,29 @@ class TestAxiomItem:
 
         assert item.can_focus is True
 
+    def test_creation_with_backend_source(self):
+        """Test creating item with backend_source."""
+        item = AxiomItem(
+            axiom_id="axiom_src",
+            statement="Test statement",
+            confidence=0.8,
+            status=AxiomStatus.VALIDATED,
+            backend_source="mlx",
+        )
+
+        assert item._backend_source == "mlx"
+
+    def test_creation_without_backend_source(self):
+        """Test creating item without backend_source defaults to None."""
+        item = AxiomItem(
+            axiom_id="axiom_no_src",
+            statement="Test statement",
+            confidence=0.7,
+            status=AxiomStatus.PENDING,
+        )
+
+        assert item._backend_source is None
+
 
 # =============================================================================
 # AxiomPanel Initialization Tests
@@ -287,6 +319,7 @@ class TestAxiomPanelInit:
         assert panel._selected_axiom_id is None
         assert panel._current_category is None
         assert panel._current_status is None
+        assert panel._current_source is None
 
     def test_has_default_css(self):
         """Test that AxiomPanel has DEFAULT_CSS defined."""
@@ -529,6 +562,56 @@ class TestAxiomPanelFiltering:
         call_kwargs = mock_axiom_manager.search.call_args.kwargs
         assert call_kwargs.get("limit") == 50
 
+    def test_filter_by_backend_source(
+        self, mock_state_with_axioms: MagicMock, mock_axiom_manager: MagicMock
+    ):
+        """Test filtering by backend_source metadata."""
+        # Create mock axioms with different backend sources
+        ax_mlx = MagicMock()
+        ax_mlx.metadata = {"backend_source": "mlx"}
+        ax_mlx.is_validated = True
+        ax_mlx.is_disputed = False
+        ax_mlx.superseded_by = None
+
+        ax_ollama = MagicMock()
+        ax_ollama.metadata = {"backend_source": "ollama"}
+        ax_ollama.is_validated = True
+        ax_ollama.is_disputed = False
+        ax_ollama.superseded_by = None
+
+        mock_axiom_manager.search.return_value = [ax_mlx, ax_ollama]
+
+        panel = AxiomPanel(state=mock_state_with_axioms)
+        panel._current_source = "mlx"
+
+        result = panel._get_filtered_axioms(mock_axiom_manager)
+        assert len(result) == 1
+        assert result[0].metadata["backend_source"] == "mlx"
+
+    def test_filter_by_source_excludes_no_metadata(
+        self, mock_state_with_axioms: MagicMock, mock_axiom_manager: MagicMock
+    ):
+        """Test source filter excludes axioms without backend_source metadata."""
+        ax_with = MagicMock()
+        ax_with.metadata = {"backend_source": "ollama"}
+        ax_with.is_validated = True
+        ax_with.is_disputed = False
+        ax_with.superseded_by = None
+
+        ax_without = MagicMock()
+        ax_without.metadata = {}
+        ax_without.is_validated = True
+        ax_without.is_disputed = False
+        ax_without.superseded_by = None
+
+        mock_axiom_manager.search.return_value = [ax_with, ax_without]
+
+        panel = AxiomPanel(state=mock_state_with_axioms)
+        panel._current_source = "ollama"
+
+        result = panel._get_filtered_axioms(mock_axiom_manager)
+        assert len(result) == 1
+
 
 # =============================================================================
 # AxiomPanel Selection Tests
@@ -575,6 +658,7 @@ class TestAxiomPanelExports:
         assert "AxiomPanel" in axiom_panel.__all__
         assert "AXIOM_CATEGORIES" in axiom_panel.__all__
         assert "AxiomStatus" in axiom_panel.__all__
+        assert "STATUS_BADGES" in axiom_panel.__all__
 
 
 # =============================================================================
