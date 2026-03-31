@@ -21,8 +21,8 @@ Example:
 """
 
 from r3lay.core.automotive.obd2 import (
-    DTCSeverity,
     DiagnosticCode,
+    DTCSeverity,
     OBD2Database,
 )
 

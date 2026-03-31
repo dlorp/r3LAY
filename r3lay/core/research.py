@@ -485,7 +485,7 @@ class ContradictionDetector:
         """
         if self._has_judge_capability():
             return await self._check_finding_with_judge(statement, category, signal_ids, cycle)
-        return self._check_finding_keyword_fallback(statement, category, signal_ids, cycle)
+        return await self._check_finding_fallback(statement, category, signal_ids, cycle)
 
     async def _check_finding_with_judge(
         self,
@@ -541,15 +541,15 @@ class ContradictionDetector:
         )
         return [contradiction]
 
-    def _check_finding_keyword_fallback(
+    async def _check_finding_fallback(
         self,
         statement: str,
         category: str,
         signal_ids: list[str],
         cycle: int,
     ) -> list[Contradiction]:
-        """Fallback: use AxiomManager.find_conflicts() keyword overlap."""
-        conflicts = self.axiom_manager.find_conflicts(statement, category)
+        """Fallback: use AxiomManager.find_conflicts() (semantic or keyword)."""
+        conflicts = await self.axiom_manager.find_conflicts(statement, category)
         contradictions: list[Contradiction] = []
 
         for conflicting_axiom in conflicts:
@@ -564,7 +564,7 @@ class ContradictionDetector:
             )
             contradictions.append(contradiction)
             logger.info(
-                "Contradiction detected (keyword): '%s...' vs axiom %s",
+                "Contradiction detected (fallback): '%s...' vs axiom %s",
                 statement[:50],
                 conflicting_axiom.id,
             )

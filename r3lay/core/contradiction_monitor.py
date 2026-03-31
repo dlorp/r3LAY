@@ -127,7 +127,9 @@ class ContradictionJudge:
         if self.axiom_manager is None:
             return []
 
-        related_axioms = self.axiom_manager.search(query=topic, active_only=True, limit=10)
+        related_axioms = await self.axiom_manager.search_semantic(
+            query=topic, active_only=True, limit=10
+        )
         if not related_axioms:
             return []
 

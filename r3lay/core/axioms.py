@@ -24,10 +24,14 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
+import numpy as np
 from ruamel.yaml import YAML
+
+if TYPE_CHECKING:
+    from .embeddings.base import EmbeddingBackend
 
 logger = logging.getLogger(__name__)
 
@@ -208,6 +212,12 @@ STOP_WORDS: frozenset[str] = frozenset(
 CITATION_CONFIDENCE_BOOST: float = 0.05  # Per additional citation
 MAX_CITATION_CONFIDENCE: float = 0.99  # Ceiling for confidence
 
+# Cosine similarity threshold for semantic conflict detection
+SEMANTIC_CONFLICT_THRESHOLD: float = 0.55
+
+# Filename for persisted axiom embeddings
+EMBEDDING_FILE: str = "axiom_embeddings.npz"
+
 
 # ============================================================================
 # Data Models
@@ -332,6 +342,12 @@ class AxiomManager:
         self._axioms: dict[str, Axiom] = {}
         self._load()
 
+        # Embedding infrastructure for semantic conflict detection
+        self._embedder: EmbeddingBackend | None = None
+        self._embeddings: dict[str, np.ndarray] = {}
+        self._embeddings_file = self.axioms_path / EMBEDDING_FILE
+        self._load_embeddings()
+
     def _load(self) -> None:
         """Load axioms from disk."""
         if self.axioms_file.exists():
@@ -387,6 +403,121 @@ class AxiomManager:
                 self.yaml.dump(data, f)
         except Exception as e:
             logger.error(f"Failed to save axioms: {e}")
+
+    # ========================================================================
+    # Embedding Infrastructure
+    # ========================================================================
+
+    def set_embedder(self, embedder: EmbeddingBackend | None) -> None:
+        """Attach or detach the text embedder for semantic operations.
+
+        Args:
+            embedder: Text embedding backend, or None to detach.
+        """
+        self._embedder = embedder
+
+    def _load_embeddings(self) -> None:
+        """Load cached axiom embeddings from disk, pruning stale entries."""
+        if not self._embeddings_file.exists():
+            return
+        try:
+            with np.load(self._embeddings_file, allow_pickle=False) as data:
+                expected_dim: int | None = None
+                for key in data.files:
+                    if key not in self._axioms:
+                        continue
+                    vec = data[key]
+                    if vec.ndim != 1 or vec.shape[0] > 8192:
+                        logger.warning(f"Skipping malformed embedding for {key}: shape={vec.shape}")
+                        continue
+                    if expected_dim is None:
+                        expected_dim = vec.shape[0]
+                    elif vec.shape[0] != expected_dim:
+                        logger.warning(
+                            f"Dimension mismatch for {key}: {vec.shape[0]} vs {expected_dim}"
+                        )
+                        continue
+                    self._embeddings[key] = vec
+            logger.debug(f"Loaded {len(self._embeddings)} axiom embeddings from cache")
+        except Exception as e:
+            logger.warning(f"Failed to load axiom embeddings: {e}")
+
+    def _save_embeddings(self) -> None:
+        """Persist axiom embedding cache to disk."""
+        try:
+            if self._embeddings:
+                np.savez_compressed(self._embeddings_file, **self._embeddings)
+            elif self._embeddings_file.exists():
+                self._embeddings_file.unlink()
+        except Exception as e:
+            logger.warning(f"Failed to save axiom embeddings: {e}")
+
+    async def _embed_text(self, text: str) -> np.ndarray | None:
+        """Embed a single text string via the attached embedder.
+
+        Args:
+            text: Text to embed.
+
+        Returns:
+            Embedding vector, or None if embedder unavailable.
+        """
+        if self._embedder is None or not self._embedder.is_loaded:
+            return None
+        result = await self._embedder.embed_texts([text])
+        if result.vectors.shape[0] == 0:
+            return None
+        return result.vectors[0]
+
+    async def embed_axiom(self, axiom_id: str) -> bool:
+        """Generate and cache the embedding for a single axiom.
+
+        Args:
+            axiom_id: ID of the axiom to embed.
+
+        Returns:
+            True if embedding was generated, False otherwise.
+        """
+        axiom = self._axioms.get(axiom_id)
+        if axiom is None:
+            return False
+        vec = await self._embed_text(axiom.statement)
+        if vec is not None:
+            self._embeddings[axiom_id] = vec
+            self._save_embeddings()
+            return True
+        return False
+
+    async def rebuild_embeddings(self) -> int:
+        """Batch-embed all axioms. Call after embedder becomes available.
+
+        Returns:
+            Number of axioms embedded.
+        """
+        if self._embedder is None or not self._embedder.is_loaded:
+            return 0
+        statements: list[str] = []
+        ids: list[str] = []
+        for ax in self._axioms.values():
+            statements.append(ax.statement)
+            ids.append(ax.id)
+        if not statements:
+            return 0
+        try:
+            result = await self._embedder.embed_texts(statements)
+            if result.vectors.shape[0] != len(ids):
+                logger.warning(
+                    f"Embedder returned {result.vectors.shape[0]} vectors "
+                    f"for {len(ids)} axioms — skipping"
+                )
+                return 0
+            staged = {ax_id: result.vectors[i] for i, ax_id in enumerate(ids)}
+            self._embeddings.update(staged)
+            self._save_embeddings()
+            logger.info(f"Rebuilt embeddings for {len(ids)} axioms")
+            return len(ids)
+        except Exception as e:
+            logger.warning(f"Failed to rebuild axiom embeddings: {e}")
+            return 0
 
     # ========================================================================
     # CRUD Operations
@@ -464,6 +595,9 @@ class AxiomManager:
         if axiom_id in self._axioms:
             del self._axioms[axiom_id]
             self._save()
+            if axiom_id in self._embeddings:
+                del self._embeddings[axiom_id]
+                self._save_embeddings()
             logger.info(f"Deleted axiom {axiom_id}")
             return True
         return False
@@ -639,16 +773,107 @@ class AxiomManager:
         words = re.findall(r"\b[a-zA-Z0-9]+\b", text.lower())
         return {w for w in words if w not in STOP_WORDS and len(w) > 2}
 
-    def find_conflicts(
+    async def find_conflicts(
         self,
         statement: str,
         category: str,
     ) -> list[Axiom]:
-        """Find potentially conflicting axioms.
+        """Find potentially conflicting axioms using semantic similarity.
 
-        Uses keyword overlap to identify axioms in the same category
-        that may contradict the given statement. Threshold is 30%
-        keyword overlap.
+        When an embedder is available, uses cosine similarity on axiom
+        embeddings. Falls back to keyword overlap when embedder is
+        unavailable or embedding fails.
+
+        Args:
+            statement: The new statement to check for conflicts
+            category: Category to search within
+
+        Returns:
+            List of potentially conflicting Axioms
+        """
+        if self._embedder is not None and self._embedder.is_loaded:
+            try:
+                query_vec = await self._embed_text(statement)
+                if query_vec is not None:
+                    result = self._find_conflicts_semantic(query_vec, category)
+                    if result is not None:
+                        return result
+            except Exception:
+                logger.warning("Semantic conflict detection failed, using keyword fallback")
+                logger.debug("Embedder error details:", exc_info=True)
+        return self._find_conflicts_keyword(statement, category)
+
+    def _find_conflicts_semantic(
+        self,
+        query_vec: np.ndarray,
+        category: str,
+    ) -> list[Axiom] | None:
+        """Find conflicts via cosine similarity against cached embeddings.
+
+        Returns None (triggering keyword fallback) when embedding coverage
+        is incomplete — i.e., any active axiom in the category is missing
+        a cached vector. This prevents silently skipping unembedded axioms.
+
+        Args:
+            query_vec: Embedding vector of the query statement.
+            category: Category to search within.
+
+        Returns:
+            List of conflicting Axioms sorted by similarity, or None
+            if embedding coverage for the category is incomplete.
+        """
+        candidates: list[Axiom] = []
+        vecs: list[np.ndarray] = []
+        for ax in self._axioms.values():
+            if ax.category != category or not ax.is_active:
+                continue
+            if ax.id not in self._embeddings:
+                return None  # Incomplete coverage — fall back to keywords
+            candidates.append(ax)
+            vecs.append(self._embeddings[ax.id])
+
+        if not vecs:
+            return None
+
+        scores = self._cosine_scores(query_vec, vecs)
+
+        results = [
+            (ax, float(score))
+            for ax, score in zip(candidates, scores)
+            if score >= SEMANTIC_CONFLICT_THRESHOLD
+        ]
+        results.sort(key=lambda x: x[1], reverse=True)
+
+        for ax, score in results:
+            logger.debug(f"Semantic conflict: {ax.id} (similarity={score:.3f})")
+
+        return [ax for ax, _ in results]
+
+    @staticmethod
+    def _cosine_scores(query_vec: np.ndarray, vecs: list[np.ndarray]) -> np.ndarray:
+        """Compute cosine similarity between a query vector and a list of vectors.
+
+        Args:
+            query_vec: Query vector of shape (D,).
+            vecs: List of vectors, each of shape (D,).
+
+        Returns:
+            1-D array of cosine similarity scores.
+        """
+        matrix = np.stack(vecs)
+        q_norm = query_vec / (np.linalg.norm(query_vec) + 1e-9)
+        norms = np.linalg.norm(matrix, axis=1, keepdims=True) + 1e-9
+        return (matrix / norms) @ q_norm
+
+    def _find_conflicts_keyword(
+        self,
+        statement: str,
+        category: str,
+    ) -> list[Axiom]:
+        """Find conflicts via keyword overlap (fallback when no embedder).
+
+        Uses 30% keyword overlap threshold against active axioms in
+        the same category.
 
         Args:
             statement: The new statement to check for conflicts
@@ -663,7 +888,6 @@ class AxiomManager:
 
         conflicts = []
         for axiom in self._axioms.values():
-            # Only check active axioms in the same category
             if axiom.category != category:
                 continue
             if not axiom.is_active:
@@ -673,13 +897,12 @@ class AxiomManager:
             if not existing_keywords:
                 continue
 
-            # Calculate overlap
             overlap = len(new_keywords & existing_keywords)
             overlap_ratio = overlap / min(len(new_keywords), len(existing_keywords))
 
             if overlap_ratio >= self.CONFLICT_THRESHOLD:
                 conflicts.append(axiom)
-                logger.debug(f"Potential conflict: {axiom.id} (overlap={overlap_ratio:.2f})")
+                logger.debug(f"Keyword conflict: {axiom.id} (overlap={overlap_ratio:.2f})")
 
         return conflicts
 
@@ -892,6 +1115,53 @@ class AxiomManager:
             results = [a for a in results if a.is_active]
 
         return sorted(results, key=lambda a: a.confidence, reverse=True)[:limit]
+
+    async def search_semantic(
+        self,
+        query: str,
+        active_only: bool = True,
+        limit: int = 10,
+    ) -> list[Axiom]:
+        """Search axioms by semantic similarity.
+
+        Uses embedding cosine similarity when available, falls back
+        to the standard substring search.
+
+        Args:
+            query: Text to search for semantically similar axioms.
+            active_only: Only return active axioms.
+            limit: Maximum results to return.
+
+        Returns:
+            List of Axioms ranked by semantic similarity.
+        """
+        if self._embedder is not None and self._embedder.is_loaded:
+            try:
+                query_vec = await self._embed_text(query)
+                if query_vec is not None:
+                    candidates: list[Axiom] = []
+                    vecs: list[np.ndarray] = []
+                    for ax in self._axioms.values():
+                        if active_only and not ax.is_active:
+                            continue
+                        if ax.id not in self._embeddings:
+                            continue
+                        candidates.append(ax)
+                        vecs.append(self._embeddings[ax.id])
+
+                    if vecs:
+                        scores = self._cosine_scores(query_vec, vecs)
+                        scored = sorted(
+                            zip(candidates, scores),
+                            key=lambda x: x[1],
+                            reverse=True,
+                        )
+                        return [ax for ax, _ in scored[:limit]]
+            except Exception:
+                logger.warning("Semantic axiom search failed, using substring fallback")
+                logger.debug("Embedder error details:", exc_info=True)
+
+        return self.search(query=query, active_only=active_only, limit=limit)
 
     def get_by_category(self, category: str) -> list[Axiom]:
         """Get all axioms in a category.
