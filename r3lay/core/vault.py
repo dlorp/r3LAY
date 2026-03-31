@@ -91,6 +91,11 @@ class KnowledgeVault:
         if code != 0:
             logger.error("git init failed: %s", stderr)
             return False
+
+        # Ensure git user config exists (required for commit on CI/fresh systems)
+        await self._run_git("config", "user.email", "r3lay@local")
+        await self._run_git("config", "user.name", "r3LAY")
+
         logger.info("Initialized git repo in vault: %s", self.path)
         return True
 
