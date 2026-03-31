@@ -11,6 +11,7 @@ from textual.widgets import Button, DataTable, Label, Static
 
 if TYPE_CHECKING:
     from ...core import R3LayState
+    from ...core.vault import KnowledgeVault
 
 logger = logging.getLogger(__name__)
 
@@ -114,8 +115,8 @@ class VaultPanel(Vertical):
             row_data = table.get_row(row_key)
             if row_data:
                 self._selected_hash = str(row_data[0])
-        except Exception:
-            pass
+        except (KeyError, IndexError):
+            pass  # Row may have been cleared during refresh
 
     # ------------------------------------------------------------------
     # Operations
@@ -158,7 +159,7 @@ class VaultPanel(Vertical):
             )
             self._clear_log()
 
-    async def _load_log(self, vault) -> None:
+    async def _load_log(self, vault: "KnowledgeVault") -> None:
         """Load commit log into the table."""
         table = self.query_one("#vault-log", DataTable)
         table.clear()
