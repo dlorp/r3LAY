@@ -413,3 +413,92 @@ class TestModuleExports:
 
         assert hasattr(config, "AppConfig")
         assert hasattr(config, "ModelRoles")
+        assert hasattr(config, "GlobalConfig")
+
+
+# =============================================================================
+# GlobalConfig Tests
+# =============================================================================
+
+
+class TestGlobalConfig:
+    """Tests for GlobalConfig class."""
+
+    def test_default_empty(self):
+        """Test default GlobalConfig has empty recent_projects."""
+        from r3lay.config import GlobalConfig
+
+        gc = GlobalConfig()
+        assert gc.recent_projects == []
+
+    def test_add_project_deduplicates(self, tmp_path: Path, monkeypatch):
+        """Test add_project deduplicates entries."""
+        from r3lay.config import GlobalConfig
+
+        monkeypatch.setenv("HOME", str(tmp_path))
+        gc = GlobalConfig()
+        gc.add_project("/a/b/c")
+        gc.add_project("/d/e/f")
+        gc.add_project("/a/b/c")  # duplicate
+        assert gc.recent_projects[0] == "/a/b/c"
+        assert gc.recent_projects.count("/a/b/c") == 1
+
+    def test_add_project_max_20(self, tmp_path: Path, monkeypatch):
+        """Test add_project caps at 20 entries."""
+        from r3lay.config import GlobalConfig
+
+        monkeypatch.setenv("HOME", str(tmp_path))
+        gc = GlobalConfig()
+        for i in range(25):
+            p = tmp_path / f"project_{i}"
+            p.mkdir()
+            gc.add_project(str(p))
+        assert len(gc.recent_projects) == 20
+
+    def test_save_and_load_roundtrip(self, tmp_path: Path, monkeypatch):
+        """Test GlobalConfig survives save/load roundtrip."""
+        from r3lay.config import GlobalConfig
+
+        monkeypatch.setenv("HOME", str(tmp_path))
+        gc = GlobalConfig(recent_projects=["/a", "/b"])
+        gc.save()
+
+        loaded = GlobalConfig.load()
+        assert loaded.recent_projects == ["/a", "/b"]
+
+
+# =============================================================================
+# Vault Exclude Patterns Tests
+# =============================================================================
+
+
+class TestVaultExcludePatterns:
+    """Tests for vault_exclude_patterns config field."""
+
+    def test_default_empty(self):
+        """Test vault_exclude_patterns defaults to empty list."""
+        config = AppConfig()
+        assert config.vault_exclude_patterns == []
+
+    def test_saves_and_loads(self, tmp_path: Path):
+        """Test vault_exclude_patterns survives save/load roundtrip."""
+        config = AppConfig(
+            project_path=tmp_path,
+            vault_exclude_patterns=["*.pdf", "archive/*"],
+        )
+        config.save()
+
+        loaded = AppConfig.load(tmp_path)
+        assert loaded.vault_exclude_patterns == ["*.pdf", "archive/*"]
+
+    def test_empty_not_saved(self, tmp_path: Path):
+        """Test empty vault_exclude_patterns is not written to YAML."""
+        from ruamel.yaml import YAML
+
+        config = AppConfig(project_path=tmp_path)
+        config.save()
+
+        yaml = YAML()
+        with (tmp_path / ".r3lay" / "config.yaml").open() as f:
+            data = yaml.load(f)
+        assert "vault_exclude_patterns" not in data

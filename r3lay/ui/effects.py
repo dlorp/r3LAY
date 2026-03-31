@@ -27,9 +27,13 @@ TITANIUM_YELLOW = "F4E409"
 MEDIUM_TURQUOISE = "50D8D7"
 ROYAL_BLUE = "3B60E4"
 
-# Background shades
-BG_DARKEST = "0d0d0d"
-BG_DARK = "1a1a1a"
+# Amber phosphor shades (unified with myc3lium TeletextGrid palette)
+AMBER_PRIMARY = "FFB800"
+AMBER_SECONDARY = "E88A00"
+
+# Background shades (matched to myc3lium #0E0B02 base)
+BG_DARKEST = "0e0b02"
+BG_DARK = "1a1408"
 
 # Status icon constants for consistent use across widgets
 STATUS_SUCCESS = MEDIUM_TURQUOISE  # ✓

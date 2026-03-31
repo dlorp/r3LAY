@@ -779,6 +779,9 @@ class ResearchOrchestrator:
         self._current: Expedition | None = None
         self._cancelled = False
 
+        # Load templates (user overrides from .r3lay/prompts/ or built-in defaults)
+        self._templates = self._load_all_templates()
+
     def update_refs(
         self,
         backend: "InferenceBackend",
@@ -806,6 +809,71 @@ class ResearchOrchestrator:
         self.contradiction_detector._judge.backend = backend
         self.contradiction_detector._judge.index = index
         self.contradiction_detector._judge.axiom_manager = axioms
+
+    # ------------------------------------------------------------------
+    # Template loading
+    # ------------------------------------------------------------------
+
+    _TEMPLATE_DEFAULTS: dict[str, str] = {
+        "query_gen_initial": QUERY_GEN_INITIAL,
+        "query_gen_followup": QUERY_GEN_FOLLOWUP,
+        "query_gen_resolution": QUERY_GEN_RESOLUTION,
+        "axiom_extraction": AXIOM_EXTRACTION,
+        "contradiction_resolution": CONTRADICTION_RESOLUTION,
+        "synthesis_report": SYNTHESIS_REPORT,
+    }
+
+    def _load_all_templates(self) -> dict[str, str]:
+        """Load all templates, checking for user overrides in .r3lay/prompts/."""
+        return {
+            name: self._load_template(name, default)
+            for name, default in self._TEMPLATE_DEFAULTS.items()
+        }
+
+    def _load_template(self, name: str, default: str) -> str:
+        """Load a single template from .r3lay/prompts/ or use default.
+
+        Args:
+            name: Template name (e.g. "query_gen_initial").
+            default: Built-in default template text.
+
+        Returns:
+            Template text (user override if found, else default).
+        """
+        override_path = self.project_path / ".r3lay" / "prompts" / f"{name}.txt"
+        if override_path.is_file():
+            try:
+                content = override_path.read_text(encoding="utf-8").strip()
+                if content:
+                    logger.info("Using custom research template: %s", override_path)
+                    return content
+            except OSError:
+                logger.warning("Failed to read template override: %s", override_path)
+        return default
+
+    def get_template_info(self) -> list[dict[str, str]]:
+        """Get info about all templates and their override status."""
+        info = []
+        for name in self._TEMPLATE_DEFAULTS:
+            override_path = self.project_path / ".r3lay" / "prompts" / f"{name}.txt"
+            source = str(override_path) if override_path.is_file() else "built-in"
+            info.append({"name": name, "source": source})
+        return info
+
+    @staticmethod
+    def _safe_format(template: str, **kwargs: str) -> str:
+        """Format template with only simple {name} placeholders.
+
+        Prevents attribute traversal (e.g. {query.__class__}) that
+        Python's str.format() would allow on user-overridable templates.
+        """
+        import re as _re
+
+        def _replacer(match: _re.Match) -> str:
+            key = match.group(1)
+            return str(kwargs[key]) if key in kwargs else match.group(0)
+
+        return _re.sub(r"\{(\w+)\}", _replacer, template)
 
     async def run(
         self,
@@ -1342,7 +1410,8 @@ class ResearchOrchestrator:
     ) -> list[str]:
         """Generate search queries via LLM."""
         if resolution_target:
-            prompt = QUERY_GEN_RESOLUTION.format(
+            prompt = self._safe_format(
+                self._templates["query_gen_resolution"],
                 existing_statement=resolution_target.existing_statement,
                 new_statement=resolution_target.new_statement,
                 category=resolution_target.category,
@@ -1353,9 +1422,13 @@ class ResearchOrchestrator:
                 if self._current and self._current.metadata.get("context")
                 else ""
             )
-            prompt = QUERY_GEN_INITIAL.format(query=query, context=context)
+            prompt = self._safe_format(
+                self._templates["query_gen_initial"],
+                query=query, context=context,
+            )
         else:
-            prompt = QUERY_GEN_FOLLOWUP.format(
+            prompt = self._safe_format(
+                self._templates["query_gen_followup"],
                 query=query,
                 previous_findings=previous_findings,
             )
@@ -1398,7 +1471,8 @@ class ResearchOrchestrator:
                     f"- {a.statement[:100]}" for a in existing_axioms
                 )
 
-        prompt = AXIOM_EXTRACTION.format(
+        prompt = self._safe_format(
+            self._templates["axiom_extraction"],
             query=query,
             content=content_text,
             existing_context=existing_context,
@@ -1420,7 +1494,8 @@ class ResearchOrchestrator:
             ]
         )
 
-        prompt = CONTRADICTION_RESOLUTION.format(
+        prompt = self._safe_format(
+            self._templates["contradiction_resolution"],
             existing_statement=contradiction.existing_statement,
             new_statement=contradiction.new_statement,
             category=contradiction.category,
@@ -1469,16 +1544,17 @@ The following contradictions require manual review:
             "duration": sum(c.duration_seconds for c in expedition.cycles),
         }
 
-        prompt = SYNTHESIS_REPORT.format(
+        prompt = self._safe_format(
+            self._templates["synthesis_report"],
             query=expedition.query,
             axioms=axiom_text or "No axioms extracted",
             resolutions_section=resolutions_section,
             contradictions_section=contradictions_section,
-            cycles=stats["cycles"],
-            axiom_count=stats["axiom_count"],
-            source_count=stats["source_count"],
-            resolved_count=stats["resolved_count"],
-            duration=stats["duration"],
+            cycles=str(stats["cycles"]),
+            axiom_count=str(stats["axiom_count"]),
+            source_count=str(stats["source_count"]),
+            resolved_count=str(stats["resolved_count"]),
+            duration=str(stats["duration"]),
         )
 
         return await self._generate_llm(prompt, temperature=0.5)

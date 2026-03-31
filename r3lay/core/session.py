@@ -103,6 +103,7 @@ class Session:
     updated_at: datetime = field(default_factory=datetime.now)
     title: str | None = None
     project_path: Path | None = None
+    tags: list[str] = field(default_factory=list)
     _dirty: bool = field(default=False, repr=False, compare=False, init=False)
 
     @property
@@ -434,6 +435,7 @@ Use these when presenting information:
             "updated_at": self.updated_at.isoformat(),
             "title": self.title,
             "project_path": str(self.project_path) if self.project_path else None,
+            "tags": self.tags,
         }
 
     @classmethod
@@ -449,6 +451,7 @@ Use these when presenting information:
             updated_at=datetime.fromisoformat(data["updated_at"]),
             title=data.get("title"),
             project_path=Path(data["project_path"]) if data.get("project_path") else None,
+            tags=data.get("tags", []),
         )
         return session
 
@@ -504,6 +507,32 @@ Use these when presenting information:
             raise ValueError(f"Session file missing required field: {e}") from e
         except OSError as e:
             raise IOError(f"Failed to read session file: {e}") from e
+
+    @classmethod
+    def delete(cls, session_id: str, sessions_dir: Path) -> bool:
+        """Delete a saved session file.
+
+        Args:
+            session_id: UUID of the session to delete.
+            sessions_dir: Directory containing session files.
+
+        Returns:
+            True if the file was deleted, False if it didn't exist.
+
+        Raises:
+            ValueError: If session_id is not a valid UUID.
+            IOError: If file exists but cannot be deleted.
+        """
+        if not _UUID_RE.match(session_id):
+            raise ValueError(f"Invalid session ID format: {session_id}")
+        session_file = sessions_dir / f"{session_id}.json"
+        try:
+            session_file.unlink()
+            return True
+        except FileNotFoundError:
+            return False
+        except OSError as e:
+            raise IOError(f"Failed to delete session file: {e}") from e
 
 
 __all__ = [

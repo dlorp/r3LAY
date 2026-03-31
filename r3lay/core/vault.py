@@ -155,12 +155,50 @@ class KnowledgeVault:
 
             if code != 0:
                 msg = stderr or stdout or "Pull failed"
+                # Tag diverged branches for UI guidance
+                if "not possible to fast-forward" in msg.lower():
+                    msg = "DIVERGED: " + msg
                 logger.warning("vault pull failed: %s", msg)
                 return False, msg
 
             self._last_pull = datetime.now()
             logger.info("vault pull: %s", stdout or "Already up to date")
             return True, stdout or "Already up to date"
+
+    async def force_pull(self) -> tuple[bool, str]:
+        """Discard local changes and reset to remote branch.
+
+        Fetches latest from origin and does a hard reset. This is the
+        nuclear option for diverged branches — local commits are lost.
+
+        Returns:
+            Tuple of (success, message).
+        """
+        async with self._git_lock:
+            if not await self.is_git_repo():
+                return False, "Not a git repository"
+
+            # Get current branch
+            code, branch, _ = await self._run_git("branch", "--show-current")
+            if code != 0 or not branch.strip():
+                return False, "Could not determine current branch"
+            branch = branch.strip()
+
+            # Fetch latest
+            code, _, stderr = await self._run_git("fetch", "origin")
+            if code != 0:
+                return False, f"Fetch failed: {stderr}"
+
+            # Reset to remote
+            code, stdout, stderr = await self._run_git(
+                "reset", "--hard", f"origin/{branch}"
+            )
+            if code != 0:
+                return False, f"Reset failed: {stderr}"
+
+            self._last_pull = datetime.now()
+            logger.info("vault force_pull: reset to origin/%s", branch)
+            return True, stdout.strip() or f"Reset to origin/{branch}"
 
     async def commit(self, message: str) -> tuple[bool, str]:
         """Stage all changes and commit.
