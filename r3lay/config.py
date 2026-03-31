@@ -129,6 +129,16 @@ class AppConfig(BaseSettings):
         description="Intent routing preference: 'local', 'openclaw', or 'auto'",
     )
 
+    # Knowledge vault
+    knowledge_vault_path: Optional[Path] = Field(
+        default=None,
+        description="Path to shared knowledge vault directory for cross-project RAG",
+    )
+    vault_write_backends: list[str] = Field(
+        default_factory=lambda: ["openclaw"],
+        description="Backend sources allowed to write to the knowledge vault",
+    )
+
     # R³ auto-trigger mode for contradiction detection
     research_auto_trigger: Literal["auto", "prompt", "manual"] = Field(
         default="prompt",
@@ -158,6 +168,18 @@ class AppConfig(BaseSettings):
             raise ValueError(
                 f"Invalid research_auto_trigger value: {v}. Must be 'auto', 'prompt', or 'manual'"
             )
+        return v
+
+    @field_validator("vault_write_backends")
+    @classmethod
+    def validate_vault_write_backends(cls, v: list[str]) -> list[str]:
+        """Warn on unrecognized backend names in vault_write_backends."""
+        known = {"openclaw", "mlx", "llama_cpp", "ollama", "vllm"}
+        unknown = set(v) - known
+        if unknown:
+            import logging as _logging
+
+            _logging.getLogger(__name__).warning("Unknown vault_write_backends: %s", unknown)
         return v
 
     @classmethod
@@ -203,6 +225,17 @@ class AppConfig(BaseSettings):
                                 "Invalid model_config for '%s', skipping", name
                             )
 
+            # Load knowledge vault settings if present
+            if data and "knowledge_vault_path" in data:
+                vault = data["knowledge_vault_path"]
+                if vault:
+                    config.knowledge_vault_path = Path(vault).expanduser()
+
+            if data and "vault_write_backends" in data:
+                backends = data["vault_write_backends"]
+                if isinstance(backends, list):
+                    config.vault_write_backends = backends
+
             # Load research auto-trigger mode if present
             if data and "research" in data and isinstance(data["research"], dict):
                 mode = data["research"].get("auto_trigger_mode")
@@ -231,6 +264,11 @@ class AppConfig(BaseSettings):
                 "auto_trigger_mode": self.research_auto_trigger,
             },
         }
+
+        # Knowledge vault settings
+        if self.knowledge_vault_path is not None:
+            data["knowledge_vault_path"] = str(self.knowledge_vault_path)
+        data["vault_write_backends"] = self.vault_write_backends
 
         # Only save model_configs with non-empty settings
         if self.model_configs:

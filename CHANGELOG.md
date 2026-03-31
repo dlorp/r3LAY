@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-03-30
+
+### Added
+- Knowledge vault integration — git-backed shared knowledge directory for cross-project RAG
+  - `r3lay/core/vault.py`: `KnowledgeVault` class with async git operations (pull, commit, log, revert)
+  - Configurable vault path and per-backend write permissions in `.r3lay/config.yaml`
+  - Vault panel (Ctrl+7): git log viewer, pull latest, revert selected commit
+  - Settings panel: vault path input + backend write access checkboxes
+  - Auto-pull and index vault contents during project reindex
+  - Path validation blocks system directories (`/etc`, `/var`, `/usr`, etc.)
+  - `validate_vault_path()` for safe vault directory selection
+
+### Changed
+- Settings panel shifted from Ctrl+7 to Ctrl+8
+- Pull failure during reindex now shows warning notification (was silent progress update)
+
+### Fixed
+- Stale index reference in `ResearchOrchestrator` — cached orchestrator now syncs
+  `index`, `backend`, and other mutable refs via `update_refs()` on each `/research` call
+  (was: empty `citation_ids` on all axioms when index loaded after first research)
+
+### Documentation
+- Moved aspirational project folder management content from README to `docs/DESIGN.md`
+- README "Project Folders" section grounded in current behavior
+- CLAUDE.md Reference Materials updated with `docs/DESIGN.md` pointer
+
 ## [0.7.2] - 2026-03-29
 
 ### Added

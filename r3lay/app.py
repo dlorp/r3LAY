@@ -67,6 +67,7 @@ from .ui.widgets import (  # noqa: E402
     SessionPanel,
     SettingsPanel,
     SplashScreen,
+    VaultPanel,
 )
 
 
@@ -83,7 +84,8 @@ class MainScreen(Screen):
         Binding("ctrl+4", "tab_log", "Log", show=False),
         Binding("ctrl+5", "tab_due", "Due", show=False),
         Binding("ctrl+6", "tab_sessions", "Sessions", show=False),
-        Binding("ctrl+7", "tab_settings", "Settings", show=False),
+        Binding("ctrl+7", "tab_vault", "Vault", show=False),
+        Binding("ctrl+8", "tab_settings", "Settings", show=False),
         Binding("ctrl+h", "tab_sessions", "History", show=False),
         Binding("ctrl+comma", "tab_settings", "Settings", show=False),
     ]
@@ -121,6 +123,8 @@ class MainScreen(Screen):
                         )
                     with TabPane("Sessions", id="tab-sessions"):
                         yield SessionPanel(self.state)
+                    with TabPane("Vault", id="tab-vault"):
+                        yield VaultPanel(self.state)
                     with TabPane("Settings", id="tab-settings"):
                         yield SettingsPanel(self.state)
 
@@ -159,6 +163,9 @@ class MainScreen(Screen):
 
     def action_tab_sessions(self) -> None:
         self.query_one("#control-tabs", TabbedContent).active = "tab-sessions"
+
+    def action_tab_vault(self) -> None:
+        self.query_one("#control-tabs", TabbedContent).active = "tab-vault"
 
     def action_tab_settings(self) -> None:
         self.query_one("#control-tabs", TabbedContent).active = "tab-settings"

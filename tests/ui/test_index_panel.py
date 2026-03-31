@@ -33,6 +33,8 @@ def mock_state(tmp_path: Path) -> MagicMock:
     state.project_path = tmp_path
     state.index = None
     state.vision_embedder = None
+    # Vault not configured by default — skip vault indexing in tests
+    state.config.knowledge_vault_path = None
     return state
 
 
