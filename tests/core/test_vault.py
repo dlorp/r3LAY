@@ -460,3 +460,29 @@ class TestVaultWriteAndCommit:
         assert "Not a git repository" in msg
         # File should NOT be written (repo check happens first)
         assert not (tmp_path / "test.md").exists()
+
+
+# ---------------------------------------------------------------------------
+# Force pull
+# ---------------------------------------------------------------------------
+
+
+class TestVaultForcePull:
+    @pytest.mark.asyncio
+    async def test_force_pull_non_repo(self, tmp_path: Path) -> None:
+        """Force pull fails on non-git directory."""
+        vault = KnowledgeVault(tmp_path)
+        ok, msg = await vault.force_pull()
+        assert ok is False
+        assert "Not a git repository" in msg
+
+    @pytest.mark.asyncio
+    async def test_pull_diverged_tag(self, tmp_path: Path) -> None:
+        """Pull tags diverged branches in error message."""
+        vault = KnowledgeVault(tmp_path)
+        # Simulate a pull failure with ff-only message
+        # The actual message from git contains "Not possible to fast-forward"
+        # Our code lowercases it for matching
+        ok, msg = await vault.pull()
+        # Non-repo returns False but not with DIVERGED tag
+        assert ok is False

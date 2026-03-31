@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2026-03-30
+
+### Added
+- `/delete <name_or_id>` command for session deletion with UUID validation and TOCTOU-safe
+  unlink (no `.exists()` check before `.unlink()`, catches `FileNotFoundError` instead)
+- Session `tags: list[str]` field with `/tag` and `/untag` commands, 1-50 char validation,
+  tags shown in `/sessions` listing and `/session` info, serialized in session JSON
+- `force_pull()` vault method — `git fetch origin` + `git reset --hard origin/{branch}` for
+  diverged branches, with `DIVERGED:` prefix tag in `pull()` failure messages
+- Force Pull button in Vault panel (two-click confirmation, 5s auto-reset, starts disabled,
+  enabled when pull detects divergence)
+- `GlobalConfig` class for cross-project settings at `~/.r3lay/config.yaml` with
+  `recent_projects` list (MRU order, max 20, deduplicates via resolved paths)
+- `/project <path>` command to switch projects at runtime — auto-saves dirty session,
+  preserves loaded model/embedder across switch, blocks system directories
+- `/projects` command to list recent projects from GlobalConfig
+- Research template customization — override any of 6 prompt templates via
+  `.r3lay/prompts/{name}.txt` files, fall back to built-in defaults
+- `_safe_format()` static method on ResearchOrchestrator — regex-based `{name}` substitution
+  that prevents attribute traversal (`{query.__class__}`) in user-overridable templates
+- `/research-templates` command to list template override status
+- `vault_exclude_patterns` config field — glob patterns to exclude from vault indexing,
+  applied via `PurePath.match()` (not `fnmatch`, which doesn't treat `/` as special)
+
+### Changed
+- `Session.delete()` validates session_id against `_UUID_RE` (defense-in-depth, matches
+  `from_dict()` validation pattern from v0.12.0)
+- `/help` output reorganized with new Project and Research Templates sections
+- `/sessions` listing shows tags inline after title
+- `/session` info includes tags line
+- `GlobalConfig.load()` logs warning on corrupt YAML instead of silent fallback
+
+### Fixed
+- `Session.delete()` TOCTOU eliminated — uses `unlink()` + `FileNotFoundError` catch instead
+  of `.exists()` + `.unlink()` sequence
+- Rich markup injection in `/delete`, `/tag`, `/untag` output — session titles escaped
+- `/tag` rejects empty and >50 char tags
+
 ## [0.12.0] - 2026-03-30
 
 ### Added
@@ -300,6 +338,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Various type checking import issues
 - Signal test stability improvements
 
+[0.13.0]: https://github.com/dlorp/r3LAY/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/dlorp/r3LAY/compare/v0.11.0...v0.12.0
 [0.7.2]: https://github.com/dlorp/r3LAY/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/dlorp/r3LAY/compare/v0.7.0...v0.7.1

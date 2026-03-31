@@ -73,6 +73,9 @@ class VaultPanel(Vertical):
         # Pull confirmation state
         self._pull_confirm: bool = False
         self._pull_reset_timer: Timer | None = None
+        # Force pull confirmation state
+        self._force_pull_confirm: bool = False
+        self._force_pull_reset_timer: Timer | None = None
 
     def compose(self) -> ComposeResult:
         # Status section
@@ -81,6 +84,7 @@ class VaultPanel(Vertical):
         # Action buttons
         with Horizontal(id="vault-actions"):
             yield Button("Pull Latest", variant="primary", id="vault-pull")
+            yield Button("Force Pull", variant="error", id="vault-force-pull", disabled=True)
             yield Button("Revert Selected", id="vault-revert")
             yield Button("Refresh", id="vault-refresh")
 
@@ -107,11 +111,16 @@ class VaultPanel(Vertical):
         if self._pull_reset_timer is not None:
             self._pull_reset_timer.stop()
             self._pull_reset_timer = None
+        if self._force_pull_reset_timer is not None:
+            self._force_pull_reset_timer.stop()
+            self._force_pull_reset_timer = None
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
         if event.button.id == "vault-pull":
             self.run_worker(self._do_pull())
+        elif event.button.id == "vault-force-pull":
+            self.run_worker(self._do_force_pull())
         elif event.button.id == "vault-revert":
             self.run_worker(self._do_revert())
         elif event.button.id == "vault-refresh":
@@ -241,9 +250,20 @@ class VaultPanel(Vertical):
         if success:
             msg_widget.update(f"Pull: {message}")
             self.notify("Vault updated")
+            # Disable force pull button on success
+            try:
+                self.query_one("#vault-force-pull", Button).disabled = True
+            except Exception:
+                pass
         else:
             msg_widget.update(f"Pull failed: {message}")
             self.notify(f"Pull failed: {message}", severity="error")
+            # Enable Force Pull when branches diverged
+            if "DIVERGED" in message:
+                try:
+                    self.query_one("#vault-force-pull", Button).disabled = False
+                except Exception:
+                    pass
 
         await self._refresh_all()
 
@@ -256,6 +276,64 @@ class VaultPanel(Vertical):
         try:
             pull_btn = self.query_one("#vault-pull", Button)
             pull_btn.label = "Pull Latest"
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------
+    # Force Pull with two-click confirmation
+    # ------------------------------------------------------------------
+
+    async def _do_force_pull(self) -> None:
+        """Force pull (discard local, reset to remote) with two-click confirmation."""
+        msg_widget = self.query_one("#vault-message", Static)
+
+        if not self._force_pull_confirm:
+            try:
+                btn = self.query_one("#vault-force-pull", Button)
+                btn.label = "CONFIRM: Discard local?"
+            except Exception:
+                pass
+            self._force_pull_confirm = True
+            if self._force_pull_reset_timer is not None:
+                self._force_pull_reset_timer.stop()
+            self._force_pull_reset_timer = self.set_timer(
+                5, self._reset_force_pull_confirm
+            )
+            return
+
+        # Second click — actually force pull
+        self._reset_force_pull_confirm()
+
+        vault = self.state.init_vault()
+        if vault is None:
+            msg_widget.update("No vault configured")
+            return
+
+        msg_widget.update("Force pulling (discarding local)...")
+        success, message = await vault.force_pull()
+
+        if success:
+            msg_widget.update(f"Force pull: {message}")
+            self.notify("Vault force-synced to remote")
+            try:
+                self.query_one("#vault-force-pull", Button).disabled = True
+            except Exception:
+                pass
+        else:
+            msg_widget.update(f"Force pull failed: {message}")
+            self.notify(f"Force pull failed: {message}", severity="error")
+
+        await self._refresh_all()
+
+    def _reset_force_pull_confirm(self) -> None:
+        """Reset the force pull confirmation state."""
+        self._force_pull_confirm = False
+        if self._force_pull_reset_timer is not None:
+            self._force_pull_reset_timer.stop()
+            self._force_pull_reset_timer = None
+        try:
+            btn = self.query_one("#vault-force-pull", Button)
+            btn.label = "Force Pull"
         except Exception:
             pass
 

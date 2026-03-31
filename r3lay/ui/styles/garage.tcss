@@ -24,9 +24,15 @@ $titanium-yellow: #F4E409;
 $medium-turquoise: #50D8D7;
 $royal-blue: #3B60E4;
 
-/* Background shades */
-$bg-darkest: #0d0d0d;
-$bg-dark: #1a1a1a;
+/* Amber phosphor shades (unified with myc3lium TeletextGrid palette) */
+$amber-primary: #FFB800;
+$amber-secondary: #E88A00;
+$amber-tertiary: #C47A00;
+$amber-dim: #7A5800;
+
+/* Background shades (matched to myc3lium #0E0B02 base) */
+$bg-darkest: #0e0b02;
+$bg-dark: #1a1408;
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Root / App styling

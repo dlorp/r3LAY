@@ -138,6 +138,10 @@ class AppConfig(BaseSettings):
         default_factory=lambda: ["openclaw"],
         description="Backend sources allowed to write to the knowledge vault",
     )
+    vault_exclude_patterns: list[str] = Field(
+        default_factory=list,
+        description="Glob patterns to exclude from vault indexing (e.g. '*.pdf', 'archive/')",
+    )
 
     # Session persistence
     auto_save_session: bool = Field(
@@ -242,6 +246,11 @@ class AppConfig(BaseSettings):
                 if isinstance(backends, list):
                     config.vault_write_backends = backends
 
+            if data and "vault_exclude_patterns" in data:
+                patterns = data["vault_exclude_patterns"]
+                if isinstance(patterns, list):
+                    config.vault_exclude_patterns = patterns
+
             # Load session persistence setting if present
             if data and "auto_save_session" in data:
                 config.auto_save_session = bool(data["auto_save_session"])
@@ -280,6 +289,8 @@ class AppConfig(BaseSettings):
         if self.knowledge_vault_path is not None:
             data["knowledge_vault_path"] = str(self.knowledge_vault_path)
         data["vault_write_backends"] = self.vault_write_backends
+        if self.vault_exclude_patterns:
+            data["vault_exclude_patterns"] = self.vault_exclude_patterns
 
         # Only save model_configs with non-empty settings
         if self.model_configs:
@@ -295,4 +306,72 @@ class AppConfig(BaseSettings):
             yaml.dump(data, f)
 
 
-__all__ = ["AppConfig", "ModelConfig", "ModelRoles"]
+class GlobalConfig(BaseModel):
+    """Global r3LAY configuration stored at ~/.r3lay/config.yaml.
+
+    Stores cross-project settings like recent project paths.
+    Separate from per-project AppConfig.
+    """
+
+    recent_projects: list[str] = Field(default_factory=list)
+
+    @classmethod
+    def load(cls) -> "GlobalConfig":
+        """Load global config from ~/.r3lay/config.yaml."""
+        from ruamel.yaml import YAML
+
+        config_file = Path.home() / ".r3lay" / "config.yaml"
+        if not config_file.exists():
+            return cls()
+        try:
+            yaml = YAML()
+            with config_file.open() as f:
+                data = yaml.load(f)
+            if data and "recent_projects" in data:
+                return cls(recent_projects=data["recent_projects"])
+        except Exception:
+            import logging as _logging
+
+            _logging.getLogger(__name__).warning(
+                "Failed to load global config from %s, using defaults",
+                config_file,
+            )
+        return cls()
+
+    def save(self) -> None:
+        """Save global config to ~/.r3lay/config.yaml."""
+        from ruamel.yaml import YAML
+
+        config_dir = Path.home() / ".r3lay"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        config_file = config_dir / "config.yaml"
+
+        # Preserve existing keys
+        yaml = YAML()
+        yaml.default_flow_style = False
+        data: dict[str, Any] = {}
+        if config_file.exists():
+            try:
+                with config_file.open() as f:
+                    existing = yaml.load(f)
+                if existing:
+                    data = dict(existing)
+            except Exception:
+                pass
+
+        data["recent_projects"] = self.recent_projects
+
+        with config_file.open("w") as f:
+            yaml.dump(data, f)
+
+    def add_project(self, path: str) -> None:
+        """Add a project to the recent list (deduplicates, max 20, MRU order)."""
+        resolved = str(Path(path).resolve())
+        if resolved in self.recent_projects:
+            self.recent_projects.remove(resolved)
+        self.recent_projects.insert(0, resolved)
+        self.recent_projects = self.recent_projects[:20]
+        self.save()
+
+
+__all__ = ["AppConfig", "GlobalConfig", "ModelConfig", "ModelRoles"]

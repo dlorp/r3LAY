@@ -851,7 +851,13 @@ class InputPane(Vertical):
                 "- `/session` - Show session info\n"
                 "- `/save [name]` - Save current session\n"
                 "- `/load <name>` - Load a saved session\n"
-                "- `/sessions` - List saved sessions\n\n"
+                "- `/delete <name>` - Delete a saved session\n"
+                "- `/sessions` - List saved sessions\n"
+                "- `/tag <name>` - Tag current session\n"
+                "- `/untag <name>` - Remove tag from session\n\n"
+                "**Project**\n"
+                "- `/project <path>` - Switch to a different project\n"
+                "- `/projects` - List recent projects\n\n"
                 "**Attachments**\n"
                 "- `/attach <path>` - Attach image file(s) to next message\n"
                 "- `/attachments` - List current attachments\n"
@@ -859,7 +865,8 @@ class InputPane(Vertical):
                 "**Search & Research**\n"
                 "- `/index <query>` - Search knowledge base\n"
                 "- `/search <query>` - Web search via SearXNG\n"
-                "- `/research <query>` - Deep research expedition (R3 methodology)\n\n"
+                "- `/research <query>` - Deep research expedition (R3 methodology)\n"
+                "- `/research-templates` - List research prompt templates\n\n"
                 "**Knowledge Management**\n"
                 "- `/axiom [category:] <statement>` - Create new axiom\n"
                 "- `/axioms [category] [--disputed]` - List axioms\n"
@@ -977,6 +984,34 @@ class InputPane(Vertical):
             await self._handle_maintenance_history(args, response_pane)
         elif cmd == "mileage":
             await self._handle_update_mileage(args, response_pane)
+        elif cmd == "delete":
+            if not args:
+                response_pane.add_system("Usage: `/delete <name or id>` - Delete a saved session")
+                self.notify("Missing session parameter", severity="warning")
+                return
+            await self._handle_delete_session(args.strip(), response_pane)
+        elif cmd == "tag":
+            if not args:
+                response_pane.add_system("Usage: `/tag <tag_name>` - Tag current session")
+                return
+            self._handle_tag_session(args.strip(), response_pane)
+        elif cmd == "untag":
+            if not args:
+                response_pane.add_system("Usage: `/untag <tag_name>` - Remove tag from session")
+                return
+            self._handle_untag_session(args.strip(), response_pane)
+        elif cmd == "project":
+            if not args:
+                response_pane.add_system(
+                    "Usage: `/project <path>` - Switch to a different project\n\n"
+                    "Example: `/project ~/projects/my-car`"
+                )
+                return
+            await self._handle_switch_project(args.strip(), response_pane)
+        elif cmd == "projects":
+            self._handle_list_projects(response_pane)
+        elif cmd in ("research-templates", "templates"):
+            self._handle_list_research_templates(response_pane)
         else:
             from rich.markup import escape
 
@@ -1001,11 +1036,14 @@ class InputPane(Vertical):
             model_type = router.current_model_type or "none"
             router_info = f"Active ({model_type} model)"
 
+        tags = ", ".join(session.tags) if session.tags else "none"
+
         response_pane.add_assistant(
             f"## Session Info\n\n"
             f"- **Title**: {title}\n"
             f"- **Messages**: {msg_count}\n"
             f"- **Created**: {created}\n"
+            f"- **Tags**: {tags}\n"
             f"- **Router**: {router_info}\n"
         )
 
@@ -1141,7 +1179,10 @@ class InputPane(Vertical):
             msg_count = len(session.messages)
             updated = session.updated_at.strftime("%Y-%m-%d %H:%M")
             short_id = session.id[:8]
-            lines.append(f"- **{title}** ({msg_count} msgs) - `{short_id}` - {updated}")
+            tag_str = f" [{', '.join(session.tags)}]" if session.tags else ""
+            lines.append(
+                f"- **{title}**{tag_str} ({msg_count} msgs) - `{short_id}` - {updated}"
+            )
 
         lines.append("\n\nUse `/load <name or id>` to load a session.")
         response_pane.add_assistant("\n".join(lines))
@@ -1156,6 +1197,215 @@ class InputPane(Vertical):
         except Exception:
             # Panel might not exist or not be visible
             pass
+
+    async def _handle_delete_session(self, name: str, response_pane) -> None:
+        """Handle /delete command — delete a saved session.
+
+        Uses exact ID, ID prefix (8+ chars), or exact title match for safety.
+        """
+        import json as _json
+
+        from ...core.session import Session
+
+        sessions_dir = self.state.get_sessions_dir()
+        if not sessions_dir.exists():
+            response_pane.add_system("No saved sessions found.")
+            return
+
+        matching_session = None
+        for session_file in sessions_dir.glob("*.json"):
+            if session_file.name == "last_session.json":
+                continue
+            try:
+                session = Session.load(session_file)
+                if (
+                    session.id == name
+                    or (session.id.startswith(name) and len(name) >= 8)
+                    or (session.title and session.title.lower() == name.lower())
+                ):
+                    matching_session = session
+                    break
+            except (ValueError, IOError):
+                continue
+
+        if matching_session is None:
+            response_pane.add_system(
+                f"Session not found: `{name}`\n\n"
+                "Use `/sessions` to list available sessions.\n"
+                "Requires exact title or ID prefix (8+ chars)."
+            )
+            return
+
+        title = matching_session.title or matching_session.id
+        session_id = matching_session.id
+
+        try:
+            Session.delete(session_id, sessions_dir)
+        except IOError as e:
+            response_pane.add_system(f"Failed to delete session: {e}")
+            return
+
+        # Remove last_session.json pointer if it points to deleted session
+        try:
+            pointer = sessions_dir / "last_session.json"
+            if pointer.exists():
+                pointer_data = _json.loads(pointer.read_text())
+                if pointer_data.get("session_id") == session_id:
+                    pointer.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+        # If deleted session is currently active, start a new one
+        if self.state.session is not None and self.state.session.id == session_id:
+            self.state.new_session()
+            response_pane.clear()
+
+        from rich.markup import escape as _escape
+
+        safe_title = _escape(title)
+        response_pane.add_system(f"Deleted session: **{safe_title}**\n\nID: `{session_id}`")
+        self.notify(f"Deleted: {safe_title}")
+        self._refresh_session_panel()
+
+    def _handle_tag_session(self, tag: str, response_pane) -> None:
+        """Handle /tag command — add tag to current session."""
+        session = self.state.session
+        if session is None:
+            response_pane.add_system("No active session.")
+            return
+        tag = tag.lower().strip()
+        if not tag or len(tag) > 50:
+            response_pane.add_system("Tag must be 1-50 characters.")
+            return
+        if tag in session.tags:
+            response_pane.add_system(f"Session already has tag: `{tag}`")
+            return
+        session.tags.append(tag)
+        session._dirty = True
+        response_pane.add_system(
+            f"Tagged session with: `{tag}`\n\nTags: {', '.join(session.tags)}"
+        )
+        self._refresh_session_panel()
+
+    def _handle_untag_session(self, tag: str, response_pane) -> None:
+        """Handle /untag command — remove tag from current session."""
+        session = self.state.session
+        if session is None:
+            response_pane.add_system("No active session.")
+            return
+        tag = tag.lower().strip()
+        if tag not in session.tags:
+            response_pane.add_system(
+                f"Tag not found: `{tag}`\n\n"
+                f"Current tags: {', '.join(session.tags) or 'none'}"
+            )
+            return
+        session.tags.remove(tag)
+        session._dirty = True
+        response_pane.add_system(
+            f"Removed tag: `{tag}`\n\nTags: {', '.join(session.tags) or 'none'}"
+        )
+        self._refresh_session_panel()
+
+    async def _handle_switch_project(self, path_str: str, response_pane) -> None:
+        """Handle /project command — switch to a different project path."""
+        from ...config import AppConfig, GlobalConfig
+        from ...core import R3LayState
+
+        new_path = Path(path_str).expanduser().resolve()
+        if not new_path.is_dir():
+            response_pane.add_system(f"Directory not found: `{new_path}`")
+            return
+
+        # Block system directories
+        _system_roots = {"/", "/etc", "/var", "/usr", "/bin", "/sbin", "/tmp",
+                         "/System", "/Library", "/private"}
+        if str(new_path) in _system_roots or str(new_path.parent) in _system_roots:
+            response_pane.add_system(
+                f"Cannot use system directory as project: `{new_path}`"
+            )
+            return
+
+        # Auto-save current session if dirty
+        if self.state.session is not None and self.state.session.has_unsaved_changes:
+            try:
+                sessions_dir = self.state.get_sessions_dir()
+                self.state.session.save(sessions_dir)
+                self.notify("Auto-saved current session")
+            except IOError:
+                pass
+
+        # Create new state, preserving loaded model/embedder
+        new_config = AppConfig.load(new_path)
+        new_state = R3LayState(project_path=new_path, _config=new_config)
+        new_state.current_backend = self.state.current_backend
+        new_state.current_model = self.state.current_model
+        new_state.scanner = self.state.scanner
+        new_state.available_models = self.state.available_models
+        new_state.text_embedder = self.state.text_embedder
+        new_state.vision_embedder = self.state.vision_embedder
+        new_state.model_roles = self.state.model_roles
+
+        self.state = new_state
+
+        # Add to recent projects
+        global_config = GlobalConfig.load()
+        global_config.add_project(str(new_path))
+
+        response_pane.clear()
+        response_pane.add_system(
+            f"Switched to project: **{new_path.name}**\n\nPath: `{new_path}`"
+        )
+        self.notify(f"Project: {new_path.name}")
+
+    def _handle_list_projects(self, response_pane) -> None:
+        """Handle /projects command — list recent projects."""
+        from ...config import GlobalConfig
+
+        global_config = GlobalConfig.load()
+        if not global_config.recent_projects:
+            response_pane.add_system(
+                "No recent projects.\n\nUse `/project <path>` to switch projects."
+            )
+            return
+
+        lines = ["## Recent Projects\n"]
+        current = str(self.state.project_path.resolve())
+        for p in global_config.recent_projects:
+            marker = " **(current)**" if p == current else ""
+            name = Path(p).name
+            lines.append(f"- **{name}**{marker} — `{p}`")
+        lines.append("\n\nUse `/project <path>` to switch.")
+        response_pane.add_assistant("\n".join(lines))
+
+    def _handle_list_research_templates(self, response_pane) -> None:
+        """Handle /research-templates command — list template override status."""
+        prompts_dir = self.state.project_path / ".r3lay" / "prompts"
+
+        template_names = [
+            "query_gen_initial",
+            "query_gen_followup",
+            "query_gen_resolution",
+            "axiom_extraction",
+            "contradiction_resolution",
+            "synthesis_report",
+        ]
+
+        lines = ["## Research Templates\n"]
+        lines.append(f"Override directory: `{prompts_dir}`\n")
+
+        for name in template_names:
+            override_path = prompts_dir / f"{name}.txt"
+            if override_path.is_file():
+                lines.append(f"- **{name}** — custom (`{override_path.name}`)")
+            else:
+                lines.append(f"- **{name}** — built-in")
+
+        lines.append(
+            "\n\nTo customize, create `.r3lay/prompts/<name>.txt` with your template.\n"
+            "Use Python `str.format()` placeholders (e.g. `{query}`, `{content}`)."
+        )
+        response_pane.add_assistant("\n".join(lines))
 
     def _handle_attach(self, path_str: str, response_pane) -> None:
         """Handle /attach command - attach image file(s).

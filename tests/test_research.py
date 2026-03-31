@@ -723,3 +723,75 @@ class TestParseAxiomsSources:
         assert len(result) == 2
         assert result[0]["source_indices"] == [0, 1]
         assert result[1]["source_indices"] == [2]
+
+
+# =============================================================================
+# Template Loading Tests
+# =============================================================================
+
+
+class TestResearchTemplates:
+    """Tests for research template override loading."""
+
+    def _make_orchestrator(self, tmp_path):
+        """Create a minimal ResearchOrchestrator for testing."""
+        backend = MagicMock()
+        backend.backend_source = "test"
+        index = MagicMock()
+        search = MagicMock()
+        signals = MagicMock()
+        axioms = MagicMock()
+        return ResearchOrchestrator(
+            project_path=tmp_path,
+            backend=backend,
+            index=index,
+            search=search,
+            signals=signals,
+            axioms=axioms,
+        )
+
+    def test_default_templates_loaded(self, tmp_path):
+        """Test all 6 default templates are loaded."""
+        orch = self._make_orchestrator(tmp_path)
+        expected = {
+            "query_gen_initial",
+            "query_gen_followup",
+            "query_gen_resolution",
+            "axiom_extraction",
+            "contradiction_resolution",
+            "synthesis_report",
+        }
+        assert set(orch._templates.keys()) == expected
+
+    def test_custom_template_override(self, tmp_path):
+        """Test a custom template file overrides the default."""
+        prompts_dir = tmp_path / ".r3lay" / "prompts"
+        prompts_dir.mkdir(parents=True)
+        (prompts_dir / "synthesis_report.txt").write_text("Custom: {query}")
+
+        orch = self._make_orchestrator(tmp_path)
+        assert orch._templates["synthesis_report"] == "Custom: {query}"
+        assert "Custom" not in orch._templates["query_gen_initial"]
+
+    def test_empty_override_uses_default(self, tmp_path):
+        """Test empty override file falls back to default."""
+        prompts_dir = tmp_path / ".r3lay" / "prompts"
+        prompts_dir.mkdir(parents=True)
+        (prompts_dir / "synthesis_report.txt").write_text("")
+
+        orch = self._make_orchestrator(tmp_path)
+        assert len(orch._templates["synthesis_report"]) > 10
+
+    def test_get_template_info(self, tmp_path):
+        """Test get_template_info returns correct override status."""
+        prompts_dir = tmp_path / ".r3lay" / "prompts"
+        prompts_dir.mkdir(parents=True)
+        (prompts_dir / "axiom_extraction.txt").write_text("Custom extraction")
+
+        orch = self._make_orchestrator(tmp_path)
+        info = orch.get_template_info()
+        assert len(info) == 6
+
+        names = {i["name"]: i["source"] for i in info}
+        assert names["axiom_extraction"] != "built-in"
+        assert names["synthesis_report"] == "built-in"

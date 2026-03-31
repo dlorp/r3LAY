@@ -1027,3 +1027,106 @@ class TestSessionDirtyTracking:
         }
         with pytest.raises(ValueError, match="Invalid session ID format"):
             Session.from_dict(data)
+
+
+# =============================================================================
+# Session Tags Tests
+# =============================================================================
+
+
+class TestSessionTags:
+    """Tests for session tags field and serialization."""
+
+    def test_default_tags_empty(self):
+        """Test new session has empty tags."""
+        session = Session()
+        assert session.tags == []
+
+    def test_add_tag(self):
+        """Test adding tags to a session."""
+        session = Session()
+        session.tags.append("research")
+        session.tags.append("subaru")
+        assert session.tags == ["research", "subaru"]
+
+    def test_tags_serialization_roundtrip(self, tmp_path: Path):
+        """Test tags survive save/load roundtrip."""
+        session = Session()
+        session.add_user_message("Hello")
+        session.tags = ["research", "ej25"]
+        session.save(tmp_path)
+
+        loaded = Session.load(tmp_path / f"{session.id}.json")
+        assert loaded.tags == ["research", "ej25"]
+
+    def test_tags_in_to_dict(self):
+        """Test tags are included in to_dict output."""
+        session = Session()
+        session.tags = ["test"]
+        data = session.to_dict()
+        assert "tags" in data
+        assert data["tags"] == ["test"]
+
+    def test_from_dict_missing_tags_defaults_empty(self):
+        """Test from_dict handles missing tags field gracefully."""
+        data = {
+            "id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            "messages": [],
+            "created_at": "2026-01-01T00:00:00",
+            "updated_at": "2026-01-01T00:00:00",
+        }
+        session = Session.from_dict(data)
+        assert session.tags == []
+
+    def test_tags_mark_dirty(self):
+        """Test modifying tags and marking session dirty."""
+        session = Session()
+        session.tags.append("research")
+        session._dirty = True
+        assert session.has_unsaved_changes is False  # No messages yet
+        session.add_user_message("Hello")
+        assert session.has_unsaved_changes is True
+
+
+# =============================================================================
+# Session Deletion Tests
+# =============================================================================
+
+
+class TestSessionDeletion:
+    """Tests for Session.delete() classmethod."""
+
+    def test_delete_existing_session(self, tmp_path: Path):
+        """Test deleting an existing session file."""
+        session = Session()
+        session.add_user_message("Hello")
+        session.save(tmp_path)
+
+        assert (tmp_path / f"{session.id}.json").exists()
+        result = Session.delete(session.id, tmp_path)
+        assert result is True
+        assert not (tmp_path / f"{session.id}.json").exists()
+
+    def test_delete_nonexistent_session(self, tmp_path: Path):
+        """Test deleting a session that doesn't exist."""
+        result = Session.delete("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", tmp_path)
+        assert result is False
+
+    def test_delete_rejects_non_uuid(self, tmp_path: Path):
+        """Test delete() rejects non-UUID session IDs (path traversal prevention)."""
+        with pytest.raises(ValueError, match="Invalid session ID format"):
+            Session.delete("../../etc/passwd", tmp_path)
+
+    def test_delete_does_not_affect_other_sessions(self, tmp_path: Path):
+        """Test that deleting one session doesn't affect others."""
+        s1 = Session()
+        s1.add_user_message("First")
+        s1.save(tmp_path)
+
+        s2 = Session()
+        s2.add_user_message("Second")
+        s2.save(tmp_path)
+
+        Session.delete(s1.id, tmp_path)
+        assert not (tmp_path / f"{s1.id}.json").exists()
+        assert (tmp_path / f"{s2.id}.json").exists()
