@@ -30,10 +30,17 @@ from .search import SearchError, SearXNGClient
 from .signals import SignalsManager, SignalType
 
 if TYPE_CHECKING:
-    from ..core.backends.base import InferenceBackend
+    from ..config import AppConfig
+    from .backends.base import InferenceBackend
     from .index import HybridIndex
+    from .vault import KnowledgeVault
 
 logger = logging.getLogger(__name__)
+
+
+def _yaml_escape(value: str) -> str:
+    """Escape a string for safe embedding in YAML double-quoted scalars."""
+    return value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\r", "")
 
 
 # =============================================================================
@@ -714,6 +721,8 @@ class ResearchOrchestrator:
         axioms: AxiomManager,
         min_cycles: int = 2,
         max_cycles: int = 10,
+        vault: "KnowledgeVault | None" = None,
+        config: "AppConfig | None" = None,
     ):
         """
         Initialize the research orchestrator.
@@ -727,6 +736,8 @@ class ResearchOrchestrator:
             axioms: AxiomManager for validated knowledge
             min_cycles: Minimum exploration cycles
             max_cycles: Maximum total cycles
+            vault: Knowledge vault for auto-committing findings (optional)
+            config: App config for vault write permissions (optional)
         """
         self.project_path = project_path
         self.research_path = project_path / "research"
@@ -737,6 +748,8 @@ class ResearchOrchestrator:
         self.search = search
         self.signals = signals
         self.axioms = axioms
+        self._vault = vault
+        self._config = config
 
         self.convergence = ConvergenceDetector(
             min_cycles=min_cycles,
@@ -761,6 +774,8 @@ class ResearchOrchestrator:
         search: SearXNGClient,
         signals: SignalsManager,
         axioms: AxiomManager,
+        vault: "KnowledgeVault | None" = None,
+        config: "AppConfig | None" = None,
     ) -> None:
         """Sync mutable references that may have changed since creation.
 
@@ -772,6 +787,8 @@ class ResearchOrchestrator:
         self.search = search
         self.signals = signals
         self.axioms = axioms
+        self._vault = vault
+        self._config = config
         # Cascade to nested objects
         self.contradiction_detector.backend = backend
         self.contradiction_detector._judge.backend = backend
@@ -960,6 +977,9 @@ class ResearchOrchestrator:
                 expedition.final_report = report
                 expedition.status = ExpeditionStatus.COMPLETED
                 expedition.completed_at = datetime.now().isoformat()
+
+                # Write findings to vault (non-blocking, errors logged)
+                await self._write_to_vault(expedition)
 
                 yield ResearchEvent(
                     type="completed",
@@ -1501,6 +1521,82 @@ The following contradictions require manual review:
                 logger.warning(f"LLM attempt {attempt + 1} failed: {e}")
                 await asyncio.sleep(1)
         return ""
+
+    async def _write_to_vault(self, expedition: Expedition) -> None:
+        """Write expedition findings to the knowledge vault if permitted.
+
+        Generates a markdown file with YAML frontmatter and auto-commits.
+        All errors are caught and logged — vault write failure never
+        crashes the research pipeline.
+        """
+        if self._vault is None or self._config is None:
+            return
+        try:
+            if not await self._vault.is_git_repo():
+                logger.debug("Vault is not a git repo, skipping vault write")
+                return
+
+            backend_source = self.backend.backend_source
+            if not self._vault.can_write(backend_source, self._config):
+                logger.info(
+                    "Backend %s not in vault_write_backends, skipping vault write",
+                    backend_source,
+                )
+                return
+
+            # Sanitize query for safe YAML embedding
+            safe_query = _yaml_escape(expedition.query)
+            safe_title = _yaml_escape(expedition.query[:80])
+
+            # Build markdown with YAML frontmatter
+            lines = [
+                "---",
+                f'title: "Research: {safe_title}"',
+                f"expedition_id: {expedition.id}",
+                f"date: {expedition.completed_at or expedition.created_at}",
+                f'query: "{safe_query}"',
+                f"backend: {backend_source}",
+                f"axiom_count: {len(expedition.axiom_ids)}",
+                f"source_count: {len(expedition.signal_ids)}",
+                f"status: {expedition.status.value}",
+                "---",
+                "",
+            ]
+
+            # Expedition report body
+            if expedition.final_report:
+                lines.append(expedition.final_report)
+                lines.append("")
+
+            # Extracted axioms section
+            if expedition.axiom_ids:
+                lines.append("## Extracted Axioms")
+                lines.append("")
+                for aid in expedition.axiom_ids:
+                    ax = self.axioms.get(aid)
+                    if ax:
+                        conf = int(ax.confidence * 100)
+                        lines.append(f"- **[{ax.category}]** {ax.statement} ({conf}%)")
+                lines.append("")
+
+            content = "\n".join(lines)
+            rel_path = f"research/{expedition.id}.md"
+
+            ok, msg = await self._vault.write_file(rel_path, content)
+            if not ok:
+                logger.warning("Vault write failed: %s", msg)
+                return
+
+            safe_commit = expedition.query[:80].replace("\n", " ").replace("\r", "")
+            ok, msg = await self._vault.commit(f"research: {safe_commit}")
+            if ok:
+                logger.info("Committed research to vault: %s", rel_path)
+            else:
+                logger.warning("Vault commit failed: %s", msg)
+
+        except Exception as exc:
+            logger.warning("Vault write failed for expedition %s: %s", expedition.id, exc)
+            logger.debug("Vault write error details:", exc_info=True)
 
     async def _save(self, expedition: Expedition) -> Path:
         """Save expedition results to disk.

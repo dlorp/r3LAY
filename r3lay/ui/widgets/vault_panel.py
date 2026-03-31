@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING
 
@@ -64,6 +65,9 @@ class VaultPanel(Vertical):
         super().__init__()
         self.state = state
         self._selected_hash: str | None = None
+        self._revert_confirm: bool = False
+        self._revert_confirm_hash: str | None = None
+        self._revert_reset_timer: asyncio.Task | None = None
 
     def compose(self) -> ComposeResult:
         # Status section
@@ -107,6 +111,11 @@ class VaultPanel(Vertical):
         if row_data:
             self._selected_hash = str(row_data[0])
 
+    def on_unmount(self) -> None:
+        """Cancel any pending timers to prevent memory leaks."""
+        if self._revert_reset_timer and not self._revert_reset_timer.done():
+            self._revert_reset_timer.cancel()
+
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         """Track highlighted commit hash for keyboard navigation."""
         table = self.query_one("#vault-log", DataTable)
@@ -114,7 +123,11 @@ class VaultPanel(Vertical):
         try:
             row_data = table.get_row(row_key)
             if row_data:
-                self._selected_hash = str(row_data[0])
+                new_hash = str(row_data[0])
+                # Reset revert confirmation if selection changes
+                if new_hash != self._selected_hash and self._revert_confirm:
+                    self._reset_revert_confirm()
+                self._selected_hash = new_hash
         except (KeyError, IndexError):
             pass  # Row may have been cleared during refresh
 
@@ -203,24 +216,59 @@ class VaultPanel(Vertical):
         await self._refresh_all()
 
     async def _do_revert(self) -> None:
-        """Revert the selected commit (requires vault write permission)."""
-        vault = self.state.init_vault()
+        """Revert the selected commit with two-click confirmation."""
         msg_widget = self.query_one("#vault-message", Static)
-
-        if vault is None:
-            msg_widget.update("No vault configured")
-            return
 
         if not self._selected_hash:
             msg_widget.update("Select a commit to revert")
             self.notify("Select a commit first", severity="warning")
             return
 
-        commit_hash = self._selected_hash
+        try:
+            revert_btn = self.query_one("#vault-revert", Button)
+        except Exception:
+            revert_btn = None
 
-        # Show diff stat as preview
-        diff = await vault.diff_stat(commit_hash)
-        msg_widget.update(f"Reverting {commit_hash}...\n{diff}")
+        if not self._revert_confirm:
+            # First click — show confirmation with diff preview
+            vault = self.state.init_vault()
+            if vault is None:
+                msg_widget.update("No vault configured")
+                return
+
+            diff = await vault.diff_stat(self._selected_hash)
+            msg_widget.update(f"Preview:\n{diff}")
+            if revert_btn:
+                revert_btn.label = f"Confirm revert {self._selected_hash}?"
+            self._revert_confirm = True
+            self._revert_confirm_hash = self._selected_hash
+
+            # Auto-reset after 5 seconds
+            async def reset_revert() -> None:
+                await asyncio.sleep(5)
+                if self._revert_confirm:
+                    self._reset_revert_confirm()
+
+            if self._revert_reset_timer and not self._revert_reset_timer.done():
+                self._revert_reset_timer.cancel()
+            self._revert_reset_timer = asyncio.create_task(reset_revert())
+            return
+
+        # Second click — actually revert
+        # Verify selection hasn't drifted since first click
+        if self._selected_hash != self._revert_confirm_hash:
+            msg_widget.update("Selection changed — revert cancelled")
+            self._reset_revert_confirm()
+            return
+
+        vault = self.state.init_vault()
+        if vault is None:
+            msg_widget.update("No vault configured")
+            self._reset_revert_confirm()
+            return
+
+        commit_hash = self._selected_hash
+        msg_widget.update(f"Reverting {commit_hash}...")
 
         success, message = await vault.revert(commit_hash)
 
@@ -231,7 +279,19 @@ class VaultPanel(Vertical):
             msg_widget.update(f"Revert failed: {message}")
             self.notify(f"Revert failed: {message}", severity="error")
 
+        self._reset_revert_confirm()
         await self._refresh_all()
+
+    def _reset_revert_confirm(self) -> None:
+        """Reset the revert confirmation state."""
+        self._revert_confirm = False
+        if self._revert_reset_timer and not self._revert_reset_timer.done():
+            self._revert_reset_timer.cancel()
+        try:
+            revert_btn = self.query_one("#vault-revert", Button)
+            revert_btn.label = "Revert Selected"
+        except Exception:
+            pass
 
 
 __all__ = ["VaultPanel"]

@@ -24,6 +24,7 @@ from r3lay.core.research import (
     ExpeditionStatus,
     ResearchCycle,
     ResearchEvent,
+    ResearchOrchestrator,
 )
 
 # =============================================================================
@@ -307,9 +308,11 @@ class TestContradictionDetector:
     async def test_check_finding_uses_judge_when_backend_available(self):
         """Test that check_finding delegates to judge when backend is loaded."""
         mock_axiom_manager = MagicMock()
-        mock_axiom_manager.search_semantic = AsyncMock(return_value=[
-            MagicMock(id="ax_001", statement="Oil change every 5000 miles"),
-        ])
+        mock_axiom_manager.search_semantic = AsyncMock(
+            return_value=[
+                MagicMock(id="ax_001", statement="Oil change every 5000 miles"),
+            ]
+        )
 
         async def _stream(tokens):
             for t in tokens:
@@ -345,9 +348,11 @@ class TestContradictionDetector:
     async def test_check_finding_judge_no_contradiction(self):
         """Judge finds no contradiction — returns empty list."""
         mock_axiom_manager = MagicMock()
-        mock_axiom_manager.search_semantic = AsyncMock(return_value=[
-            MagicMock(id="ax_001", statement="Oil change every 5000 miles"),
-        ])
+        mock_axiom_manager.search_semantic = AsyncMock(
+            return_value=[
+                MagicMock(id="ax_001", statement="Oil change every 5000 miles"),
+            ]
+        )
 
         async def _stream(tokens):
             for t in tokens:
@@ -497,3 +502,143 @@ class TestContradictionDetector:
 
         assert isinstance(queries, list)
         assert len(queries) > 0
+
+
+# =============================================================================
+# _write_to_vault tests
+# =============================================================================
+
+
+class TestWriteToVault:
+    """Tests for ResearchOrchestrator._write_to_vault."""
+
+    @pytest.fixture
+    def tmp_project(self, tmp_path):
+        return tmp_path
+
+    def _make_orchestrator(self, project_path, vault=None, config=None, backend_source="openclaw"):
+        mock_backend = MagicMock()
+        mock_backend.is_loaded = True
+        mock_backend.backend_source = backend_source
+        mock_axioms = MagicMock()
+        mock_axioms.get.return_value = MagicMock(
+            statement="Timing belt interval 105k",
+            category="specifications",
+            confidence=0.9,
+        )
+        return ResearchOrchestrator(
+            project_path=project_path,
+            backend=mock_backend,
+            index=None,
+            search=MagicMock(),
+            signals=MagicMock(),
+            axioms=mock_axioms,
+            vault=vault,
+            config=config,
+        )
+
+    def _make_expedition(self):
+        return Expedition(
+            id="expedition_test123",
+            query="EJ25 timing belt interval",
+            status=ExpeditionStatus.COMPLETED,
+            cycles=[],
+            axiom_ids=["axiom_001"],
+            signal_ids=["sig_001"],
+            contradictions=[],
+            final_report="# Test Report\n\nFindings here.",
+            created_at="2026-03-30T12:00:00",
+            completed_at="2026-03-30T12:30:00",
+        )
+
+    @pytest.mark.asyncio
+    async def test_skips_when_no_vault(self, tmp_project):
+        orch = self._make_orchestrator(tmp_project, vault=None)
+        await orch._write_to_vault(self._make_expedition())
+
+    @pytest.mark.asyncio
+    async def test_skips_when_not_git_repo(self, tmp_project):
+        mock_vault = MagicMock()
+        mock_vault.is_git_repo = AsyncMock(return_value=False)
+        orch = self._make_orchestrator(tmp_project, vault=mock_vault, config=MagicMock())
+        await orch._write_to_vault(self._make_expedition())
+        mock_vault.write_file.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_skips_when_backend_not_permitted(self, tmp_project):
+        mock_vault = MagicMock()
+        mock_vault.is_git_repo = AsyncMock(return_value=True)
+        mock_vault.can_write.return_value = False
+        orch = self._make_orchestrator(
+            tmp_project, vault=mock_vault, config=MagicMock(), backend_source="mlx"
+        )
+        await orch._write_to_vault(self._make_expedition())
+        mock_vault.write_file.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_writes_markdown_and_commits(self, tmp_project):
+        mock_vault = MagicMock()
+        mock_vault.is_git_repo = AsyncMock(return_value=True)
+        mock_vault.can_write.return_value = True
+        mock_vault.write_file = AsyncMock(return_value=(True, "/vault/exp.md"))
+        mock_vault.commit = AsyncMock(return_value=(True, "committed"))
+        orch = self._make_orchestrator(tmp_project, vault=mock_vault, config=MagicMock())
+        await orch._write_to_vault(self._make_expedition())
+
+        mock_vault.write_file.assert_called_once()
+        content = mock_vault.write_file.call_args[0][1]
+        assert "---" in content
+        assert "EJ25 timing belt" in content
+        assert "Test Report" in content
+        mock_vault.commit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_skips_when_no_config(self, tmp_project):
+        mock_vault = MagicMock()
+        orch = self._make_orchestrator(tmp_project, vault=mock_vault, config=None)
+        await orch._write_to_vault(self._make_expedition())
+        mock_vault.is_git_repo.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_write_failure_skips_commit(self, tmp_project):
+        mock_vault = MagicMock()
+        mock_vault.is_git_repo = AsyncMock(return_value=True)
+        mock_vault.can_write.return_value = True
+        mock_vault.write_file = AsyncMock(return_value=(False, "disk full"))
+        mock_vault.commit = AsyncMock(return_value=(True, "committed"))
+        orch = self._make_orchestrator(tmp_project, vault=mock_vault, config=MagicMock())
+        await orch._write_to_vault(self._make_expedition())
+        mock_vault.commit.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_writes_empty_expedition(self, tmp_project):
+        """Expedition with no report or axioms still writes valid frontmatter."""
+        mock_vault = MagicMock()
+        mock_vault.is_git_repo = AsyncMock(return_value=True)
+        mock_vault.can_write.return_value = True
+        mock_vault.write_file = AsyncMock(return_value=(True, "/vault/exp.md"))
+        mock_vault.commit = AsyncMock(return_value=(True, "committed"))
+        orch = self._make_orchestrator(tmp_project, vault=mock_vault, config=MagicMock())
+        empty_exp = Expedition(
+            id="expedition_empty",
+            query="Empty test",
+            status=ExpeditionStatus.COMPLETED,
+            cycles=[],
+            axiom_ids=[],
+            signal_ids=[],
+            contradictions=[],
+            final_report=None,
+            created_at="2026-03-30T12:00:00",
+            completed_at="2026-03-30T12:30:00",
+        )
+        await orch._write_to_vault(empty_exp)
+        content = mock_vault.write_file.call_args[0][1]
+        assert "---" in content
+        assert "## Extracted Axioms" not in content
+
+    @pytest.mark.asyncio
+    async def test_catches_exceptions_gracefully(self, tmp_project):
+        mock_vault = MagicMock()
+        mock_vault.is_git_repo = AsyncMock(side_effect=RuntimeError("git broken"))
+        orch = self._make_orchestrator(tmp_project, vault=mock_vault, config=MagicMock())
+        await orch._write_to_vault(self._make_expedition())
