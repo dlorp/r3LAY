@@ -18,6 +18,7 @@ conclusions when new evidence demands it.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from dataclasses import dataclass, field
@@ -215,8 +216,9 @@ MAX_CITATION_CONFIDENCE: float = 0.99  # Ceiling for confidence
 # Cosine similarity threshold for semantic conflict detection
 SEMANTIC_CONFLICT_THRESHOLD: float = 0.55
 
-# Filename for persisted axiom embeddings
+# Filenames for persisted axiom embeddings
 EMBEDDING_FILE: str = "axiom_embeddings.npz"
+EMBEDDING_META_FILE: str = "axiom_embedding_meta.json"
 
 
 # ============================================================================
@@ -346,6 +348,8 @@ class AxiomManager:
         self._embedder: EmbeddingBackend | None = None
         self._embeddings: dict[str, np.ndarray] = {}
         self._embeddings_file = self.axioms_path / EMBEDDING_FILE
+        self._embedding_meta_file = self.axioms_path / EMBEDDING_META_FILE
+        self._cached_embedding_meta: dict[str, Any] | None = None
         self._load_embeddings()
 
     def _load(self) -> None:
@@ -415,6 +419,23 @@ class AxiomManager:
             embedder: Text embedding backend, or None to detach.
         """
         self._embedder = embedder
+        if embedder is not None and self._embeddings and self._cached_embedding_meta:
+            cached_name = self._cached_embedding_meta.get("model_name")
+            cached_dim = self._cached_embedding_meta.get("dimension")
+            if (cached_name and cached_name != embedder.model_name) or (
+                cached_dim and cached_dim != embedder.dimension
+            ):
+                logger.warning(
+                    "Embedding model changed (%s -> %s), discarding stale cache",
+                    cached_name,
+                    embedder.model_name,
+                )
+                self._embeddings.clear()
+                if self._embeddings_file.exists():
+                    self._embeddings_file.unlink()
+                if self._embedding_meta_file.exists():
+                    self._embedding_meta_file.unlink()
+                self._cached_embedding_meta = None
 
     def _load_embeddings(self) -> None:
         """Load cached axiom embeddings from disk, pruning stale entries."""
@@ -442,13 +463,32 @@ class AxiomManager:
         except Exception as e:
             logger.warning(f"Failed to load axiom embeddings: {e}")
 
+        # Load embedding metadata (model name, dimension)
+        if self._embedding_meta_file.exists():
+            try:
+                self._cached_embedding_meta = json.loads(
+                    self._embedding_meta_file.read_text(encoding="utf-8")
+                )
+            except Exception:
+                self._cached_embedding_meta = None
+
     def _save_embeddings(self) -> None:
-        """Persist axiom embedding cache to disk."""
+        """Persist axiom embedding cache and model metadata to disk."""
         try:
             if self._embeddings:
                 np.savez_compressed(self._embeddings_file, **self._embeddings)
+                # Write model metadata alongside embeddings
+                if self._embedder is not None and self._embedder.is_loaded:
+                    meta = {
+                        "model_name": str(self._embedder.model_name),
+                        "dimension": int(self._embedder.dimension),
+                    }
+                    self._embedding_meta_file.write_text(json.dumps(meta), encoding="utf-8")
+                    self._cached_embedding_meta = meta
             elif self._embeddings_file.exists():
                 self._embeddings_file.unlink()
+                if self._embedding_meta_file.exists():
+                    self._embedding_meta_file.unlink()
         except Exception as e:
             logger.warning(f"Failed to save axiom embeddings: {e}")
 

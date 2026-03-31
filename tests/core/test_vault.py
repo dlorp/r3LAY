@@ -289,3 +289,107 @@ class TestVaultConfig:
     def test_config_default_write_backends(self) -> None:
         config = AppConfig()
         assert config.vault_write_backends == ["openclaw"]
+
+
+# ---------------------------------------------------------------------------
+# write_file() tests
+# ---------------------------------------------------------------------------
+
+
+class TestVaultWriteFile:
+    """Tests for KnowledgeVault.write_file() path validation and writing."""
+
+    @pytest.mark.asyncio
+    async def test_write_file_creates_directories(self, tmp_path: Path) -> None:
+        vault_dir = tmp_path / "vault"
+        vault_dir.mkdir()
+        vault = KnowledgeVault(vault_dir)
+
+        ok, msg = await vault.write_file("research/exp_001.md", "# Test")
+        assert ok is True
+        assert (vault_dir / "research" / "exp_001.md").exists()
+        assert (vault_dir / "research" / "exp_001.md").read_text() == "# Test"
+
+    @pytest.mark.asyncio
+    async def test_write_file_rejects_path_traversal(self, tmp_path: Path) -> None:
+        vault = KnowledgeVault(tmp_path)
+
+        ok, msg = await vault.write_file("../escape.md", "bad")
+        assert ok is False
+        assert "escapes" in msg.lower() or "traversal" in msg.lower()
+
+    @pytest.mark.asyncio
+    async def test_write_file_rejects_absolute_path(self, tmp_path: Path) -> None:
+        vault = KnowledgeVault(tmp_path)
+
+        ok, msg = await vault.write_file("/etc/passwd", "bad")
+        assert ok is False
+        assert "Absolute" in msg
+
+    @pytest.mark.asyncio
+    async def test_write_file_rejects_null_bytes(self, tmp_path: Path) -> None:
+        vault = KnowledgeVault(tmp_path)
+
+        ok, msg = await vault.write_file("test\x00.md", "bad")
+        assert ok is False
+
+    @pytest.mark.asyncio
+    async def test_write_file_rejects_empty_path(self, tmp_path: Path) -> None:
+        vault = KnowledgeVault(tmp_path)
+
+        ok, msg = await vault.write_file("", "content")
+        assert ok is False
+
+
+# ---------------------------------------------------------------------------
+# asyncio.Lock tests
+# ---------------------------------------------------------------------------
+
+
+class TestVaultGitLock:
+    """Tests for asyncio.Lock on KnowledgeVault."""
+
+    def test_lock_attribute_exists(self, tmp_path: Path) -> None:
+        import asyncio
+
+        vault = KnowledgeVault(tmp_path)
+        assert hasattr(vault, "_git_lock")
+        assert isinstance(vault._git_lock, asyncio.Lock)
+
+
+# ---------------------------------------------------------------------------
+# backend_source tests
+# ---------------------------------------------------------------------------
+
+
+class TestBackendSource:
+    """Tests for InferenceBackend.backend_source property."""
+
+    def test_backend_source_unknown_class(self) -> None:
+        """Unknown backend class returns 'unknown'."""
+        from r3lay.core.backends.base import InferenceBackend
+
+        class FakeBackend(InferenceBackend):
+            @property
+            def model_name(self) -> str:
+                return "fake"
+
+            @property
+            def is_loaded(self) -> bool:
+                return False
+
+            async def load(self) -> None:
+                pass
+
+            async def unload(self) -> None:
+                pass
+
+            async def generate_stream(self, messages, **kwargs):
+                yield ""
+
+            @classmethod
+            async def is_available(cls) -> bool:
+                return False
+
+        backend = FakeBackend()
+        assert backend.backend_source == "unknown"

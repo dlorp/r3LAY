@@ -113,6 +113,19 @@ class InferenceBackend(ABC):
         except (TypeError, ValueError):
             return default
 
+    _BACKEND_SOURCE_MAP: dict[str, str] = {
+        "MLXBackend": "mlx",
+        "LlamaCppBackend": "llama_cpp",
+        "VLLMBackend": "vllm",
+        "OllamaBackend": "ollama",
+        "OpenClawBackend": "openclaw",
+    }
+
+    @property
+    def backend_source(self) -> str:
+        """Backend identifier string for vault write permission checks."""
+        return self._BACKEND_SOURCE_MAP.get(type(self).__name__, "unknown")
+
     @classmethod
     @abstractmethod
     async def is_available(cls) -> bool:

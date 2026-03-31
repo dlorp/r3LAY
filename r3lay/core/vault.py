@@ -44,6 +44,7 @@ class KnowledgeVault:
     def __init__(self, path: Path) -> None:
         self.path = path.resolve()
         self._last_pull: datetime | None = None
+        self._git_lock = asyncio.Lock()
 
     # ------------------------------------------------------------------
     # Git helpers
@@ -68,8 +69,8 @@ class KnowledgeVault:
             proc.kill()
             await proc.wait()
             return 1, "", "git command timed out after 30s"
-        stdout = stdout_bytes.decode().strip() if stdout_bytes else ""
-        stderr = stderr_bytes.decode().strip() if stderr_bytes else ""
+        stdout = stdout_bytes.decode(errors="replace").strip() if stdout_bytes else ""
+        stderr = stderr_bytes.decode(errors="replace").strip() if stderr_bytes else ""
         return proc.returncode if proc.returncode is not None else 1, stdout, stderr
 
     # ------------------------------------------------------------------
@@ -89,20 +90,21 @@ class KnowledgeVault:
         Returns:
             True if initialization succeeded or repo already exists.
         """
-        if await self.is_git_repo():
+        async with self._git_lock:
+            if await self.is_git_repo():
+                return True
+            self.path.mkdir(parents=True, exist_ok=True)
+            code, _, stderr = await self._run_git("init")
+            if code != 0:
+                logger.error("git init failed: %s", stderr)
+                return False
+
+            # Ensure git user config exists (required for commit on CI/fresh systems)
+            await self._run_git("config", "user.email", "r3lay@local")
+            await self._run_git("config", "user.name", "r3LAY")
+
+            logger.info("Initialized git repo in vault: %s", self.path)
             return True
-        self.path.mkdir(parents=True, exist_ok=True)
-        code, _, stderr = await self._run_git("init")
-        if code != 0:
-            logger.error("git init failed: %s", stderr)
-            return False
-
-        # Ensure git user config exists (required for commit on CI/fresh systems)
-        await self._run_git("config", "user.email", "r3lay@local")
-        await self._run_git("config", "user.name", "r3LAY")
-
-        logger.info("Initialized git repo in vault: %s", self.path)
-        return True
 
     async def status(self) -> dict[str, Any]:
         """Get vault status summary.
@@ -145,19 +147,20 @@ class KnowledgeVault:
         Returns:
             Tuple of (success, message).
         """
-        if not await self.is_git_repo():
-            return False, "Not a git repository"
+        async with self._git_lock:
+            if not await self.is_git_repo():
+                return False, "Not a git repository"
 
-        code, stdout, stderr = await self._run_git("pull", "--ff-only")
+            code, stdout, stderr = await self._run_git("pull", "--ff-only")
 
-        if code != 0:
-            msg = stderr or stdout or "Pull failed"
-            logger.warning("vault pull failed: %s", msg)
-            return False, msg
+            if code != 0:
+                msg = stderr or stdout or "Pull failed"
+                logger.warning("vault pull failed: %s", msg)
+                return False, msg
 
-        self._last_pull = datetime.now()
-        logger.info("vault pull: %s", stdout or "Already up to date")
-        return True, stdout or "Already up to date"
+            self._last_pull = datetime.now()
+            logger.info("vault pull: %s", stdout or "Already up to date")
+            return True, stdout or "Already up to date"
 
     async def commit(self, message: str) -> tuple[bool, str]:
         """Stage all changes and commit.
@@ -172,26 +175,64 @@ class KnowledgeVault:
         if not message or len(message) > 4096:
             return False, "Commit message must be 1-4096 characters"
 
-        if not await self.is_git_repo():
-            return False, "Not a git repository"
+        async with self._git_lock:
+            if not await self.is_git_repo():
+                return False, "Not a git repository"
 
-        # Stage everything
-        code, _, stderr = await self._run_git("add", "-A")
-        if code != 0:
-            return False, f"git add failed: {stderr}"
+            # Stage everything
+            code, _, stderr = await self._run_git("add", "-A")
+            if code != 0:
+                return False, f"git add failed: {stderr}"
 
-        # Check if there's anything to commit
-        code, status_out, _ = await self._run_git("status", "--porcelain")
-        if code == 0 and status_out == "":
-            return True, "Nothing to commit"
+            # Check if there's anything to commit
+            code, status_out, _ = await self._run_git("status", "--porcelain")
+            if code == 0 and status_out == "":
+                return True, "Nothing to commit"
 
-        # Commit
-        code, stdout, stderr = await self._run_git("commit", "-m", message)
-        if code != 0:
-            return False, f"git commit failed: {stderr}"
+            # Commit
+            code, stdout, stderr = await self._run_git("commit", "-m", message)
+            if code != 0:
+                return False, f"git commit failed: {stderr}"
 
-        logger.info("vault commit: %s", message)
-        return True, stdout
+            logger.info("vault commit: %s", message)
+            return True, stdout
+
+    # ------------------------------------------------------------------
+    # File operations
+    # ------------------------------------------------------------------
+
+    async def write_file(self, relative_path: str, content: str) -> tuple[bool, str]:
+        """Write a file to the vault, creating parent directories as needed.
+
+        Does NOT commit — caller decides when to commit.
+
+        Args:
+            relative_path: Path relative to vault root (e.g. "research/exp_abc.md").
+            content: File content to write.
+
+        Returns:
+            Tuple of (success, message).
+        """
+        if not relative_path or "\x00" in relative_path:
+            return False, "Invalid file path"
+        if Path(relative_path).is_absolute():
+            return False, "Absolute paths not allowed"
+
+        # Resolve and verify the path stays within the vault directory
+        resolved = (self.path / relative_path).resolve()
+        vault_root = self.path.resolve()
+        if not str(resolved).startswith(str(vault_root) + "/"):
+            return False, "Path escapes vault directory"
+
+        try:
+            full_path = self.path / relative_path
+            full_path.parent.mkdir(parents=True, exist_ok=True)
+            full_path.write_text(content, encoding="utf-8")
+            logger.debug("vault write: %s (%d bytes)", relative_path, len(content))
+            return True, str(full_path)
+        except OSError as e:
+            logger.warning("vault write failed: %s", e)
+            return False, f"Write failed: {e}"
 
     # ------------------------------------------------------------------
     # History
@@ -270,16 +311,17 @@ class KnowledgeVault:
         if not _is_safe_hash(commit_hash):
             return False, "Invalid commit hash"
 
-        if not await self.is_git_repo():
-            return False, "Not a git repository"
+        async with self._git_lock:
+            if not await self.is_git_repo():
+                return False, "Not a git repository"
 
-        code, stdout, stderr = await self._run_git("revert", "--no-edit", commit_hash)
-        if code != 0:
-            msg = stderr or stdout or "Revert failed"
-            logger.warning("vault revert failed: %s", msg)
-            return False, msg
+            code, stdout, stderr = await self._run_git("revert", "--no-edit", commit_hash)
+            if code != 0:
+                msg = stderr or stdout or "Revert failed"
+                logger.warning("vault revert failed: %s", msg)
+                return False, msg
 
-        logger.info("vault revert: %s", commit_hash)
+            logger.info("vault revert: %s", commit_hash)
         return True, stdout or f"Reverted {commit_hash}"
 
     # ------------------------------------------------------------------
@@ -336,11 +378,15 @@ def validate_vault_path(path: Path) -> Path:
     """
     resolved = path.expanduser().resolve()
 
-    # Check both the input and resolved path against forbidden roots
-    # (handles symlinks like /etc -> /private/etc on macOS)
-    for check in (Path(path).expanduser(), resolved):
-        check_resolved = check.resolve() if check != resolved else check
-        if check_resolved in _FORBIDDEN_ROOTS or check in _FORBIDDEN_ROOTS:
+    # Block forbidden system directories (exact match and direct children).
+    # Handles symlinks like /etc -> /private/etc on macOS.
+    for forbidden in _FORBIDDEN_ROOTS:
+        forbidden_resolved = forbidden.resolve()
+        if resolved == forbidden_resolved:
+            raise ValueError(f"Cannot use system directory as vault: {path}")
+        # Block direct children like /etc/r3lay but not deep paths
+        # under /private/var/folders/... (macOS temp dirs)
+        if resolved.parent == forbidden_resolved:
             raise ValueError(f"Cannot use system directory as vault: {path}")
 
     if not resolved.is_dir():

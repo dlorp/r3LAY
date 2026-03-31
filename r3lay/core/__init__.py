@@ -567,6 +567,8 @@ class R3LayState:
                 search=self.search_client,
                 signals=self.signals_manager,
                 axioms=self.axiom_manager,
+                vault=self.init_vault(),
+                config=self.config,
             )
             return self.research_orchestrator
 
@@ -592,6 +594,8 @@ class R3LayState:
             search=self.search_client,
             signals=self.signals_manager,
             axioms=self.axiom_manager,
+            vault=self.init_vault(),
+            config=self.config,
         )
         logger.info(f"Initialized research orchestrator at {self.project_path / 'research'}")
 

@@ -1609,6 +1609,14 @@ class FakeEmbeddingBackend:
     def is_loaded(self) -> bool:
         return self._loaded
 
+    @property
+    def model_name(self) -> str:
+        return "fake-embedding-backend"
+
+    @property
+    def dimension(self) -> int:
+        return self._dim
+
     async def embed_texts(self, texts: list[str]) -> FakeEmbeddingResult:
         import numpy as np
 
@@ -1936,6 +1944,8 @@ class TestSemanticConflictDetection:
         broken_embedder = MagicMock()
         broken_embedder.is_loaded = True
         broken_embedder.embed_texts = AsyncMock(side_effect=RuntimeError("GPU OOM"))
+        broken_embedder.model_name = "fake"
+        broken_embedder.dimension = 8
         manager.set_embedder(broken_embedder)
 
         manager.create(
@@ -1948,3 +1958,76 @@ class TestSemanticConflictDetection:
             category="specifications",
         )
         broken_embedder.embed_texts.assert_called_once()
+
+
+class TestEmbeddingModelDetection:
+    """Tests for embedding model change detection."""
+
+    @pytest.fixture
+    def semantic_manager(self, temp_project):
+        mgr = AxiomManager(temp_project)
+        mgr.set_embedder(FakeEmbeddingBackend())
+        return mgr
+
+    @pytest.mark.asyncio
+    async def test_save_creates_meta_file(self, semantic_manager):
+        """Saving embeddings also creates the meta JSON file."""
+        import json
+
+        ax = semantic_manager.create(
+            statement="Timing belt interval",
+            category="specifications",
+        )
+        await semantic_manager.embed_axiom(ax.id)
+        assert semantic_manager._embedding_meta_file.exists()
+
+        meta = json.loads(semantic_manager._embedding_meta_file.read_text())
+        assert "model_name" in meta
+        assert "dimension" in meta
+
+    @pytest.mark.asyncio
+    async def test_model_mismatch_discards_cache(self, temp_project):
+        """Different model name discards stale embeddings."""
+        from unittest.mock import MagicMock
+
+        mgr = AxiomManager(temp_project)
+        mgr.set_embedder(FakeEmbeddingBackend())
+        ax = mgr.create(statement="Timing belt", category="specifications")
+        await mgr.embed_axiom(ax.id)
+        assert ax.id in mgr._embeddings
+
+        different = MagicMock()
+        different.is_loaded = True
+        different.model_name = "completely-different-model"
+        different.dimension = 768
+
+        mgr.set_embedder(different)
+        assert len(mgr._embeddings) == 0
+        assert not mgr._embeddings_file.exists()
+
+    @pytest.mark.asyncio
+    async def test_matching_model_keeps_cache(self, temp_project):
+        """Same model keeps cached embeddings on re-attach."""
+        mgr = AxiomManager(temp_project)
+        mgr.set_embedder(FakeEmbeddingBackend())
+        ax = mgr.create(statement="Timing belt", category="specifications")
+        await mgr.embed_axiom(ax.id)
+
+        mgr2 = AxiomManager(temp_project)
+        mgr2.set_embedder(FakeEmbeddingBackend())
+        assert ax.id in mgr2._embeddings
+
+    @pytest.mark.asyncio
+    async def test_no_meta_file_keeps_cache(self, temp_project):
+        """Missing meta file does not discard existing cache."""
+        mgr = AxiomManager(temp_project)
+        mgr.set_embedder(FakeEmbeddingBackend())
+        ax = mgr.create(statement="Timing belt", category="specifications")
+        await mgr.embed_axiom(ax.id)
+
+        mgr._embedding_meta_file.unlink()
+
+        mgr2 = AxiomManager(temp_project)
+        assert ax.id in mgr2._embeddings
+        mgr2.set_embedder(FakeEmbeddingBackend())
+        assert ax.id in mgr2._embeddings

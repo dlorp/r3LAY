@@ -1,6 +1,6 @@
 # r³LAY
 
-![Version](https://img.shields.io/badge/version-0.9.0-blue)
+![Version](https://img.shields.io/badge/version-0.10.0-blue)
 ![License](https://img.shields.io/badge/license-PolyForm%20NC%201.0.0-blue)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-yellow.svg)](https://python.org)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux-lightgrey.svg)]()
@@ -364,9 +364,10 @@ r³LAY supports a rich set of slash commands for managing sessions, attachments,
 | `Ctrl+4` | Log panel |
 | `Ctrl+5` | Due panel |
 | `Ctrl+6` | Sessions panel |
-| `Ctrl+7` | Settings panel |
+| `Ctrl+7` | Vault panel |
+| `Ctrl+8` | Settings panel |
 | `Ctrl+H` | History/Sessions panel |
-| `Ctrl+,` | Settings panel |
+| `Ctrl+,` | Settings panel (alias) |
 
 ## Requirements
 

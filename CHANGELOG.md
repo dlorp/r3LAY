@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-03-30
+
+### Added
+- Research findings auto-commit to knowledge vault after expedition synthesis
+  - `_write_to_vault()` generates markdown with YAML frontmatter + extracted axioms
+  - Per-backend write permission enforcement via `can_write()` guard
+  - YAML frontmatter sanitization prevents injection from user query text
+  - `write_file()` helper with `Path.resolve()` containment check (blocks traversal + symlinks)
+- `backend_source` property on `InferenceBackend` for vault write permission checks
+- `asyncio.Lock` on all git-mutating vault operations (init, pull, commit, revert)
+- Embedding model change detection — `axiom_embedding_meta.json` tracks model name/dimension,
+  stale cache automatically discarded when embedder model changes
+- Two-click revert confirmation in Vault panel (5s auto-reset, pinned hash verification)
+
+### Changed
+- `ResearchOrchestrator` accepts optional `vault` and `config` params (wired via `init_research()`)
+- `validate_vault_path()` now blocks direct children of system directories (not just exact matches)
+- `_run_git()` uses `errors="replace"` for non-UTF-8 git output
+- README keybindings table updated: Ctrl+7 = Vault, Ctrl+8 = Settings
+
+### Fixed
+- Path traversal in `write_file()` — upgraded from naive `..` split to `Path.resolve()` + prefix containment
+- YAML frontmatter injection via unsanitized expedition query text
+- Commit message newline injection — stripped before passing to git
+- Revert hash drift between first/second click — hash pinned at confirmation time
+
 ## [0.9.0] - 2026-03-30
 
 ### Added
