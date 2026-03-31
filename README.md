@@ -104,6 +104,37 @@ r3lay
 
 Select a model from the Models panel (`Ctrl+1`) and start chatting.
 
+## Project Folders
+
+r3LAY works with any project directory. Point it at a folder and it indexes what's there -- PDFs, markdown, code, configs -- into a hybrid RAG index (BM25 + vector search). No required folder structure; organize however you want.
+
+```bash
+r3lay ~/projects/1997-subaru-impreza
+```
+
+r3LAY creates a `.r3lay/` directory inside the project for its own state:
+
+```
+your-project/
+├── (your files -- manuals, notes, code, whatever)
+└── .r3lay/
+    ├── project.yaml        # Project metadata
+    ├── config.yaml         # Per-project settings
+    ├── axioms/             # Validated knowledge
+    ├── signals/            # Source provenance tracking
+    └── index/              # RAG index (auto-generated)
+```
+
+**What happens when you index:**
+1. Files are chunked (AST-based for code, section-based for markdown, paragraph-based for text)
+2. Chunks get BM25 lexical indexing + optional vector embeddings (FAISS)
+3. Source type is auto-detected (document, code, curated) with trust weighting
+4. Everything becomes searchable via `/index <query>` or used as RAG context in chat
+
+**Deep research** (`/research <query>`) runs multi-cycle expeditions that combine local RAG results with web search (SearXNG), extract validated axioms with source provenance, and detect contradictions between sources.
+
+See [docs/DESIGN.md](docs/DESIGN.md) for the longer-term vision: knowledge vault integration, Synapse-Engine knowledge graph, cross-project learning, and the target folder structure across domains.
+
 ### Docker
 
 ```bash
