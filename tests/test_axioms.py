@@ -2122,3 +2122,39 @@ class TestFindDuplicates:
             category="specifications",
         )
         assert len(duplicates) == 0
+
+
+class TestCorroborateMany:
+    """Tests for batch corroboration."""
+
+    def test_corroborate_many_adds_citations(self, manager):
+        """Batch corroborate adds all citations and saves once."""
+        ax = manager.create(
+            statement="Timing belt interval 105k",
+            category="specifications",
+            auto_validate=True,
+            confidence=0.7,
+        )
+        result = manager.corroborate_many(ax.id, ["sig_1", "sig_2", "sig_3"])
+        assert result is not None
+        assert "sig_1" in result.citation_ids
+        assert "sig_2" in result.citation_ids
+        assert "sig_3" in result.citation_ids
+        # Confidence boosted: first adds without boost, then +0.05 each
+        # 0.7 -> 0.7 (1 citation) -> 0.75 (2) -> 0.80 (3)
+        assert abs(result.confidence - 0.80) < 0.01
+
+    def test_corroborate_many_deduplicates(self, manager):
+        """Duplicate citation IDs are not added twice."""
+        ax = manager.create(
+            statement="Timing belt interval 105k",
+            category="specifications",
+            auto_validate=True,
+            confidence=0.7,
+        )
+        manager.corroborate_many(ax.id, ["sig_1", "sig_1", "sig_1"])
+        assert ax.citation_ids.count("sig_1") == 1
+
+    def test_corroborate_many_nonexistent_returns_none(self, manager):
+        result = manager.corroborate_many("axiom_nonexistent", ["sig_1"])
+        assert result is None

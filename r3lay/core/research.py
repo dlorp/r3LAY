@@ -242,6 +242,7 @@ AXIOM: [statement in clear, specific language]
 CATEGORY: [specifications|procedures|compatibility|diagnostics|history|safety]
 CONFIDENCE: [0.0-1.0 based on source quality and corroboration]
 TAGS: [comma-separated relevant tags]
+SOURCES: [comma-separated source numbers that support this fact, e.g. 1,3,5]
 
 Guidelines:
 1. Only extract facts DIRECTLY relevant to the query
@@ -250,6 +251,7 @@ Guidelines:
 4. Note when community experience differs from official docs
 5. Skip findings that duplicate existing knowledge
 6. Flag uncertainty explicitly in the statement
+7. SOURCES must reference specific source numbers from the search results above
 
 Be conservative - only extract well-supported facts."""
 
@@ -1095,11 +1097,23 @@ class ResearchOrchestrator:
                 existing_axiom_ids=expedition.axiom_ids,
             )
 
+            # Build signal ID index for per-axiom source attribution
+            all_signal_ids: list[str] = [
+                str(c.get("signal_id")) for c in all_content if c.get("signal_id") is not None
+            ]
+
             for item in extracted:
-                # Check for contradictions before creating axiom
-                signal_ids: list[str] = [
-                    str(c.get("signal_id")) for c in all_content if c.get("signal_id") is not None
-                ]
+                # Scope signal IDs to sources the LLM cited for this axiom
+                source_indices = item.get("source_indices", [])
+                if source_indices:
+                    signal_ids = [
+                        str(all_content[i].get("signal_id"))
+                        for i in source_indices
+                        if i < len(all_content) and all_content[i].get("signal_id") is not None
+                    ]
+                else:
+                    # Fallback: use all signals if LLM didn't specify sources
+                    signal_ids = all_signal_ids
                 contradictions = await self.contradiction_detector.check_finding(
                     statement=item["statement"],
                     category=item.get("category", "specifications"),
@@ -1122,8 +1136,7 @@ class ResearchOrchestrator:
                         if duplicates:
                             # Corroborate existing axiom instead of creating
                             existing = duplicates[0]
-                            for sid in signal_ids:
-                                self.axioms.corroborate(existing.id, sid)
+                            self.axioms.corroborate_many(existing.id, signal_ids)
                             expedition.axiom_ids.append(existing.id)
                             findings.append(f"[CORROBORATED] {existing.statement[:80]}")
                             logger.info(
@@ -1364,11 +1377,11 @@ class ResearchOrchestrator:
         existing_axiom_ids: list[str],
     ) -> list[dict[str, Any]]:
         """Extract axiom candidates from search results."""
-        # Format content for prompt
+        # Format content for prompt with numbered sources
         content_text = "\n\n".join(
             [
-                f"Source: {c.get('title', 'Unknown')}\n{c.get('content', '')[:600]}"
-                for c in content[:10]
+                f"Source {i + 1}: {c.get('title', 'Unknown')}\n{c.get('content', '')[:600]}"
+                for i, c in enumerate(content[:10])
             ]
         )
 
@@ -1471,7 +1484,12 @@ The following contradictions require manual review:
         return await self._generate_llm(prompt, temperature=0.5)
 
     def _parse_axioms(self, text: str) -> list[dict[str, Any]]:
-        """Parse extracted axioms from LLM response."""
+        """Parse extracted axioms from LLM response.
+
+        Parses AXIOM, CATEGORY, CONFIDENCE, TAGS, and SOURCES lines.
+        SOURCES contains 1-based source indices that map back to the
+        content list passed to _extract_axioms.
+        """
         axioms: list[dict[str, Any]] = []
         current: dict[str, Any] = {}
 
@@ -1494,6 +1512,16 @@ The following contradictions require manual review:
                     current["confidence"] = 0.7
             elif line.startswith("TAGS:"):
                 current["tags"] = [t.strip() for t in line[5:].split(",") if t.strip()]
+            elif line.startswith("SOURCES:"):
+                try:
+                    indices = []
+                    for s in line[8:].split(","):
+                        s = s.strip()
+                        if s.isdigit():
+                            indices.append(int(s) - 1)  # Convert 1-based to 0-based
+                    current["source_indices"] = indices
+                except ValueError:
+                    pass
 
         if current.get("statement"):
             axioms.append(current)
