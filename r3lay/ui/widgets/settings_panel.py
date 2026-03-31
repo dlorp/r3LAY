@@ -201,13 +201,15 @@ class SettingsPanel(Vertical):
         self.state.vault = None
 
         # Save vault write backends
+        from textual.css.query import NoMatches
+
         write_backends: list[str] = []
         for backend_id, _ in _BACKEND_IDS:
             try:
                 checkbox = self.query_one(f"#vault-write-{backend_id}", Checkbox)
                 if checkbox.value:
                     write_backends.append(backend_id)
-            except Exception:
+            except NoMatches:
                 pass
         self.vault_write_backends = write_backends
         self.state.config.vault_write_backends = write_backends
@@ -245,13 +247,22 @@ class SettingsPanel(Vertical):
         vault_input.value = ""
 
         # Reset vault write backends to default (openclaw only)
+        from textual.css.query import NoMatches
+
         self.vault_write_backends = ["openclaw"]
         for backend_id, _ in _BACKEND_IDS:
             try:
                 checkbox = self.query_one(f"#vault-write-{backend_id}", Checkbox)
                 checkbox.value = backend_id == "openclaw"
-            except Exception:
+            except NoMatches:
                 pass
+
+        # Persist reset to config
+        self.state.config.intent_routing = self.intent_routing
+        self.state.config.knowledge_vault_path = self.vault_path
+        self.state.config.vault_write_backends = self.vault_write_backends
+        self.state.vault = None
+        self.state.config.save()
 
         self.notify("Settings reset to defaults")
 

@@ -6,6 +6,7 @@ Phase D: Added vision embedding support for PDF/image indexing.
 from __future__ import annotations
 
 import logging
+from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 
 from textual.app import ComposeResult
@@ -275,6 +276,16 @@ class IndexPanel(Vertical):
                     recursive=True,
                     include_pdfs=pdf_extraction_available(),
                 )
+                # Filter out .git/ directory contents to avoid indexing
+                # git internals, pack files, and credential data
+                vault_result.chunks = [
+                    c
+                    for c in vault_result.chunks
+                    if ".git" not in PurePosixPath(c.metadata.get("source", "")).parts
+                ]
+                vault_result.image_paths = [
+                    p for p in vault_result.image_paths if ".git" not in p.parts
+                ]
                 result.chunks.extend(vault_result.chunks)
                 result.image_paths.extend(vault_result.image_paths)
                 result.image_metadata.extend(vault_result.image_metadata)

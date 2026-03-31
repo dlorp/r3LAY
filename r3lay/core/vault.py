@@ -62,10 +62,15 @@ class KnowledgeVault:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout_bytes, stderr_bytes = await proc.communicate()
+        try:
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=30.0)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+            return 1, "", "git command timed out after 30s"
         stdout = stdout_bytes.decode().strip() if stdout_bytes else ""
         stderr = stderr_bytes.decode().strip() if stderr_bytes else ""
-        return proc.returncode or 0, stdout, stderr
+        return proc.returncode if proc.returncode is not None else 1, stdout, stderr
 
     # ------------------------------------------------------------------
     # Repository state
@@ -144,13 +149,13 @@ class KnowledgeVault:
             return False, "Not a git repository"
 
         code, stdout, stderr = await self._run_git("pull", "--ff-only")
-        self._last_pull = datetime.now()
 
         if code != 0:
             msg = stderr or stdout or "Pull failed"
             logger.warning("vault pull failed: %s", msg)
             return False, msg
 
+        self._last_pull = datetime.now()
         logger.info("vault pull: %s", stdout or "Already up to date")
         return True, stdout or "Already up to date"
 
