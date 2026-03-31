@@ -270,9 +270,9 @@ class TestContradictionDetector:
 
     @pytest.mark.asyncio
     async def test_check_finding_no_conflicts_keyword_fallback(self):
-        """Test check_finding with no conflicts (keyword fallback, no backend)."""
+        """Test check_finding with no conflicts (fallback, no backend)."""
         mock_axiom_manager = MagicMock()
-        mock_axiom_manager.find_conflicts.return_value = []
+        mock_axiom_manager.find_conflicts = AsyncMock(return_value=[])
         detector = ContradictionDetector(axiom_manager=mock_axiom_manager)
 
         contradictions = await detector.check_finding(
@@ -285,12 +285,12 @@ class TestContradictionDetector:
 
     @pytest.mark.asyncio
     async def test_check_finding_with_conflict_keyword_fallback(self):
-        """Test check_finding when conflicts are found (keyword fallback)."""
+        """Test check_finding when conflicts are found (fallback)."""
         mock_axiom = MagicMock()
         mock_axiom.id = "axiom_oil001"
         mock_axiom.statement = "Oil change every 5000 miles"
         mock_axiom_manager = MagicMock()
-        mock_axiom_manager.find_conflicts.return_value = [mock_axiom]
+        mock_axiom_manager.find_conflicts = AsyncMock(return_value=[mock_axiom])
         detector = ContradictionDetector(axiom_manager=mock_axiom_manager)
 
         contradictions = await detector.check_finding(
@@ -307,9 +307,9 @@ class TestContradictionDetector:
     async def test_check_finding_uses_judge_when_backend_available(self):
         """Test that check_finding delegates to judge when backend is loaded."""
         mock_axiom_manager = MagicMock()
-        mock_axiom_manager.search.return_value = [
+        mock_axiom_manager.search_semantic = AsyncMock(return_value=[
             MagicMock(id="ax_001", statement="Oil change every 5000 miles"),
-        ]
+        ])
 
         async def _stream(tokens):
             for t in tokens:
@@ -345,9 +345,9 @@ class TestContradictionDetector:
     async def test_check_finding_judge_no_contradiction(self):
         """Judge finds no contradiction — returns empty list."""
         mock_axiom_manager = MagicMock()
-        mock_axiom_manager.search.return_value = [
+        mock_axiom_manager.search_semantic = AsyncMock(return_value=[
             MagicMock(id="ax_001", statement="Oil change every 5000 miles"),
-        ]
+        ])
 
         async def _stream(tokens):
             for t in tokens:
@@ -374,7 +374,7 @@ class TestContradictionDetector:
     async def test_check_finding_judge_rag_only_skips(self):
         """Judge contradiction from RAG evidence only — no axiom to resolve against."""
         mock_axiom_manager = MagicMock()
-        mock_axiom_manager.search.return_value = []  # No axiom evidence
+        mock_axiom_manager.search_semantic = AsyncMock(return_value=[])  # No axiom evidence
 
         mock_index = MagicMock()
         mock_index.search_async = AsyncMock(

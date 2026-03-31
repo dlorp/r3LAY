@@ -1409,8 +1409,8 @@ class InputPane(Vertical):
         # Initialize axiom manager
         axiom_mgr = self.state.init_axioms()
 
-        # Check for potential conflicts
-        conflicts = axiom_mgr.find_conflicts(statement, category)
+        # Check for potential conflicts (semantic similarity when embedder loaded)
+        conflicts = await axiom_mgr.find_conflicts(statement, category)
 
         if conflicts:
             # Show warning about potential conflicts
@@ -1438,6 +1438,9 @@ class InputPane(Vertical):
                 confidence=0.8,  # Default confidence for user-created axioms
                 auto_validate=False,  # Start as PENDING for review
             )
+
+            # Cache embedding for future semantic conflict detection
+            await axiom_mgr.embed_axiom(axiom.id)
 
             response_pane.add_assistant(
                 f"## Axiom Created\n\n"

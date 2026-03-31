@@ -423,6 +423,8 @@ class R3LayState:
             self.text_embedder = MLXTextEmbeddingBackend()
             await self.text_embedder.load()
             logger.info(f"Loaded embedding model: {self.text_embedder.model_name}")
+            if self.axiom_manager is not None:
+                self.axiom_manager.set_embedder(self.text_embedder)
             return self.text_embedder
         except Exception as e:
             logger.warning(f"Failed to load embedding backend: {e}")
@@ -432,6 +434,8 @@ class R3LayState:
     async def unload_embedder(self) -> None:
         """Unload the text embedding backend and free resources."""
         if self.text_embedder is not None:
+            if self.axiom_manager is not None:
+                self.axiom_manager.set_embedder(None)
             await self.text_embedder.unload()
             self.text_embedder = None
 
@@ -529,6 +533,8 @@ class R3LayState:
         """
         if self.axiom_manager is None:
             self.axiom_manager = AxiomManager(self.project_path)
+            if self.text_embedder is not None and self.text_embedder.is_loaded:
+                self.axiom_manager.set_embedder(self.text_embedder)
             logger.info(f"Initialized axiom manager at {self.project_path / 'axioms'}")
         return self.axiom_manager
 
