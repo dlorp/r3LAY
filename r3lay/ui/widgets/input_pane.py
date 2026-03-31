@@ -880,6 +880,16 @@ class InputPane(Vertical):
                 "- `/axioms [category] [--disputed]` - List axioms\n"
                 "- `/cite <axiom_id>` - Show provenance chain for axiom\n"
                 "- `/dispute <axiom_id> <reason>` - Mark axiom as disputed\n\n"
+                "**Knowledge Vault**\n"
+                "- `/vault` or `/vault status` - Vault health and index stats\n"
+                "- `/vault search <query>` - FTS5 full-text search with ranking\n"
+                "- `/vault list [domain]` - Browse vault entries by domain\n"
+                "- `/vault related <path>` - Cross-reference graph traversal\n"
+                "- `/vault stale [days]` - Entries needing updates\n"
+                "- `/vault research <query>` - Check vault before researching\n"
+                "- `/vault sync` - Trigger manual git sync with lorpBot\n"
+                "- `/vault log` - Recent sync activity\n"
+                "- `/vault index [--full]` - Rebuild FTS5 search index\n\n"
                 "**Maintenance**\n"
                 "- `/log <service_type> <mileage>` - Log maintenance entry\n"
                 "- `/due [mileage]` - Show due/overdue services\n"
@@ -1020,6 +1030,8 @@ class InputPane(Vertical):
             self._handle_list_projects(response_pane)
         elif cmd in ("research-templates", "templates"):
             self._handle_list_research_templates(response_pane)
+        elif cmd == "vault":
+            await self._handle_vault(args, response_pane)
         else:
             from rich.markup import escape
 
@@ -1188,9 +1200,7 @@ class InputPane(Vertical):
             updated = session.updated_at.strftime("%Y-%m-%d %H:%M")
             short_id = session.id[:8]
             tag_str = f" [{', '.join(session.tags)}]" if session.tags else ""
-            lines.append(
-                f"- **{title}**{tag_str} ({msg_count} msgs) - `{short_id}` - {updated}"
-            )
+            lines.append(f"- **{title}**{tag_str} ({msg_count} msgs) - `{short_id}` - {updated}")
 
         lines.append("\n\nUse `/load <name or id>` to load a session.")
         response_pane.add_assistant("\n".join(lines))
@@ -1290,9 +1300,7 @@ class InputPane(Vertical):
             return
         session.tags.append(tag)
         session._dirty = True
-        response_pane.add_system(
-            f"Tagged session with: `{tag}`\n\nTags: {', '.join(session.tags)}"
-        )
+        response_pane.add_system(f"Tagged session with: `{tag}`\n\nTags: {', '.join(session.tags)}")
         self._refresh_session_panel()
 
     def _handle_untag_session(self, tag: str, response_pane) -> None:
@@ -1304,8 +1312,7 @@ class InputPane(Vertical):
         tag = tag.lower().strip()
         if tag not in session.tags:
             response_pane.add_system(
-                f"Tag not found: `{tag}`\n\n"
-                f"Current tags: {', '.join(session.tags) or 'none'}"
+                f"Tag not found: `{tag}`\n\nCurrent tags: {', '.join(session.tags) or 'none'}"
             )
             return
         session.tags.remove(tag)
@@ -1326,12 +1333,20 @@ class InputPane(Vertical):
             return
 
         # Block system directories
-        _system_roots = {"/", "/etc", "/var", "/usr", "/bin", "/sbin", "/tmp",
-                         "/System", "/Library", "/private"}
+        _system_roots = {
+            "/",
+            "/etc",
+            "/var",
+            "/usr",
+            "/bin",
+            "/sbin",
+            "/tmp",
+            "/System",
+            "/Library",
+            "/private",
+        }
         if str(new_path) in _system_roots or str(new_path.parent) in _system_roots:
-            response_pane.add_system(
-                f"Cannot use system directory as project: `{new_path}`"
-            )
+            response_pane.add_system(f"Cannot use system directory as project: `{new_path}`")
             return
 
         # Auto-save current session if dirty
@@ -1361,9 +1376,7 @@ class InputPane(Vertical):
         global_config.add_project(str(new_path))
 
         response_pane.clear()
-        response_pane.add_system(
-            f"Switched to project: **{new_path.name}**\n\nPath: `{new_path}`"
-        )
+        response_pane.add_system(f"Switched to project: **{new_path.name}**\n\nPath: `{new_path}`")
         self.notify(f"Project: {new_path.name}")
 
         # Broadcast state change to all panels via MainScreen
@@ -1951,6 +1964,502 @@ class InputPane(Vertical):
                 f"It may not be in a state that can be disputed."
             )
             self.notify("Failed to dispute axiom", severity="error")
+
+    # ------------------------------------------------------------------
+    # /vault — Knowledge vault operations
+    # ------------------------------------------------------------------
+
+    async def _handle_vault(self, args: str, response_pane) -> None:
+        """Handle /vault command — knowledge vault operations.
+
+        Subcommands: status, search, list, related, stale, research,
+        sync, log, index.
+
+        Args:
+            args: Subcommand and arguments.
+            response_pane: ResponsePane to display results.
+        """
+        parts = args.split(maxsplit=1)
+        subcmd = parts[0].lower() if parts else "status"
+        subargs = parts[1] if len(parts) > 1 else ""
+
+        vault = self.state.init_vault()
+        if vault is None:
+            response_pane.add_error(
+                "Knowledge vault not configured.\n\n"
+                "Set `knowledge_vault_path` in your project config "
+                "(e.g., `~/Documents/knowledge_vault`)."
+            )
+            return
+
+        db_path = vault.path / "vault.db"
+
+        if subcmd == "status":
+            await self._vault_status(vault, db_path, response_pane)
+        elif subcmd == "search":
+            if not subargs:
+                response_pane.add_system("Usage: `/vault search <query>`")
+                return
+            await self._vault_search(subargs, db_path, response_pane)
+        elif subcmd == "list":
+            await self._vault_list(subargs, db_path, response_pane)
+        elif subcmd == "related":
+            if not subargs:
+                response_pane.add_system("Usage: `/vault related <file_path>`")
+                return
+            await self._vault_related(subargs, db_path, response_pane)
+        elif subcmd == "stale":
+            days = int(subargs) if subargs.isdigit() else 30
+            await self._vault_stale(days, db_path, response_pane)
+        elif subcmd == "research":
+            if not subargs:
+                response_pane.add_system(
+                    "Usage: `/vault research <query>`\n\n"
+                    "Checks the vault for existing knowledge before researching."
+                )
+                return
+            await self._vault_research(subargs, db_path, response_pane)
+        elif subcmd == "sync":
+            await self._vault_sync(vault, response_pane)
+        elif subcmd == "log":
+            await self._vault_log(vault, response_pane)
+        elif subcmd == "index":
+            full = "--full" in subargs
+            await self._vault_index(vault, full, response_pane)
+        else:
+            response_pane.add_system(
+                f"Unknown vault subcommand: `{subcmd}`\n\n"
+                "Available: `status`, `search`, `list`, `related`, "
+                "`stale`, `research`, `sync`, `log`, `index`"
+            )
+
+    def _vault_db_connect(self, db_path: Path):
+        """Connect to vault SQLite index. Returns None if DB missing."""
+        import sqlite3
+
+        if not db_path.exists():
+            return None
+        conn = sqlite3.connect(str(db_path))
+        conn.execute("PRAGMA journal_mode=WAL")
+        return conn
+
+    async def _vault_status(self, vault, db_path: Path, response_pane) -> None:
+        """Show vault health overview with index statistics."""
+        import sqlite3
+
+        lines = ["# Knowledge Vault Status\n"]
+
+        # Git status
+        status = await vault.status()
+        lines.append(f"**Path:** `{vault.path}`\n")
+        lines.append(f"**Git branch:** {status.get('branch', 'unknown')}\n")
+
+        dirty = status.get("dirty_count", 0)
+        if dirty:
+            lines.append(f"**Pending changes:** {dirty} files\n")
+        else:
+            lines.append("**Working tree:** clean\n")
+
+        # Recent commits
+        commits = await vault.log(limit=5)
+        if commits:
+            lines.append("\n## Recent Activity\n")
+            for c in commits:
+                lines.append(f"- `{c.short_hash}` {c.message} ({c.date})\n")
+
+        # Index stats
+        conn = self._vault_db_connect(db_path)
+        if conn:
+            try:
+                entry_count = conn.execute("SELECT COUNT(*) FROM entries").fetchone()[0]
+                tag_count = conn.execute("SELECT COUNT(DISTINCT tag) FROM tags").fetchone()[0]
+                ref_count = conn.execute("SELECT COUNT(*) FROM cross_refs").fetchone()[0]
+                resolved = conn.execute(
+                    "SELECT COUNT(*) FROM cross_refs WHERE target_id IS NOT NULL"
+                ).fetchone()[0]
+                fw_count = conn.execute("SELECT COUNT(*) FROM firmware").fetchone()[0]
+
+                lines.append("\n## Index\n")
+                lines.append(f"- **Entries:** {entry_count}\n")
+                lines.append(f"- **Tags:** {tag_count}\n")
+                lines.append(f"- **Cross-refs:** {ref_count} ({resolved} resolved)\n")
+                lines.append(f"- **Firmware:** {fw_count}\n")
+
+                domains = conn.execute(
+                    "SELECT domain, COUNT(*) FROM entries GROUP BY domain ORDER BY COUNT(*) DESC"
+                ).fetchall()
+                if domains:
+                    lines.append("\n## Domains\n")
+                    for domain, count in domains:
+                        lines.append(f"- **{domain or '(root)'}**: {count} entries\n")
+            except sqlite3.OperationalError:
+                lines.append("\n*Index not built. Run `/vault index` first.*\n")
+            finally:
+                conn.close()
+        else:
+            lines.append("\n*No index found. Run `/vault index` to build.*\n")
+
+        response_pane.add_assistant("".join(lines))
+        self.notify("Vault status displayed", severity="information")
+
+    async def _vault_search(self, query: str, db_path: Path, response_pane) -> None:
+        """FTS5-powered search with BM25 ranking and snippets."""
+        import sqlite3
+
+        conn = self._vault_db_connect(db_path)
+        if conn is None:
+            response_pane.add_error("No vault index. Run `/vault index` first.")
+            return
+
+        try:
+            rows = conn.execute(
+                """SELECT
+                    e.file_path, e.title, e.domain, e.confidence,
+                    snippet(entries_fts, 1, '**', '**', '...', 32) as snip,
+                    bm25(entries_fts, 5.0, 1.0, 3.0, 2.0) as rank
+                FROM entries_fts
+                JOIN entries e ON e.id = entries_fts.rowid
+                WHERE entries_fts MATCH ?
+                ORDER BY rank
+                LIMIT 10""",
+                (query,),
+            ).fetchall()
+
+            # Log the query
+            conn.execute(
+                "INSERT INTO research_log(query, result_count) VALUES(?, ?)",
+                (query, len(rows)),
+            )
+            conn.commit()
+        except sqlite3.OperationalError as e:
+            response_pane.add_error(f"Search error: {e}")
+            conn.close()
+            return
+        finally:
+            conn.close()
+
+        if not rows:
+            response_pane.add_system(f"No results for '{query}'.")
+            return
+
+        lines = [f"# Vault Search: {query}\n\n"]
+        lines.append(f"*{len(rows)} result(s)*\n\n")
+        for path, title, domain, confidence, snip, _rank in rows:
+            badge = f"[{confidence}]" if confidence else "[?]"
+            lines.append(f"### {badge} {title}\n")
+            lines.append(f"`{path}` ({domain})\n\n")
+            lines.append(f"{snip}\n\n---\n\n")
+
+        response_pane.add_assistant("".join(lines))
+        self.notify(f"Found {len(rows)} results", severity="information")
+
+    async def _vault_list(self, domain: str, db_path: Path, response_pane) -> None:
+        """Browse vault entries by domain."""
+        conn = self._vault_db_connect(db_path)
+        if conn is None:
+            response_pane.add_error("No vault index. Run `/vault index` first.")
+            return
+
+        try:
+            if domain:
+                rows = conn.execute(
+                    "SELECT file_path, title, confidence, updated_at "
+                    "FROM entries WHERE domain LIKE ? ORDER BY title",
+                    (f"%{domain}%",),
+                ).fetchall()
+                lines = [f"# Vault: {domain}\n\n"]
+                if not rows:
+                    lines.append(f"No entries matching domain '{domain}'.\n")
+                for path, title, conf, updated in rows:
+                    badge = f"[{conf}]" if conf else "[?]"
+                    lines.append(f"- {badge} **{title}** — `{path}` (updated: {updated})\n")
+            else:
+                rows = conn.execute(
+                    "SELECT domain, COUNT(*), MAX(updated_at) "
+                    "FROM entries GROUP BY domain ORDER BY COUNT(*) DESC"
+                ).fetchall()
+                lines = ["# Vault Domains\n\n"]
+                lines.append("| Domain | Entries | Last Updated |\n")
+                lines.append("|--------|---------|-------------|\n")
+                for domain_name, count, last_updated in rows:
+                    lines.append(
+                        f"| {domain_name or '(root)'} | {count} | {last_updated or '?'} |\n"
+                    )
+        finally:
+            conn.close()
+
+        response_pane.add_assistant("".join(lines))
+
+    async def _vault_related(self, file_path: str, db_path: Path, response_pane) -> None:
+        """Show cross-reference graph for an entry."""
+
+        conn = self._vault_db_connect(db_path)
+        if conn is None:
+            response_pane.add_error("No vault index. Run `/vault index` first.")
+            return
+
+        try:
+            # Find entry — try exact match first, then partial
+            entry = conn.execute(
+                "SELECT id, title FROM entries WHERE file_path = ?", (file_path,)
+            ).fetchone()
+            if not entry:
+                entry = conn.execute(
+                    "SELECT id, title FROM entries WHERE file_path LIKE ?",
+                    (f"%{file_path}%",),
+                ).fetchone()
+            if not entry:
+                response_pane.add_system(f"No entry matching '{file_path}'.")
+                conn.close()
+                return
+
+            entry_id, entry_title = entry
+
+            rows = conn.execute(
+                """WITH RECURSIVE reachable(id, depth) AS (
+                    SELECT target_id, 1
+                    FROM cross_refs WHERE source_id = ? AND target_id IS NOT NULL
+                    UNION
+                    SELECT source_id, 1
+                    FROM cross_refs WHERE target_id = ? AND source_id IS NOT NULL
+                    UNION
+                    SELECT cr.target_id, r.depth + 1
+                    FROM cross_refs cr JOIN reachable r ON cr.source_id = r.id
+                    WHERE r.depth < 2 AND cr.target_id IS NOT NULL
+                )
+                SELECT DISTINCT e.file_path, e.title, e.domain, MIN(r.depth) as hops
+                FROM reachable r JOIN entries e ON r.id = e.id
+                WHERE e.id != ?
+                GROUP BY e.id ORDER BY hops""",
+                (entry_id, entry_id, entry_id),
+            ).fetchall()
+        finally:
+            conn.close()
+
+        lines = [f"# Related: {entry_title}\n\n"]
+        if not rows:
+            lines.append("No cross-references found.\n")
+        else:
+            for path, title, domain, hops in rows:
+                indent = ">" * hops
+                lines.append(f"- {indent} **{title}** ({domain}) — `{path}`\n")
+
+        response_pane.add_assistant("".join(lines))
+
+    async def _vault_stale(self, days: int, db_path: Path, response_pane) -> None:
+        """Show entries that may need updating."""
+
+        conn = self._vault_db_connect(db_path)
+        if conn is None:
+            response_pane.add_error("No vault index. Run `/vault index` first.")
+            return
+
+        try:
+            rows = conn.execute(
+                """SELECT file_path, title, confidence, updated_at
+                FROM entries
+                WHERE confidence IN ('low', 'speculative', 'unknown')
+                   OR (updated_at != '' AND julianday('now') - julianday(updated_at) > ?)
+                ORDER BY updated_at""",
+                (days,),
+            ).fetchall()
+        finally:
+            conn.close()
+
+        lines = [f"# Stale Entries (>{days} days or low confidence)\n\n"]
+        if not rows:
+            lines.append("All entries look current.\n")
+        else:
+            for path, title, conf, updated in rows:
+                badge = f"[{conf}]" if conf else "[?]"
+                lines.append(f"- {badge} **{title}** — updated: {updated or 'never'} — `{path}`\n")
+
+        response_pane.add_assistant("".join(lines))
+
+    async def _vault_research(self, query: str, db_path: Path, response_pane) -> None:
+        """Check vault for existing knowledge before researching.
+
+        Searches the vault first and presents what's known, identifies gaps
+        from open questions, then offers to research further.
+        """
+        import sqlite3
+
+        conn = self._vault_db_connect(db_path)
+        if conn is None:
+            response_pane.add_error("No vault index. Run `/vault index` first.")
+            return
+
+        try:
+            rows = conn.execute(
+                """SELECT
+                    e.file_path, e.title, e.domain, e.confidence, e.content,
+                    snippet(entries_fts, 1, '**', '**', '...', 48) as snip,
+                    bm25(entries_fts, 5.0, 1.0, 3.0, 2.0) as rank
+                FROM entries_fts
+                JOIN entries e ON e.id = entries_fts.rowid
+                WHERE entries_fts MATCH ?
+                ORDER BY rank
+                LIMIT 5""",
+                (query,),
+            ).fetchall()
+
+            conn.execute(
+                "INSERT INTO research_log(query, result_count, source) VALUES(?, ?, 'local')",
+                (query, len(rows)),
+            )
+            conn.commit()
+        except sqlite3.OperationalError as e:
+            response_pane.add_error(f"Search error: {e}")
+            conn.close()
+            return
+        finally:
+            conn.close()
+
+        lines = [f"# Vault Check: {query}\n\n"]
+
+        if not rows:
+            lines.append("**Nothing in the vault on this topic.**\n\n")
+            lines.append(
+                "Use `/research " + query + "` to start a deep research expedition, "
+                "then `/vault sync` to share findings.\n"
+            )
+            response_pane.add_assistant("".join(lines))
+            return
+
+        lines.append(f"**{len(rows)} existing entry/entries found:**\n\n")
+
+        open_questions: list[str] = []
+        for path, title, domain, confidence, content, snip, _rank in rows:
+            badge = f"[{confidence}]" if confidence else "[?]"
+            lines.append(f"### {badge} {title}\n")
+            lines.append(f"`{path}` ({domain})\n\n{snip}\n\n")
+
+            # Extract open questions
+            if "## Open Questions" in content:
+                section = content.split("## Open Questions")[1]
+                # Cut at next heading
+                if "\n## " in section:
+                    section = section[: section.index("\n## ")]
+                questions = [
+                    line.strip().lstrip("- ")
+                    for line in section.strip().split("\n")
+                    if line.strip() and line.strip().startswith("-")
+                ]
+                open_questions.extend(questions)
+
+        if open_questions:
+            lines.append("---\n\n## Open Questions (from existing entries)\n\n")
+            for q in open_questions[:10]:
+                lines.append(f"- {q}\n")
+            lines.append("\n*These gaps could be filled with `/research <specific question>`.*\n")
+
+        lines.append(
+            "\n---\n\n"
+            "**Options:** Update an existing entry, fill gaps from open questions above, "
+            "or `/research " + query + "` for a fresh expedition.\n"
+        )
+
+        response_pane.add_assistant("".join(lines))
+        self.notify(f"Vault has {len(rows)} entries on this topic", severity="information")
+
+    async def _vault_sync(self, vault, response_pane) -> None:
+        """Trigger manual git sync."""
+        import asyncio
+
+        response_pane.add_system("Syncing vault with lorpBot...")
+        self.set_status("Vault syncing...")
+
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "/Users/dperez/.local/bin/knowledge-vault-sync",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
+            output = stdout.decode() if stdout else ""
+            errors = stderr.decode() if stderr else ""
+
+            if proc.returncode == 0:
+                # Show sync log tail
+                sync_log = vault.path / ".sync.log"
+                if sync_log.exists():
+                    log_lines = sync_log.read_text().strip().split("\n")[-5:]
+                    log_text = "\n".join(log_lines)
+                else:
+                    log_text = "(no sync log)"
+
+                response_pane.add_assistant(f"# Vault Synced\n\n```\n{log_text}\n```\n")
+                self.notify("Vault synced", severity="information")
+            else:
+                response_pane.add_error(
+                    f"Sync failed (exit {proc.returncode}):\n{errors or output}"
+                )
+        except asyncio.TimeoutError:
+            response_pane.add_error("Sync timed out after 60s.")
+        except FileNotFoundError:
+            response_pane.add_error("Sync script not found at `~/.local/bin/knowledge-vault-sync`.")
+        finally:
+            self.set_status("Ready")
+
+    async def _vault_log(self, vault, response_pane) -> None:
+        """Show recent sync activity from the sync log."""
+        sync_log = vault.path / ".sync.log"
+        if not sync_log.exists():
+            response_pane.add_system("No sync log found.")
+            return
+
+        log_lines = sync_log.read_text().strip().split("\n")[-20:]
+        lines = ["# Vault Sync Log\n\n```\n"]
+        for line in log_lines:
+            lines.append(f"{line}\n")
+        lines.append("```\n")
+
+        response_pane.add_assistant("".join(lines))
+
+    async def _vault_index(self, vault, full: bool, response_pane) -> None:
+        """Rebuild or update the FTS5 search index."""
+        import asyncio
+
+        script = vault.path / "_meta" / "scripts" / "vault_index.py"
+        if not script.exists():
+            response_pane.add_error(
+                f"Indexer not found at `{script}`.\nThe vault needs `_meta/scripts/vault_index.py`."
+            )
+            return
+
+        mode = "Full rebuild" if full else "Incremental update"
+        response_pane.add_system(f"Indexing vault ({mode})...")
+        self.set_status("Indexing vault...")
+
+        try:
+            cmd = [
+                "python3",
+                str(script),
+                "--db",
+                str(vault.path / "vault.db"),
+                "--vault",
+                str(vault.path),
+            ]
+            if full:
+                cmd.append("--full")
+
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+            output = (stdout.decode() if stdout else "") + (stderr.decode() if stderr else "")
+
+            if proc.returncode == 0:
+                response_pane.add_assistant(f"# Vault Index Updated\n\n```\n{output}```\n")
+                self.notify("Vault indexed", severity="information")
+            else:
+                response_pane.add_error(f"Indexing failed:\n{output}")
+        except asyncio.TimeoutError:
+            response_pane.add_error("Indexing timed out after 30s.")
+        finally:
+            self.set_status("Ready")
 
     async def _handle_research(self, query: str, response_pane) -> None:
         """Handle /research command - run deep research expedition.

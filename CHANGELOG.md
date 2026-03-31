@@ -5,9 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.14.0] - 2026-03-30
+## [0.14.0] - 2026-03-31
 
 ### Added
+- `/vault` TUI command with 11 subcommands: `status`, `search`, `list`, `related`, `stale`,
+  `research`, `sync`, `log`, `index` — mirrors the Claude Code `/vault` skill for knowledge
+  vault operations from within r3LAY
+- `/vault search` uses SQLite FTS5 with BM25 ranking and snippet highlighting via vault.db
+- `/vault research` implements research-first workflow gate — checks vault for existing
+  knowledge, extracts open questions from matching entries, suggests filling gaps before
+  launching a full `/research` expedition
+- `/vault related` traverses cross-reference graph (1-2 hop recursive CTE) to surface
+  connected entries
+- `/vault stale` surfaces entries with low/speculative confidence or stale update dates
 - Reactive state propagation for `/project` switch — custom `ProjectSwitched(Message)` on
   InputPane, caught by MainScreen, broadcasts new state to all 9 panels via `on_state_updated()`
 - Session tag filtering in SessionPanel — search Input for title substring matching, tag Select
