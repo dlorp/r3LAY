@@ -889,7 +889,8 @@ class InputPane(Vertical):
                 "- `/vault research <query>` - Check vault before researching\n"
                 "- `/vault sync` - Trigger manual git sync with lorpBot\n"
                 "- `/vault log` - Recent sync activity\n"
-                "- `/vault index [--full]` - Rebuild FTS5 search index\n\n"
+                "- `/vault index [--full]` - Rebuild FTS5 search index\n"
+                "- `/vault incoming <title>` - Quick-capture raw note to _incoming/\n\n"
                 "**Maintenance**\n"
                 "- `/log <service_type> <mileage>` - Log maintenance entry\n"
                 "- `/due [mileage]` - Show due/overdue services\n"
@@ -2026,11 +2027,46 @@ class InputPane(Vertical):
         elif subcmd == "index":
             full = "--full" in subargs
             await self._vault_index(vault, full, response_pane)
+        elif subcmd == "incoming":
+            if not subargs:
+                response_pane.add_system(
+                    "Usage: `/vault incoming <title>`\n\n"
+                    "Quick-capture a raw note to `_incoming/`. No template needed."
+                )
+                return
+            await self._vault_incoming(subargs, vault, response_pane)
+        elif subcmd == "normalize":
+            write = "--write" in subargs
+            await self._vault_run_script(
+                vault, "vault_normalize.py",
+                ["--write"] if write else [],
+                "Normalizing entries..." if write else "Checking entries (dry run)...",
+                response_pane,
+            )
+        elif subcmd == "metrics":
+            await self._vault_run_script(
+                vault, "vault_index.py",
+                ["--db", str(db_path), "--vault", str(vault.path), "--metrics"],
+                "Loading metrics...", response_pane,
+            )
+        elif subcmd in ("check-urls", "checkurls"):
+            await self._vault_run_script(
+                vault, "vault_index.py",
+                ["--db", str(db_path), "--vault", str(vault.path), "--check-urls"],
+                "Checking source URLs...", response_pane, timeout=120,
+            )
+        elif subcmd == "health":
+            await self._vault_run_script(
+                vault, "vault_index.py",
+                ["--db", str(db_path), "--vault", str(vault.path), "--health"],
+                "Running health check...", response_pane,
+            )
         else:
             response_pane.add_system(
                 f"Unknown vault subcommand: `{subcmd}`\n\n"
-                "Available: `status`, `search`, `list`, `related`, "
-                "`stale`, `research`, `sync`, `log`, `index`"
+                "Available: `status`, `search`, `list`, `related`, `stale`, "
+                "`research`, `sync`, `log`, `index`, `incoming`, "
+                "`normalize`, `metrics`, `check-urls`, `health`"
             )
 
     def _vault_db_connect(self, db_path: Path):
@@ -2098,6 +2134,15 @@ class InputPane(Vertical):
                 conn.close()
         else:
             lines.append("\n*No index found. Run `/vault index` to build.*\n")
+
+        # _incoming/ count
+        incoming_dir = vault.path / "_incoming"
+        if incoming_dir.exists():
+            incoming_files = list(incoming_dir.glob("*.md"))
+            if incoming_files:
+                lines.append(f"\n## Incoming ({len(incoming_files)} awaiting triage)\n")
+                for f in sorted(incoming_files)[:10]:
+                    lines.append(f"- `{f.name}`\n")
 
         response_pane.add_assistant("".join(lines))
         self.notify("Vault status displayed", severity="information")
@@ -2247,7 +2292,7 @@ class InputPane(Vertical):
         response_pane.add_assistant("".join(lines))
 
     async def _vault_stale(self, days: int, db_path: Path, response_pane) -> None:
-        """Show entries that may need updating."""
+        """Show entries past their decay threshold or with low confidence."""
 
         conn = self._vault_db_connect(db_path)
         if conn is None:
@@ -2256,21 +2301,31 @@ class InputPane(Vertical):
 
         try:
             rows = conn.execute(
-                """SELECT file_path, title, confidence, updated_at
+                """SELECT file_path, title, confidence, decay_class,
+                    COALESCE(NULLIF(updated_at,''), created_at) as ref_date
                 FROM entries
                 WHERE confidence IN ('low', 'speculative', 'unknown')
-                   OR (updated_at != '' AND julianday('now') - julianday(updated_at) > ?)
-                ORDER BY updated_at""",
+                   OR (COALESCE(NULLIF(updated_at,''), created_at) != ''
+                       AND julianday('now') - julianday(
+                           COALESCE(NULLIF(updated_at,''), created_at))
+                       > CASE COALESCE(decay_class, 'medium')
+                           WHEN 'fast' THEN 14
+                           WHEN 'medium' THEN 90
+                           WHEN 'slow' THEN 365
+                           WHEN 'archival' THEN 99999
+                           ELSE ?
+                         END)
+                ORDER BY ref_date""",
                 (days,),
             ).fetchall()
         finally:
             conn.close()
 
-        lines = [f"# Stale Entries (>{days} days or low confidence)\n\n"]
+        lines = ["# Stale Entries (past decay threshold or low confidence)\n\n"]
         if not rows:
-            lines.append("All entries look current.\n")
+            lines.append("All entries within decay thresholds.\n")
         else:
-            for path, title, conf, updated in rows:
+            for path, title, conf, decay, updated in rows:
                 badge = f"[{conf}]" if conf else "[?]"
                 lines.append(f"- {badge} **{title}** — updated: {updated or 'never'} — `{path}`\n")
 
@@ -2460,6 +2515,70 @@ class InputPane(Vertical):
             response_pane.add_error("Indexing timed out after 30s.")
         finally:
             self.set_status("Ready")
+
+    async def _vault_run_script(
+        self, vault, script_name: str, extra_args: list[str],
+        status_msg: str, response_pane, timeout: int = 60,
+    ) -> None:
+        """Run a vault script and display output."""
+        import asyncio as _asyncio
+
+        script = vault.path / "_meta" / "scripts" / script_name
+        if not script.exists():
+            response_pane.add_error(f"Script not found: `{script}`")
+            return
+
+        response_pane.add_system(status_msg)
+        self.set_status(status_msg)
+
+        try:
+            cmd = ["python3", str(script)] + extra_args
+            proc = await _asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=_asyncio.subprocess.PIPE,
+                stderr=_asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await _asyncio.wait_for(
+                proc.communicate(), timeout=timeout
+            )
+            output = (stdout.decode() if stdout else "") + (
+                stderr.decode() if stderr else ""
+            )
+
+            if proc.returncode == 0:
+                response_pane.add_assistant(f"```\n{output}```\n")
+            else:
+                response_pane.add_error(f"Script failed:\n{output}")
+        except _asyncio.TimeoutError:
+            response_pane.add_error(f"Timed out after {timeout}s.")
+        finally:
+            self.set_status("Ready")
+
+    async def _vault_incoming(self, title: str, vault, response_pane) -> None:
+        """Quick-capture a raw note to _incoming/."""
+        from datetime import datetime
+
+        slug = title.lower().replace(" ", "-")[:60]
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        filename = f"_incoming/{date_str}-{slug}.md"
+        filepath = vault.path / filename
+
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+        filepath.write_text(
+            f"# {title}\n\n"
+            f"**Captured:** {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
+            f"**Source:** r3LAY session\n\n"
+            "---\n\n"
+            "(Add notes here)\n"
+        )
+
+        response_pane.add_assistant(
+            f"# Quick Capture\n\n"
+            f"Created `{filename}`\n\n"
+            f"Edit it in the vault, then `/vault sync` to share.\n"
+            f"Promote to a domain folder with proper frontmatter when ready."
+        )
+        self.notify(f"Captured to {filename}", severity="information")
 
     async def _handle_research(self, query: str, response_pane) -> None:
         """Handle /research command - run deep research expedition.
