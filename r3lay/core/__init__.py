@@ -97,6 +97,7 @@ if TYPE_CHECKING:
     from .backends import InferenceBackend
     from .embeddings import EmbeddingBackend
     from .embeddings.base_vision import VisionEmbeddingBackend
+    from .vault import KnowledgeVault
 
 logger = logging.getLogger(__name__)
 
@@ -189,6 +190,9 @@ class R3LayState:
     # Deep Research (Phase 7)
     research_orchestrator: ResearchOrchestrator | None = field(default=None, repr=False)
     search_client: SearXNGClient | None = field(default=None, repr=False)
+
+    # Knowledge Vault
+    vault: "KnowledgeVault | None" = field(default=None, repr=False)
 
     # App configuration (Phase 8 - env var support)
     _config: "AppConfig | None" = field(default=None, repr=False)
@@ -593,6 +597,27 @@ class R3LayState:
             await self.search_client.close()
             self.search_client = None
         self.research_orchestrator = None
+
+    def init_vault(self) -> "KnowledgeVault | None":
+        """Lazy-initialize the knowledge vault if configured.
+
+        Reads knowledge_vault_path from config. Returns None if no vault
+        path is configured or the directory doesn't exist.
+
+        Returns:
+            KnowledgeVault instance, or None.
+        """
+        if self.vault is not None:
+            return self.vault
+
+        vault_path = self.config.knowledge_vault_path
+        if vault_path and vault_path.is_dir():
+            from .vault import KnowledgeVault
+
+            self.vault = KnowledgeVault(vault_path)
+            logger.info("Initialized knowledge vault at %s", vault_path)
+            return self.vault
+        return None
 
 
 __all__ = [
