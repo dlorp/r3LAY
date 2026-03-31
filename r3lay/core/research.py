@@ -40,7 +40,17 @@ logger = logging.getLogger(__name__)
 
 def _yaml_escape(value: str) -> str:
     """Escape a string for safe embedding in YAML double-quoted scalars."""
-    return value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\r", "")
+    return (
+        value.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\n", "\\n")
+        .replace("\r", "")
+        .replace("\t", "\\t")
+    )
+
+
+# Minimum confidence for auto-validating axioms from trusted backends
+AUTO_VALIDATE_CONFIDENCE: float = 0.85
 
 
 # =============================================================================
@@ -1103,18 +1113,44 @@ class ResearchOrchestrator:
                     contradictions_found += len(contradictions)
                     findings.append(f"[CONFLICT] {item['statement'][:80]}...")
                 else:
-                    # No conflict - create the axiom
+                    # No conflict — check for duplicates before creating
                     try:
-                        axiom = self.axioms.create(
-                            statement=item["statement"],
-                            category=item.get("category", "specifications"),
-                            citation_ids=signal_ids,
-                            tags=item.get("tags", []),
-                            confidence=item.get("confidence", 0.7),
-                        )
-                        expedition.axiom_ids.append(axiom.id)
-                        axioms_generated += 1
-                        findings.append(item["statement"])
+                        category = item.get("category", "specifications")
+                        confidence = item.get("confidence", 0.7)
+
+                        duplicates = await self.axioms.find_duplicates(item["statement"], category)
+                        if duplicates:
+                            # Corroborate existing axiom instead of creating
+                            existing = duplicates[0]
+                            for sid in signal_ids:
+                                self.axioms.corroborate(existing.id, sid)
+                            expedition.axiom_ids.append(existing.id)
+                            findings.append(f"[CORROBORATED] {existing.statement[:80]}")
+                            logger.info(
+                                "Corroborated axiom %s instead of duplicate",
+                                existing.id,
+                            )
+                        else:
+                            # Determine auto-validation eligibility
+                            _trusted = (
+                                self._vault is not None
+                                and self._config is not None
+                                and self._vault.can_write(self.backend.backend_source, self._config)
+                            )
+                            _auto_validate = _trusted and confidence >= AUTO_VALIDATE_CONFIDENCE
+
+                            axiom = self.axioms.create(
+                                statement=item["statement"],
+                                category=category,
+                                citation_ids=signal_ids,
+                                tags=item.get("tags", []),
+                                confidence=confidence,
+                                auto_validate=_auto_validate,
+                                backend_source=self.backend.backend_source,
+                            )
+                            expedition.axiom_ids.append(axiom.id)
+                            axioms_generated += 1
+                            findings.append(item["statement"])
                     except Exception as e:
                         logger.warning(f"Failed to create axiom: {e}")
 
@@ -1581,18 +1617,15 @@ The following contradictions require manual review:
 
             content = "\n".join(lines)
             rel_path = f"research/{expedition.id}.md"
-
-            ok, msg = await self._vault.write_file(rel_path, content)
-            if not ok:
-                logger.warning("Vault write failed: %s", msg)
-                return
-
             safe_commit = expedition.query[:80].replace("\n", " ").replace("\r", "")
-            ok, msg = await self._vault.commit(f"research: {safe_commit}")
+
+            ok, msg = await self._vault.write_and_commit(
+                rel_path, content, f"research: {safe_commit}"
+            )
             if ok:
                 logger.info("Committed research to vault: %s", rel_path)
             else:
-                logger.warning("Vault commit failed: %s", msg)
+                logger.warning("Vault write failed: %s", msg)
 
         except Exception as exc:
             logger.warning("Vault write failed for expedition %s: %s", expedition.id, exc)

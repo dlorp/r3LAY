@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import TYPE_CHECKING
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
+from textual.timer import Timer
 from textual.widgets import Button, DataTable, Label, Static
 
 if TYPE_CHECKING:
@@ -21,7 +21,8 @@ class VaultPanel(Vertical):
     """Panel for knowledge vault git operations.
 
     Shows vault status, recent commit history, and provides
-    pull/revert actions for easy rollback.
+    pull/revert actions for easy rollback. Both Pull and Revert
+    use two-click confirmation with 5-second auto-reset.
     """
 
     DEFAULT_CSS = """
@@ -65,9 +66,13 @@ class VaultPanel(Vertical):
         super().__init__()
         self.state = state
         self._selected_hash: str | None = None
+        # Revert confirmation state
         self._revert_confirm: bool = False
         self._revert_confirm_hash: str | None = None
-        self._revert_reset_timer: asyncio.Task | None = None
+        self._revert_reset_timer: Timer | None = None
+        # Pull confirmation state
+        self._pull_confirm: bool = False
+        self._pull_reset_timer: Timer | None = None
 
     def compose(self) -> ComposeResult:
         # Status section
@@ -94,6 +99,15 @@ class VaultPanel(Vertical):
         """Load vault status on mount."""
         await self._refresh_all()
 
+    def on_unmount(self) -> None:
+        """Cancel pending confirmation timers on widget removal."""
+        if self._revert_reset_timer is not None:
+            self._revert_reset_timer.stop()
+            self._revert_reset_timer = None
+        if self._pull_reset_timer is not None:
+            self._pull_reset_timer.stop()
+            self._pull_reset_timer = None
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
         if event.button.id == "vault-pull":
@@ -111,11 +125,6 @@ class VaultPanel(Vertical):
         if row_data:
             self._selected_hash = str(row_data[0])
 
-    def on_unmount(self) -> None:
-        """Cancel any pending timers to prevent memory leaks."""
-        if self._revert_reset_timer and not self._revert_reset_timer.done():
-            self._revert_reset_timer.cancel()
-
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         """Track highlighted commit hash for keyboard navigation."""
         table = self.query_one("#vault-log", DataTable)
@@ -124,7 +133,6 @@ class VaultPanel(Vertical):
             row_data = table.get_row(row_key)
             if row_data:
                 new_hash = str(row_data[0])
-                # Reset revert confirmation if selection changes
                 if new_hash != self._selected_hash and self._revert_confirm:
                     self._reset_revert_confirm()
                 self._selected_hash = new_hash
@@ -180,7 +188,6 @@ class VaultPanel(Vertical):
 
         commits = await vault.log(limit=20)
         for commit in commits:
-            # Truncate date to just date + time
             date_short = commit.date[:16] if len(commit.date) > 16 else commit.date
             table.add_row(commit.short_hash, date_short, commit.message[:60])
 
@@ -190,17 +197,42 @@ class VaultPanel(Vertical):
         table.clear()
         self._selected_hash = None
 
+    # ------------------------------------------------------------------
+    # Pull with two-click confirmation
+    # ------------------------------------------------------------------
+
     async def _do_pull(self) -> None:
-        """Pull latest vault changes."""
-        vault = self.state.init_vault()
+        """Pull latest vault changes with two-click confirmation."""
         msg_widget = self.query_one("#vault-message", Static)
 
-        if vault is None:
-            msg_widget.update("No vault configured")
+        if not self._pull_confirm:
+            # First click — show confirmation
+            vault = self.state.init_vault()
+            if vault is None:
+                msg_widget.update("No vault configured")
+                return
+            if not await vault.is_git_repo():
+                msg_widget.update("Vault is not a git repository")
+                return
+
+            try:
+                pull_btn = self.query_one("#vault-pull", Button)
+                pull_btn.label = "Confirm pull?"
+            except Exception:
+                pass
+            self._pull_confirm = True
+
+            if self._pull_reset_timer is not None:
+                self._pull_reset_timer.stop()
+            self._pull_reset_timer = self.set_timer(5, self._reset_pull_confirm)
             return
 
-        if not await vault.is_git_repo():
-            msg_widget.update("Vault is not a git repository")
+        # Second click — actually pull
+        self._reset_pull_confirm()
+
+        vault = self.state.init_vault()
+        if vault is None:
+            msg_widget.update("No vault configured")
             return
 
         msg_widget.update("Pulling...")
@@ -214,6 +246,22 @@ class VaultPanel(Vertical):
             self.notify(f"Pull failed: {message}", severity="error")
 
         await self._refresh_all()
+
+    def _reset_pull_confirm(self) -> None:
+        """Reset the pull confirmation state."""
+        self._pull_confirm = False
+        if self._pull_reset_timer is not None:
+            self._pull_reset_timer.stop()
+            self._pull_reset_timer = None
+        try:
+            pull_btn = self.query_one("#vault-pull", Button)
+            pull_btn.label = "Pull Latest"
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------
+    # Revert with two-click confirmation
+    # ------------------------------------------------------------------
 
     async def _do_revert(self) -> None:
         """Revert the selected commit with two-click confirmation."""
@@ -243,19 +291,12 @@ class VaultPanel(Vertical):
             self._revert_confirm = True
             self._revert_confirm_hash = self._selected_hash
 
-            # Auto-reset after 5 seconds
-            async def reset_revert() -> None:
-                await asyncio.sleep(5)
-                if self._revert_confirm:
-                    self._reset_revert_confirm()
-
-            if self._revert_reset_timer and not self._revert_reset_timer.done():
-                self._revert_reset_timer.cancel()
-            self._revert_reset_timer = asyncio.create_task(reset_revert())
+            if self._revert_reset_timer is not None:
+                self._revert_reset_timer.stop()
+            self._revert_reset_timer = self.set_timer(5, self._reset_revert_confirm)
             return
 
         # Second click — actually revert
-        # Verify selection hasn't drifted since first click
         if self._selected_hash != self._revert_confirm_hash:
             msg_widget.update("Selection changed — revert cancelled")
             self._reset_revert_confirm()
@@ -285,8 +326,9 @@ class VaultPanel(Vertical):
     def _reset_revert_confirm(self) -> None:
         """Reset the revert confirmation state."""
         self._revert_confirm = False
-        if self._revert_reset_timer and not self._revert_reset_timer.done():
-            self._revert_reset_timer.cancel()
+        if self._revert_reset_timer is not None:
+            self._revert_reset_timer.stop()
+            self._revert_reset_timer = None
         try:
             revert_btn = self.query_one("#vault-revert", Button)
             revert_btn.label = "Revert Selected"

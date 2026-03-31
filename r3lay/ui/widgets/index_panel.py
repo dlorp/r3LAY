@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
+from textual.css.query import NoMatches
 from textual.widgets import Button, Label, Static
 
 if TYPE_CHECKING:
@@ -71,9 +72,22 @@ class IndexPanel(Vertical):
         self._refresh_stats()
 
     def on_unmount(self) -> None:
-        """Cancel any pending timers to prevent memory leaks."""
-        if self._clear_reset_timer and not self._clear_reset_timer.done():
-            self._clear_reset_timer.cancel()
+        """Cancel pending clear confirmation timer on widget removal."""
+        if self._clear_reset_timer is not None:
+            self._clear_reset_timer.stop()
+            self._clear_reset_timer = None
+
+    def _reset_clear_confirm(self) -> None:
+        """Reset the clear confirmation state."""
+        self._clear_confirm = False
+        if self._clear_reset_timer is not None:
+            self._clear_reset_timer.stop()
+            self._clear_reset_timer = None
+        try:
+            clear_btn = self.query_one("#clear-button", Button)
+            clear_btn.label = "Clear"
+        except NoMatches:
+            pass
 
     def _refresh_stats(self) -> None:
         """Update stats display from current index state."""
@@ -162,11 +176,9 @@ class IndexPanel(Vertical):
 
     async def _handle_clear_button(self) -> None:
         """Handle clear button with two-click confirmation."""
-        import asyncio
-
         try:
             clear_btn = self.query_one("#clear-button", Button)
-        except Exception:
+        except NoMatches:
             # Widget not mounted yet, fallback to simple clear (for testing)
             if self.state.index is not None:
                 self.state.index.clear()
@@ -188,16 +200,9 @@ class IndexPanel(Vertical):
 
             self._clear_confirm = True
 
-            # Auto-reset after 5 seconds
-            async def reset_clear():
-                await asyncio.sleep(5)
-                if self._clear_confirm:
-                    self._clear_confirm = False
-                    clear_btn.label = "Clear"
-
-            if self._clear_reset_timer:
-                self._clear_reset_timer.cancel()
-            self._clear_reset_timer = asyncio.create_task(reset_clear())
+            if self._clear_reset_timer is not None:
+                self._clear_reset_timer.stop()
+            self._clear_reset_timer = self.set_timer(5, self._reset_clear_confirm)
 
         else:
             # Second click - actually clear
@@ -206,11 +211,7 @@ class IndexPanel(Vertical):
                 self._refresh_stats()
                 self.app.notify("Index cleared")
 
-            # Reset button
-            self._clear_confirm = False
-            if self._clear_reset_timer:
-                self._clear_reset_timer.cancel()
-            clear_btn.label = "Clear"
+            self._reset_clear_confirm()
 
     async def _do_reindex_sync(self) -> None:
         """Reindex with optional embedding generation.

@@ -221,18 +221,66 @@ class KnowledgeVault:
         # Resolve and verify the path stays within the vault directory
         resolved = (self.path / relative_path).resolve()
         vault_root = self.path.resolve()
-        if not str(resolved).startswith(str(vault_root) + "/"):
+        if not resolved.is_relative_to(vault_root):
             return False, "Path escapes vault directory"
 
         try:
-            full_path = self.path / relative_path
-            full_path.parent.mkdir(parents=True, exist_ok=True)
-            full_path.write_text(content, encoding="utf-8")
+            resolved.parent.mkdir(parents=True, exist_ok=True)
+            resolved.write_text(content, encoding="utf-8")
             logger.debug("vault write: %s (%d bytes)", relative_path, len(content))
-            return True, str(full_path)
+            return True, str(resolved)
         except OSError as e:
             logger.warning("vault write failed: %s", e)
             return False, f"Write failed: {e}"
+
+    async def write_and_commit(
+        self,
+        relative_path: str,
+        content: str,
+        message: str,
+    ) -> tuple[bool, str]:
+        """Write a file and commit it atomically.
+
+        Holds the git lock across the entire write-stage-commit sequence
+        and stages only the specified file (not ``git add -A``).
+
+        Args:
+            relative_path: Path relative to vault root.
+            content: File content to write.
+            message: Commit message (max 4096 characters).
+
+        Returns:
+            Tuple of (success, message).
+        """
+        if not message or len(message) > 4096:
+            return False, "Commit message must be 1-4096 characters"
+
+        async with self._git_lock:
+            if not await self.is_git_repo():
+                return False, "Not a git repository"
+
+            ok, msg = await self.write_file(relative_path, content)
+            if not ok:
+                return False, msg
+
+            # Stage only the specific file
+            code, _, stderr = await self._run_git("add", "--", relative_path)
+            if code != 0:
+                return False, f"git add failed: {stderr}"
+
+            # Check if the target file has staged changes
+            code, status_out, _ = await self._run_git(
+                "diff", "--cached", "--name-only", "--", relative_path
+            )
+            if code == 0 and status_out == "":
+                return True, "Nothing to commit"
+
+            code, stdout, stderr = await self._run_git("commit", "-m", message)
+            if code != 0:
+                return False, f"git commit failed: {stderr}"
+
+            logger.info("vault write+commit: %s", relative_path)
+            return True, stdout
 
     # ------------------------------------------------------------------
     # History
