@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-03-30
+
+### Added
+- Semantic conflict detection for axioms — replaces crude 30% keyword overlap with
+  embedding-based cosine similarity (0.55 threshold, all-MiniLM-L6-v2 compatible)
+  - `AxiomManager.find_conflicts()` now async with semantic path + keyword fallback
+  - `AxiomManager.search_semantic()` for ContradictionJudge Tier 2 evidence gathering
+  - `embed_axiom()` and `rebuild_embeddings()` for embedding lifecycle management
+  - Embedding persistence via `axiom_embeddings.npz` (survives app restarts)
+  - Automatic embedding rebuild during reindex when text embedder loads
+  - Shape validation and dimension consistency checks on cached embeddings
+
+### Changed
+- `AxiomManager.find_conflicts()` is now async (all callers updated)
+- `ContradictionDetector._check_finding_fallback()` renamed from `_check_finding_keyword_fallback` and made async
+- `ContradictionJudge.gather_axiom_evidence()` uses `search_semantic()` instead of substring `search()`
+- Embedder wired into axiom manager via `R3LayState` lifecycle (`init_axioms`, `init_embedder`, `unload_embedder`)
+
+### Fixed
+- Partial embedding coverage no longer silently skips unembedded axioms (returns `None` sentinel to force keyword fallback)
+- `rebuild_embeddings()` uses atomic staging dict to prevent partial state corruption
+- `np.load()` now uses context manager with `allow_pickle=False` for safety
+
 ## [0.8.0] - 2026-03-30
 
 ### Added
