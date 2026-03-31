@@ -15,6 +15,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import TYPE_CHECKING
 
+from rich.markup import escape as rich_escape
 from textual.app import ComposeResult
 from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.widgets import Button, Label, Select, Static
@@ -42,13 +43,15 @@ class AxiomStatus(str, Enum):
     SUPERSEDED = "superseded"
 
 
-# Status display configuration
-STATUS_ICONS = {
-    AxiomStatus.VALIDATED: "[green]OK[/]",
-    AxiomStatus.PENDING: "[yellow]o[/]",
-    AxiomStatus.DISPUTED: "[red]!![/]",
-    AxiomStatus.SUPERSEDED: "[dim]~[/]",
+# Status display configuration — styled badges
+STATUS_BADGES = {
+    AxiomStatus.VALIDATED: "[bold on green] VALIDATED [/]",
+    AxiomStatus.PENDING: "[bold on yellow] PENDING [/]",
+    AxiomStatus.DISPUTED: "[bold on red] DISPUTED [/]",
+    AxiomStatus.SUPERSEDED: "[bold on #555555] SUPERSEDED [/]",
 }
+# Backward-compatible alias
+STATUS_ICONS = STATUS_BADGES
 
 
 class AxiomItem(Static):
@@ -96,17 +99,23 @@ class AxiomItem(Static):
         statement: str,
         confidence: float,
         status: AxiomStatus,
+        backend_source: str | None = None,
     ) -> None:
         self.axiom_id = axiom_id
         self._statement = statement
         self._confidence = confidence
         self._status = status
+        self._backend_source = backend_source
 
-        # Build display text
-        icon = STATUS_ICONS.get(status, "?")
+        # Build display text with badge (escape user content to prevent Rich markup injection)
+        badge = STATUS_BADGES.get(status, "?")
         truncated = statement[:60] + "..." if len(statement) > 60 else statement
+        truncated = rich_escape(truncated)
         confidence_pct = int(confidence * 100)
-        display = f"{icon} {truncated} [{confidence_pct}%]"
+        source_tag = (
+            f" [dim]\\[{rich_escape(backend_source)}][/]" if backend_source else ""
+        )
+        display = f"{badge} {truncated} [{confidence_pct}%]{source_tag}"
 
         super().__init__(display, classes=f"axiom-item {status.value}")
         self.can_focus = True
@@ -163,6 +172,11 @@ class AxiomPanel(Vertical):
         width: 1fr;
     }
 
+    #source-filter {
+        width: 1fr;
+        margin-left: 1;
+    }
+
     #axiom-list {
         height: 1fr;
         border: solid $surface-darken-2;
@@ -208,6 +222,7 @@ class AxiomPanel(Vertical):
         self._selected_axiom_id: str | None = None
         self._current_category: str | None = None
         self._current_status: str | None = None
+        self._current_source: str | None = None
 
     def compose(self) -> ComposeResult:
         yield Label("Axioms", id="axiom-header")
@@ -230,6 +245,12 @@ class AxiomPanel(Vertical):
                 ],
                 id="status-filter",
                 prompt="Status",
+                value=None,
+            )
+            yield Select(
+                [("All Sources", None)],
+                id="source-filter",
+                prompt="Source",
                 value=None,
             )
 
@@ -264,6 +285,26 @@ class AxiomPanel(Vertical):
 
         # Update list
         self._update_list(axioms)
+
+        # Update source filter options dynamically
+        self._update_source_filter_options(axiom_manager)
+
+    def _update_source_filter_options(self, axiom_manager) -> None:
+        """Collect unique backend_source values and update the source filter."""
+        try:
+            all_axioms = axiom_manager.search(limit=200)
+            sources = sorted(
+                {
+                    a.metadata.get("backend_source")
+                    for a in all_axioms
+                    if hasattr(a, "metadata") and a.metadata.get("backend_source")
+                }
+            )
+            options = [("All Sources", None)] + [(s, s) for s in sources]
+            source_select = self.query_one("#source-filter", Select)
+            source_select.set_options(options)
+        except Exception:
+            pass
 
     def _get_axiom_manager(self):
         """Get the axiom manager from state, initializing if needed."""
@@ -339,7 +380,16 @@ class AxiomPanel(Vertical):
             elif self._current_status == "disputed":
                 axioms = [a for a in axioms if getattr(a, "is_disputed", False)]
             elif self._current_status == "superseded":
-                axioms = [a for a in axioms if getattr(a, "supersedes", None) is not None]
+                axioms = [a for a in axioms if getattr(a, "superseded_by", None) is not None]
+
+            # Backend source filtering (post-query)
+            if self._current_source:
+                axioms = [
+                    a
+                    for a in axioms
+                    if hasattr(a, "metadata")
+                    and a.metadata.get("backend_source") == self._current_source
+                ]
 
             return axioms
         except Exception:
@@ -363,12 +413,16 @@ class AxiomPanel(Vertical):
         for ax in axioms:
             # Determine status
             status = self._get_axiom_status(ax)
+            backend_source = (
+                ax.metadata.get("backend_source") if hasattr(ax, "metadata") else None
+            )
 
             item = AxiomItem(
                 axiom_id=ax.id,
                 statement=ax.statement,
                 confidence=ax.confidence,
                 status=status,
+                backend_source=backend_source,
             )
             axiom_list.mount(item)
 
@@ -404,6 +458,9 @@ class AxiomPanel(Vertical):
             self.refresh_axioms()
         elif event.select.id == "status-filter":
             self._current_status = event.value
+            self.refresh_axioms()
+        elif event.select.id == "source-filter":
+            self._current_source = event.value
             self.refresh_axioms()
 
     def on_click(self, event) -> None:
@@ -505,4 +562,4 @@ class AxiomPanel(Vertical):
             self.app.notify(f"Export failed: {e}", severity="error")
 
 
-__all__ = ["AxiomPanel", "AXIOM_CATEGORIES", "AxiomStatus"]
+__all__ = ["AxiomPanel", "AXIOM_CATEGORIES", "AxiomStatus", "STATUS_BADGES"]

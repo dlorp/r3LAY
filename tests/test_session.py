@@ -444,7 +444,7 @@ class TestSessionSerialization:
     def test_from_dict(self):
         """Test session deserialization from dictionary."""
         data = {
-            "id": "restored-456",
+            "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
             "messages": [
                 {
                     "role": "user",
@@ -463,7 +463,7 @@ class TestSessionSerialization:
 
         session = Session.from_dict(data)
 
-        assert session.id == "restored-456"
+        assert session.id == "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
         assert session.title == "Restored Session"
         assert session.project_path == Path("/my/project")
         assert len(session.messages) == 1
@@ -472,7 +472,7 @@ class TestSessionSerialization:
     def test_from_dict_minimal(self):
         """Test deserialization with minimal required fields."""
         data = {
-            "id": "min-session",
+            "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
             "messages": [],
             "created_at": "2026-01-01T00:00:00",
             "updated_at": "2026-01-01T00:00:00",
@@ -480,7 +480,7 @@ class TestSessionSerialization:
 
         session = Session.from_dict(data)
 
-        assert session.id == "min-session"
+        assert session.id == "b2c3d4e5-f6a7-8901-bcde-f12345678901"
         assert session.messages == []
         assert session.title is None
         assert session.project_path is None
@@ -488,7 +488,7 @@ class TestSessionSerialization:
     def test_roundtrip_serialization(self):
         """Test that to_dict/from_dict roundtrip preserves session."""
         original = Session(
-            id="roundtrip-test",
+            id="c3d4e5f6-a7b8-9012-cdef-123456789012",
             title="Roundtrip Test",
             project_path=Path("/test/path"),
         )
@@ -520,7 +520,7 @@ class TestSessionPersistence:
 
     def test_save_creates_file(self):
         """Test that save creates a JSON file."""
-        session = Session(id="save-test")
+        session = Session(id="11111111-1111-1111-1111-111111111111")
         session.add_user_message("Test message")
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -528,23 +528,23 @@ class TestSessionPersistence:
             saved_path = session.save(sessions_dir)
 
             assert saved_path.exists()
-            assert saved_path.name == "save-test.json"
+            assert saved_path.name == "11111111-1111-1111-1111-111111111111.json"
             assert saved_path.parent == sessions_dir
 
     def test_save_creates_directory(self):
         """Test that save creates parent directories if needed."""
-        session = Session(id="mkdir-test")
+        session = Session(id="22222222-2222-2222-2222-222222222222")
 
         with tempfile.TemporaryDirectory() as tmpdir:
             deep_path = Path(tmpdir) / "a" / "b" / "c" / "sessions"
             session.save(deep_path)
 
             assert deep_path.exists()
-            assert (deep_path / "mkdir-test.json").exists()
+            assert (deep_path / "22222222-2222-2222-2222-222222222222.json").exists()
 
     def test_save_valid_json(self):
         """Test that saved file contains valid JSON."""
-        session = Session(id="json-test")
+        session = Session(id="33333333-3333-3333-3333-333333333333")
         session.add_user_message("Hello")
         session.add_assistant_message("Hi", model="test")
 
@@ -553,12 +553,12 @@ class TestSessionPersistence:
 
             # Should be valid JSON
             data = json.loads(saved_path.read_text())
-            assert data["id"] == "json-test"
+            assert data["id"] == "33333333-3333-3333-3333-333333333333"
             assert len(data["messages"]) == 2
 
     def test_save_overwrites_existing(self):
         """Test that save overwrites existing session file."""
-        session = Session(id="overwrite-test")
+        session = Session(id="a0b1c2d3-e4f5-6789-abcd-ef0123456789")
 
         with tempfile.TemporaryDirectory() as tmpdir:
             sessions_dir = Path(tmpdir)
@@ -572,13 +572,14 @@ class TestSessionPersistence:
             session.save(sessions_dir)
 
             # Load and verify
-            data = json.loads((sessions_dir / "overwrite-test.json").read_text())
+            session_file = sessions_dir / "a0b1c2d3-e4f5-6789-abcd-ef0123456789.json"
+            data = json.loads(session_file.read_text())
             assert len(data["messages"]) == 2
 
     def test_load_existing_file(self):
         """Test loading a session from file."""
         session_data = {
-            "id": "load-test",
+            "id": "d4e5f6a7-b8c9-0123-defa-234567890123",
             "messages": [
                 {
                     "role": "user",
@@ -601,7 +602,7 @@ class TestSessionPersistence:
 
             loaded = Session.load(session_file)
 
-            assert loaded.id == "load-test"
+            assert loaded.id == "d4e5f6a7-b8c9-0123-defa-234567890123"
             assert loaded.title == "Loaded Session"
             assert len(loaded.messages) == 1
             assert loaded.messages[0].content == "Loaded message"
@@ -625,7 +626,7 @@ class TestSessionPersistence:
 
     def test_load_missing_required_field(self):
         """Test that loading file with missing fields raises ValueError."""
-        incomplete_data = {"id": "incomplete"}  # Missing required fields
+        incomplete_data = {"id": "f6a7b8c9-d0e1-2345-fabc-456789012345"}  # Missing required fields
 
         with tempfile.TemporaryDirectory() as tmpdir:
             bad_file = Path(tmpdir) / "incomplete.json"
@@ -637,7 +638,7 @@ class TestSessionPersistence:
     def test_save_load_roundtrip(self):
         """Test complete save/load roundtrip."""
         original = Session(
-            id="roundtrip-file",
+            id="e5f6a7b8-c9d0-1234-efab-345678901234",
             title="File Roundtrip",
             project_path=Path("/roundtrip/project"),
         )
@@ -914,3 +915,115 @@ class TestSessionEdgeCases:
         assert ts2 >= ts1
         assert ts3 >= ts2
         assert ts4 >= ts3
+
+
+# =============================================================================
+# Dirty Tracking Tests
+# =============================================================================
+
+
+class TestSessionDirtyTracking:
+    """Tests for session dirty flag and has_unsaved_changes property."""
+
+    def test_new_session_is_clean(self):
+        """Test that a new session is not dirty."""
+        session = Session()
+        assert session._dirty is False
+        assert session.has_unsaved_changes is False
+
+    def test_dirty_after_user_message(self):
+        """Test _dirty is True after add_user_message."""
+        session = Session()
+        session.add_user_message("Hello")
+        assert session._dirty is True
+        assert session.has_unsaved_changes is True
+
+    def test_dirty_after_assistant_message(self):
+        """Test _dirty is True after add_assistant_message."""
+        session = Session()
+        session.add_assistant_message("Response", model="test")
+        assert session._dirty is True
+        assert session.has_unsaved_changes is True
+
+    def test_dirty_after_system_message(self):
+        """Test _dirty is True after add_system_message."""
+        session = Session()
+        session.add_system_message("System prompt")
+        assert session._dirty is True
+        assert session.has_unsaved_changes is True
+
+    def test_dirty_cleared_after_save(self, tmp_path: Path):
+        """Test _dirty resets to False after save."""
+        session = Session()
+        session.add_user_message("Hello")
+        assert session._dirty is True
+
+        session.save(tmp_path)
+        assert session._dirty is False
+        assert session.has_unsaved_changes is False
+
+    def test_dirty_cleared_after_clear(self):
+        """Test _dirty resets to False after clear."""
+        session = Session()
+        session.add_user_message("Hello")
+        assert session._dirty is True
+
+        session.clear()
+        assert session._dirty is False
+        assert session.has_unsaved_changes is False
+
+    def test_has_unsaved_changes_empty_dirty_session(self):
+        """Test has_unsaved_changes is False for dirty session with no messages."""
+        session = Session()
+        # Manually set dirty without adding messages
+        session._dirty = True
+        assert session.has_unsaved_changes is False
+
+    def test_has_unsaved_changes_after_save_and_new_message(self, tmp_path: Path):
+        """Test has_unsaved_changes correctly reflects state after save + new msg."""
+        session = Session()
+        session.add_user_message("First")
+        session.save(tmp_path)
+        assert session.has_unsaved_changes is False
+
+        session.add_user_message("Second")
+        assert session.has_unsaved_changes is True
+
+    def test_dirty_not_serialized(self):
+        """Test _dirty flag is not included in serialization."""
+        session = Session()
+        session.add_user_message("Hello")
+        data = session.to_dict()
+        assert "_dirty" not in data
+
+    def test_loaded_session_is_clean(self, tmp_path: Path):
+        """Test that a loaded session starts clean."""
+        session = Session()
+        session.add_user_message("Hello")
+        session.save(tmp_path)
+
+        loaded = Session.load(tmp_path / f"{session.id}.json")
+        assert loaded._dirty is False
+        assert loaded.has_unsaved_changes is False
+
+    def test_from_dict_rejects_invalid_uuid(self):
+        """Test that from_dict rejects non-UUID session IDs."""
+        data = {
+            "id": "../../etc/shadow",
+            "messages": [],
+            "created_at": "2026-01-01T00:00:00",
+            "updated_at": "2026-01-01T00:00:00",
+        }
+        with pytest.raises(ValueError, match="Invalid session ID format"):
+            Session.from_dict(data)
+
+    def test_from_dict_rejects_plain_string_id(self):
+        """Test that from_dict rejects non-UUID plain string IDs."""
+        data = {
+            "id": "my-session",
+            "messages": [],
+            "created_at": "2026-01-01T00:00:00",
+            "updated_at": "2026-01-01T00:00:00",
+        }
+        with pytest.raises(ValueError, match="Invalid session ID format"):
+            Session.from_dict(data)

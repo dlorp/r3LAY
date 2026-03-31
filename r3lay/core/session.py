@@ -14,11 +14,14 @@ Features:
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
+
+_UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
 if TYPE_CHECKING:
     from .axioms import AxiomManager
@@ -100,6 +103,12 @@ class Session:
     updated_at: datetime = field(default_factory=datetime.now)
     title: str | None = None
     project_path: Path | None = None
+    _dirty: bool = field(default=False, repr=False, compare=False, init=False)
+
+    @property
+    def has_unsaved_changes(self) -> bool:
+        """Check if session has messages that haven't been saved."""
+        return self._dirty and len(self.messages) > 0
 
     def add_user_message(
         self,
@@ -122,6 +131,7 @@ class Session:
         )
         self.messages.append(msg)
         self.updated_at = datetime.now()
+        self._dirty = True
 
         # Auto-generate title from first user message
         if self.title is None and content:
@@ -153,6 +163,7 @@ class Session:
         )
         self.messages.append(msg)
         self.updated_at = datetime.now()
+        self._dirty = True
         return msg
 
     def add_system_message(self, content: str) -> Message:
@@ -167,6 +178,7 @@ class Session:
         msg = Message(role="system", content=content)
         self.messages.append(msg)
         self.updated_at = datetime.now()
+        self._dirty = True
         return msg
 
     def get_messages_for_llm(
@@ -239,6 +251,7 @@ class Session:
         """Clear all messages from the session."""
         self.messages = []
         self.updated_at = datetime.now()
+        self._dirty = False
 
     def get_system_prompt_with_citations(
         self,
@@ -426,8 +439,11 @@ Use these when presenting information:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Session":
         """Deserialize session from dictionary."""
+        session_id = data["id"]
+        if not _UUID_RE.match(session_id):
+            raise ValueError(f"Invalid session ID format: {session_id}")
         session = cls(
-            id=data["id"],
+            id=session_id,
             messages=[Message.from_dict(m) for m in data.get("messages", [])],
             created_at=datetime.fromisoformat(data["created_at"]),
             updated_at=datetime.fromisoformat(data["updated_at"]),
@@ -456,6 +472,7 @@ Use these when presenting information:
             temp_file = session_file.with_suffix(".json.tmp")
             temp_file.write_text(json.dumps(self.to_dict(), indent=2))
             temp_file.replace(session_file)
+            self._dirty = False
 
             return session_file
         except OSError as e:

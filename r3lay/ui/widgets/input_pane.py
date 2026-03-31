@@ -875,6 +875,12 @@ class InputPane(Vertical):
         elif cmd == "clear":
             response_pane.clear()
             self.clear_conversation()
+            # Remove last_session pointer so auto-restore won't reload
+            try:
+                pointer = self.state.get_sessions_dir() / "last_session.json"
+                pointer.unlink(missing_ok=True)
+            except Exception:
+                pass
             response_pane.add_system("Chat and conversation history cleared.")
             self.notify("Chat cleared", severity="information")
         elif cmd == "index":

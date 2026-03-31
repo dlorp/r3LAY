@@ -139,6 +139,12 @@ class AppConfig(BaseSettings):
         description="Backend sources allowed to write to the knowledge vault",
     )
 
+    # Session persistence
+    auto_save_session: bool = Field(
+        default=True,
+        description="Auto-save session on exit and auto-restore on startup",
+    )
+
     # R³ auto-trigger mode for contradiction detection
     research_auto_trigger: Literal["auto", "prompt", "manual"] = Field(
         default="prompt",
@@ -236,6 +242,10 @@ class AppConfig(BaseSettings):
                 if isinstance(backends, list):
                     config.vault_write_backends = backends
 
+            # Load session persistence setting if present
+            if data and "auto_save_session" in data:
+                config.auto_save_session = bool(data["auto_save_session"])
+
             # Load research auto-trigger mode if present
             if data and "research" in data and isinstance(data["research"], dict):
                 mode = data["research"].get("auto_trigger_mode")
@@ -260,6 +270,7 @@ class AppConfig(BaseSettings):
         data: dict[str, Any] = {
             "model_roles": self.model_roles.model_dump(exclude_none=False),
             "intent_routing": self.intent_routing,
+            "auto_save_session": self.auto_save_session,
             "research": {
                 "auto_trigger_mode": self.research_auto_trigger,
             },
