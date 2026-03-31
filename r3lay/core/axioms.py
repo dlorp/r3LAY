@@ -818,54 +818,54 @@ class AxiomManager:
         words = re.findall(r"\b[a-zA-Z0-9]+\b", text.lower())
         return {w for w in words if w not in STOP_WORDS and len(w) > 2}
 
-    async def find_conflicts(
+    async def _find_similar(
         self,
         statement: str,
         category: str,
+        semantic_threshold: float,
+        keyword_threshold: float,
+        label: str = "similar",
     ) -> list[Axiom]:
-        """Find potentially conflicting axioms using semantic similarity.
+        """Find similar axioms above the given thresholds.
 
-        When an embedder is available, uses cosine similarity on axiom
-        embeddings. Falls back to keyword overlap when embedder is
-        unavailable or embedding fails.
+        Shared implementation for both conflict detection and duplicate
+        detection, parameterized by threshold.
 
         Args:
-            statement: The new statement to check for conflicts
-            category: Category to search within
+            statement: The statement to compare against.
+            category: Category to search within.
+            semantic_threshold: Cosine similarity threshold for semantic path.
+            keyword_threshold: Keyword overlap threshold for fallback path.
+            label: Label for debug logging.
 
         Returns:
-            List of potentially conflicting Axioms
+            List of matching Axioms, sorted by similarity.
         """
         if self._embedder is not None and self._embedder.is_loaded:
             try:
                 query_vec = await self._embed_text(statement)
                 if query_vec is not None:
-                    result = self._find_conflicts_semantic(query_vec, category)
+                    result = self._find_similar_semantic(
+                        query_vec, category, semantic_threshold, label
+                    )
                     if result is not None:
                         return result
             except Exception:
-                logger.warning("Semantic conflict detection failed, using keyword fallback")
+                logger.warning("Semantic %s detection failed, using keyword fallback", label)
                 logger.debug("Embedder error details:", exc_info=True)
-        return self._find_conflicts_keyword(statement, category)
+        return self._find_similar_keyword(statement, category, keyword_threshold)
 
-    def _find_conflicts_semantic(
+    def _find_similar_semantic(
         self,
         query_vec: np.ndarray,
         category: str,
+        threshold: float,
+        label: str = "similar",
     ) -> list[Axiom] | None:
-        """Find conflicts via cosine similarity against cached embeddings.
+        """Find similar axioms via cosine similarity.
 
-        Returns None (triggering keyword fallback) when embedding coverage
-        is incomplete — i.e., any active axiom in the category is missing
-        a cached vector. This prevents silently skipping unembedded axioms.
-
-        Args:
-            query_vec: Embedding vector of the query statement.
-            category: Category to search within.
-
-        Returns:
-            List of conflicting Axioms sorted by similarity, or None
-            if embedding coverage for the category is incomplete.
+        Returns None when embedding coverage is incomplete, triggering
+        the keyword fallback path.
         """
         candidates: list[Axiom] = []
         vecs: list[np.ndarray] = []
@@ -883,16 +883,63 @@ class AxiomManager:
         scores = self._cosine_scores(query_vec, vecs)
 
         results = [
-            (ax, float(score))
-            for ax, score in zip(candidates, scores)
-            if score >= SEMANTIC_CONFLICT_THRESHOLD
+            (ax, float(score)) for ax, score in zip(candidates, scores) if score >= threshold
         ]
         results.sort(key=lambda x: x[1], reverse=True)
 
         for ax, score in results:
-            logger.debug(f"Semantic conflict: {ax.id} (similarity={score:.3f})")
+            logger.debug(f"Semantic {label}: {ax.id} (similarity={score:.3f})")
 
         return [ax for ax, _ in results]
+
+    def _find_similar_keyword(
+        self,
+        statement: str,
+        category: str,
+        threshold: float,
+    ) -> list[Axiom]:
+        """Find similar axioms via keyword overlap at the given threshold."""
+        new_keywords = self._extract_keywords(statement)
+        if not new_keywords:
+            return []
+
+        matches = []
+        for axiom in self._axioms.values():
+            if axiom.category != category or not axiom.is_active:
+                continue
+            existing_keywords = self._extract_keywords(axiom.statement)
+            if not existing_keywords:
+                continue
+            overlap = len(new_keywords & existing_keywords)
+            overlap_ratio = overlap / min(len(new_keywords), len(existing_keywords))
+            if overlap_ratio >= threshold:
+                matches.append(axiom)
+        return matches
+
+    async def find_conflicts(
+        self,
+        statement: str,
+        category: str,
+    ) -> list[Axiom]:
+        """Find potentially conflicting axioms using semantic similarity.
+
+        Uses a 0.55 cosine similarity threshold to catch axioms about
+        the same topic that may contradict.
+
+        Args:
+            statement: The new statement to check for conflicts
+            category: Category to search within
+
+        Returns:
+            List of potentially conflicting Axioms
+        """
+        return await self._find_similar(
+            statement,
+            category,
+            semantic_threshold=SEMANTIC_CONFLICT_THRESHOLD,
+            keyword_threshold=self.CONFLICT_THRESHOLD,
+            label="conflict",
+        )
 
     @staticmethod
     def _cosine_scores(query_vec: np.ndarray, vecs: list[np.ndarray]) -> np.ndarray:
@@ -910,47 +957,6 @@ class AxiomManager:
         norms = np.linalg.norm(matrix, axis=1, keepdims=True) + 1e-9
         return (matrix / norms) @ q_norm
 
-    def _find_conflicts_keyword(
-        self,
-        statement: str,
-        category: str,
-    ) -> list[Axiom]:
-        """Find conflicts via keyword overlap (fallback when no embedder).
-
-        Uses 30% keyword overlap threshold against active axioms in
-        the same category.
-
-        Args:
-            statement: The new statement to check for conflicts
-            category: Category to search within
-
-        Returns:
-            List of potentially conflicting Axioms
-        """
-        new_keywords = self._extract_keywords(statement)
-        if not new_keywords:
-            return []
-
-        conflicts = []
-        for axiom in self._axioms.values():
-            if axiom.category != category:
-                continue
-            if not axiom.is_active:
-                continue
-
-            existing_keywords = self._extract_keywords(axiom.statement)
-            if not existing_keywords:
-                continue
-
-            overlap = len(new_keywords & existing_keywords)
-            overlap_ratio = overlap / min(len(new_keywords), len(existing_keywords))
-
-            if overlap_ratio >= self.CONFLICT_THRESHOLD:
-                conflicts.append(axiom)
-                logger.debug(f"Keyword conflict: {axiom.id} (overlap={overlap_ratio:.2f})")
-
-        return conflicts
-
     # ========================================================================
     # Duplicate Detection
     # ========================================================================
@@ -962,9 +968,8 @@ class AxiomManager:
     ) -> list[Axiom]:
         """Find near-duplicate axioms for corroboration instead of creation.
 
-        Uses a higher similarity threshold (0.80) than conflict detection
-        (0.55) to identify axioms making essentially the same claim.
-        Falls back to keyword overlap when embedder is unavailable.
+        Uses a higher threshold (0.80 semantic / 0.70 keyword) than
+        conflict detection to identify axioms making the same claim.
 
         Args:
             statement: The new statement to check.
@@ -973,68 +978,13 @@ class AxiomManager:
         Returns:
             List of near-duplicate Axioms, sorted by similarity.
         """
-        if self._embedder is not None and self._embedder.is_loaded:
-            try:
-                query_vec = await self._embed_text(statement)
-                if query_vec is not None:
-                    result = self._find_duplicates_semantic(query_vec, category)
-                    if result is not None:
-                        return result
-            except Exception:
-                logger.warning("Semantic duplicate detection failed, using keyword fallback")
-                logger.debug("Embedder error details:", exc_info=True)
-        return self._find_duplicates_keyword(statement, category)
-
-    def _find_duplicates_semantic(
-        self,
-        query_vec: np.ndarray,
-        category: str,
-    ) -> list[Axiom] | None:
-        """Find duplicates via cosine similarity (threshold 0.80)."""
-        candidates: list[Axiom] = []
-        vecs: list[np.ndarray] = []
-        for ax in self._axioms.values():
-            if ax.category != category or not ax.is_active:
-                continue
-            if ax.id not in self._embeddings:
-                return None  # Incomplete coverage — fall back to keywords
-            candidates.append(ax)
-            vecs.append(self._embeddings[ax.id])
-
-        if not vecs:
-            return None
-
-        scores = self._cosine_scores(query_vec, vecs)
-        results = [
-            (ax, float(score))
-            for ax, score in zip(candidates, scores)
-            if score >= SEMANTIC_DUPLICATE_THRESHOLD
-        ]
-        results.sort(key=lambda x: x[1], reverse=True)
-        return [ax for ax, _ in results]
-
-    def _find_duplicates_keyword(
-        self,
-        statement: str,
-        category: str,
-    ) -> list[Axiom]:
-        """Find duplicates via keyword overlap (threshold 0.70)."""
-        new_keywords = self._extract_keywords(statement)
-        if not new_keywords:
-            return []
-
-        duplicates = []
-        for axiom in self._axioms.values():
-            if axiom.category != category or not axiom.is_active:
-                continue
-            existing_keywords = self._extract_keywords(axiom.statement)
-            if not existing_keywords:
-                continue
-            overlap = len(new_keywords & existing_keywords)
-            overlap_ratio = overlap / min(len(new_keywords), len(existing_keywords))
-            if overlap_ratio >= KEYWORD_DUPLICATE_THRESHOLD:
-                duplicates.append(axiom)
-        return duplicates
+        return await self._find_similar(
+            statement,
+            category,
+            semantic_threshold=SEMANTIC_DUPLICATE_THRESHOLD,
+            keyword_threshold=KEYWORD_DUPLICATE_THRESHOLD,
+            label="duplicate",
+        )
 
     # ========================================================================
     # Update Operations
@@ -1092,6 +1042,44 @@ class AxiomManager:
                 )
 
             self._save()
+        return axiom
+
+    def corroborate_many(
+        self,
+        axiom_id: str,
+        citation_ids: list[str],
+    ) -> Axiom | None:
+        """Corroborate an axiom with multiple citations in a single save.
+
+        Each new citation boosts confidence by CITATION_CONFIDENCE_BOOST
+        (capped at MAX_CITATION_CONFIDENCE). Saves once at the end.
+
+        Args:
+            axiom_id: The axiom ID to corroborate.
+            citation_ids: Signal IDs of corroborating sources.
+
+        Returns:
+            Updated Axiom if found, None otherwise.
+        """
+        axiom = self._axioms.get(axiom_id)
+        if axiom is None:
+            return None
+        changed = False
+        for cid in citation_ids:
+            if cid not in axiom.citation_ids:
+                axiom.citation_ids.append(cid)
+                if len(axiom.citation_ids) > 1:
+                    axiom.confidence = min(
+                        axiom.confidence + CITATION_CONFIDENCE_BOOST,
+                        MAX_CITATION_CONFIDENCE,
+                    )
+                changed = True
+        if changed:
+            self._save()
+            logger.debug(
+                f"Corroborated axiom {axiom_id} with {len(citation_ids)} citations "
+                f"(confidence={axiom.confidence:.2f})"
+            )
         return axiom
 
     def corroborate(

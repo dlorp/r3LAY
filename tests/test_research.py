@@ -671,3 +671,55 @@ class TestYamlEscape:
         assert "\n" not in result
         assert "\\n" in result
         assert '\\"' in result
+
+
+# =============================================================================
+# _parse_axioms source index tests
+# =============================================================================
+
+
+class TestParseAxiomsSources:
+    """Tests for per-axiom source attribution via SOURCES: line."""
+
+    def _make_orchestrator(self, tmp_path):
+        return ResearchOrchestrator(
+            project_path=tmp_path,
+            backend=MagicMock(is_loaded=True, backend_source="openclaw"),
+            index=None,
+            search=MagicMock(),
+            signals=MagicMock(),
+            axioms=MagicMock(),
+        )
+
+    def test_parses_source_indices(self, tmp_path):
+        orch = self._make_orchestrator(tmp_path)
+        text = (
+            "AXIOM: Timing belt interval is 105k miles\n"
+            "CATEGORY: specifications\n"
+            "CONFIDENCE: 0.9\n"
+            "TAGS: timing, belt\n"
+            "SOURCES: 1, 3, 5\n"
+        )
+        result = orch._parse_axioms(text)
+        assert len(result) == 1
+        assert result[0]["source_indices"] == [0, 2, 4]  # 1-based to 0-based
+
+    def test_missing_sources_no_key(self, tmp_path):
+        orch = self._make_orchestrator(tmp_path)
+        text = "AXIOM: Oil capacity is 5 quarts\nCATEGORY: specifications\nCONFIDENCE: 0.8\n"
+        result = orch._parse_axioms(text)
+        assert len(result) == 1
+        assert "source_indices" not in result[0]
+
+    def test_multiple_axioms_different_sources(self, tmp_path):
+        orch = self._make_orchestrator(tmp_path)
+        text = (
+            "AXIOM: Timing belt interval is 105k\n"
+            "SOURCES: 1, 2\n"
+            "AXIOM: Oil capacity is 5 quarts\n"
+            "SOURCES: 3\n"
+        )
+        result = orch._parse_axioms(text)
+        assert len(result) == 2
+        assert result[0]["source_indices"] == [0, 1]
+        assert result[1]["source_indices"] == [2]
