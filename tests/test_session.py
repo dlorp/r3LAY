@@ -1088,6 +1088,49 @@ class TestSessionTags:
         assert session.has_unsaved_changes is True
 
 
+class TestTagValidation:
+    """Tests for _validate_tags defensive validation."""
+
+    def test_validate_tags_filters_non_strings(self):
+        """Non-string values in tags are rejected."""
+        from r3lay.core.session import _validate_tags
+
+        result = _validate_tags(["valid", 123, None, True, "also-valid"])
+        assert result == ["valid", "also-valid"]
+
+    def test_validate_tags_truncates_long_tags(self):
+        """Tags over 50 chars are truncated."""
+        from r3lay.core.session import _validate_tags
+
+        long_tag = "a" * 100
+        result = _validate_tags([long_tag])
+        # Tag over 50 chars is filtered out (not truncated), per the validation logic
+        assert result == []
+
+    def test_validate_tags_rejects_empty_strings(self):
+        """Empty string tags are rejected."""
+        from r3lay.core.session import _validate_tags
+
+        result = _validate_tags(["", "valid", ""])
+        assert result == ["valid"]
+
+    def test_validate_tags_caps_at_100(self):
+        """Tags list is capped at 100 entries."""
+        from r3lay.core.session import _validate_tags
+
+        tags = [f"tag-{i}" for i in range(150)]
+        result = _validate_tags(tags)
+        assert len(result) == 100
+
+    def test_validate_tags_handles_non_list(self):
+        """Non-list input returns empty list."""
+        from r3lay.core.session import _validate_tags
+
+        assert _validate_tags("not-a-list") == []
+        assert _validate_tags(None) == []
+        assert _validate_tags(42) == []
+
+
 # =============================================================================
 # Session Deletion Tests
 # =============================================================================

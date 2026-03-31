@@ -562,4 +562,9 @@ class AxiomPanel(Vertical):
             self.app.notify(f"Export failed: {e}", severity="error")
 
 
+    def on_state_updated(self) -> None:
+        """Refresh axioms after project switch."""
+        self.refresh_axioms()
+
+
 __all__ = ["AxiomPanel", "AXIOM_CATEGORIES", "AxiomStatus", "STATUS_BADGES"]

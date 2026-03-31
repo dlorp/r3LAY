@@ -141,4 +141,13 @@ class GarageHeader(Widget):
         return "Mileage: --"
 
 
+    def on_state_updated(self) -> None:
+        """Refresh display after project switch."""
+        if self.is_mounted:
+            try:
+                self.query_one("#header-text", Static).update(self._get_header_text())
+            except Exception:
+                pass
+
+
 __all__ = ["GarageHeader"]

@@ -174,4 +174,10 @@ class HistoryPanel(Vertical):
             history_list.mount(item)
 
 
+    def on_state_updated(self) -> None:
+        """Refresh after project switch — reset cached maintenance log."""
+        self._maintenance_log = None
+        self.refresh_history()
+
+
 __all__ = ["HistoryPanel"]

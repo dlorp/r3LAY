@@ -50,6 +50,7 @@ logger = _setup_logging()
 from textual.app import App, ComposeResult  # noqa: E402
 from textual.binding import Binding  # noqa: E402
 from textual.containers import Horizontal, Vertical  # noqa: E402
+from textual.css.query import NoMatches  # noqa: E402
 from textual.screen import Screen  # noqa: E402
 from textual.widgets import Footer, TabbedContent, TabPane  # noqa: E402
 
@@ -192,6 +193,47 @@ class MainScreen(Screen):
         response_pane = self.query_one(ResponsePane)
         response_pane.add_system("Starting R3 research on detected contradiction...")
         await input_pane._handle_research(message.query, response_pane)
+
+    def on_input_pane_project_switched(self, message: InputPane.ProjectSwitched) -> None:
+        """Broadcast state change to all panels after /project switch."""
+        new_state = message.new_state
+        self.state = new_state
+        # Update app-level state so _graceful_shutdown() saves correct session
+        self.app.state = new_state
+
+        # Update all state-holding widgets
+        state_widget_types = (
+            GarageHeader, ModelPanel, IndexPanel,
+            AxiomPanel, HistoryPanel, SessionPanel, VaultPanel, SettingsPanel,
+        )
+        for wtype in state_widget_types:
+            try:
+                widget = self.query_one(wtype)
+            except NoMatches:
+                continue
+            try:
+                widget.state = new_state
+                if hasattr(widget, "on_state_updated"):
+                    widget.on_state_updated()
+            except Exception:
+                logger.exception(
+                    "Failed to update %s after project switch", wtype.__name__
+                )
+
+        # ResponsePane: update state ref only — /project handler manages display
+        try:
+            self.query_one(ResponsePane).state = new_state
+        except NoMatches:
+            pass
+
+        # Special case: MaintenancePanel stores project_path, not state
+        try:
+            maint = self.query_one(MaintenancePanel)
+            maint.set_project_path(new_state.project_path)
+        except NoMatches:
+            pass
+        except Exception:
+            logger.exception("Failed to update MaintenancePanel after project switch")
 
 
 class R3LayApp(App):

@@ -414,4 +414,9 @@ class VaultPanel(Vertical):
             pass
 
 
+    def on_state_updated(self) -> None:
+        """Refresh vault after project switch."""
+        self.run_worker(self._refresh_all())
+
+
 __all__ = ["VaultPanel"]

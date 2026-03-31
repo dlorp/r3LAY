@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2026-03-30
+
+### Added
+- Reactive state propagation for `/project` switch — custom `ProjectSwitched(Message)` on
+  InputPane, caught by MainScreen, broadcasts new state to all 9 panels via `on_state_updated()`
+- Session tag filtering in SessionPanel — search Input for title substring matching, tag Select
+  dropdown populated dynamically from all session tags, combined intersection filtering
+- Session caching — `_load_sessions_from_disk()` caches sessions; filter-only operations
+  (`reload=False`) skip disk I/O, preventing lag on every keystroke in search
+- `_validate_tags()` defensive deserialization — rejects non-strings, caps at 100 tags max 50
+  chars, prevents memory exhaustion from crafted session JSON
+- `SessionItem.Selected(Message)` with `on_click()` — proper Textual click handling replacing
+  broken `Static.Clicked` event that never fired
+- MainScreen state propagation tests (5 tests), tag validation tests (5 tests), session
+  filtering tests (8 tests), caching behavior test, state update test
+- Tags displayed on session items with Rich markup escaping
+
+### Changed
+- SessionPanel fully rewritten — filter row (Input + Select), no 10-session limit, deferred
+  disk I/O in `on_state_updated()` via `call_later()`, `_update_tag_options()` only rebuilds
+  when tag set changes (prevents Select reset on keypress)
+- MainScreen `on_input_pane_project_switched()` separates `NoMatches` (widget not mounted,
+  expected) from real exceptions (logged via `logger.exception`)
+- `_load_session()` activates session via `self.state.session = session` (was missing — clicks
+  previously did not set active session), uses cached session when available
+
+### Fixed
+- Broken session click handler — `on_static_click(Static.Clicked)` replaced with proper
+  `on_session_item_selected(SessionItem.Selected)` using Textual message pattern
+- `_load_session()` called non-existent `add_user_message()`/`add_header()` on ResponsePane —
+  fixed to use actual API: `add_user()`, `add_system()`
+- Rich markup injection via session titles and tags in SessionPanel — `escape()` applied
+- UUID validation added to `_load_session()` (defense-in-depth, prevents path traversal)
+- Select widget showed "Tag" prompt instead of "All Tags" — fixed with `allow_blank=False`
+- Tag filter dropdown reset on every search keystroke — `_update_tag_options()` now skips
+  `set_options()` when tag set unchanged, restores current selection afterward
+
 ## [0.13.0] - 2026-03-30
 
 ### Added

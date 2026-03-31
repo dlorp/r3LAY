@@ -267,4 +267,19 @@ class SettingsPanel(Vertical):
         self.notify("Settings reset to defaults")
 
 
+    def on_state_updated(self) -> None:
+        """Refresh settings display after project switch."""
+        self.intent_routing = self.state.config.intent_routing
+        self.vault_path = self.state.config.knowledge_vault_path
+        self.vault_write_backends = list(self.state.config.vault_write_backends)
+        # Update the project info display
+        try:
+            from ... import __version__
+
+            info = self.query_one("SettingsPanel .settings-section", Static)
+            info.update(f"**r3LAY** v{__version__}\nProject: {self.state.project_path}")
+        except Exception:
+            pass
+
+
 __all__ = ["SettingsPanel"]

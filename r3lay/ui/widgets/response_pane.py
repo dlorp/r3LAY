@@ -440,4 +440,9 @@ class ResponsePane(ScrollableContainer):
         self._badges = []
 
 
+    def on_state_updated(self) -> None:
+        """No-op — response pane is managed directly by /project handler."""
+        pass
+
+
 __all__ = ["ContradictionBadge", "ResponseBlock", "StreamingBlock", "ResponsePane"]

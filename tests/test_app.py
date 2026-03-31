@@ -7,12 +7,14 @@ Tests cover:
 """
 
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
 from r3lay.app import MainScreen, R3LayApp
 from r3lay.config import AppConfig
 from r3lay.core import R3LayState
+from r3lay.ui.widgets.input_pane import InputPane
 
 # =============================================================================
 # Fixtures
@@ -291,3 +293,100 @@ class TestAutoSaveRestore:
         (sessions_dir / f"{fake_id}.json").write_text("{corrupt json")
 
         app._auto_restore_session()  # Must not raise
+
+
+# =============================================================================
+# MainScreen State Propagation Tests
+# =============================================================================
+
+
+class TestMainScreenProjectSwitched:
+    """Tests for on_input_pane_project_switched handler."""
+
+    def _make_screen(self, tmp_path: Path) -> MainScreen:
+        state = R3LayState(tmp_path)
+        screen = MainScreen(state)
+        # Patch the read-only app property with a mock
+        mock_app = MagicMock()
+        type(screen).app = property(lambda self: mock_app)
+        screen._mock_app = mock_app
+        return screen
+
+    def test_handler_updates_screen_state(self, tmp_path: Path) -> None:
+        """Handler replaces self.state with the new state."""
+        screen = self._make_screen(tmp_path)
+        new_state = MagicMock()
+        new_state.project_path = tmp_path / "other"
+
+        from textual.css.query import NoMatches
+
+        screen.query_one = MagicMock(side_effect=NoMatches())
+
+        msg = InputPane.ProjectSwitched(new_state)
+        screen.on_input_pane_project_switched(msg)
+
+        assert screen.state is new_state
+
+    def test_handler_updates_app_state(self, tmp_path: Path) -> None:
+        """Handler updates app.state for graceful shutdown."""
+        screen = self._make_screen(tmp_path)
+        new_state = MagicMock()
+        new_state.project_path = tmp_path / "other"
+
+        from textual.css.query import NoMatches
+
+        screen.query_one = MagicMock(side_effect=NoMatches())
+
+        msg = InputPane.ProjectSwitched(new_state)
+        screen.on_input_pane_project_switched(msg)
+
+        assert screen._mock_app.state is new_state
+
+    def test_handler_calls_on_state_updated(self, tmp_path: Path) -> None:
+        """Handler calls on_state_updated() on widgets that implement it."""
+        screen = self._make_screen(tmp_path)
+        new_state = MagicMock()
+        new_state.project_path = tmp_path / "other"
+
+        mock_widget = MagicMock()
+        screen.query_one = MagicMock(return_value=mock_widget)
+
+        msg = InputPane.ProjectSwitched(new_state)
+        screen.on_input_pane_project_switched(msg)
+
+        mock_widget.on_state_updated.assert_called()
+
+    def test_handler_sets_state_before_calling_update(self, tmp_path: Path) -> None:
+        """Handler sets widget.state before calling on_state_updated()."""
+        screen = self._make_screen(tmp_path)
+        new_state = MagicMock()
+        new_state.project_path = tmp_path / "other"
+
+        state_at_call_time = []
+        mock_widget = MagicMock()
+
+        def capture_state():
+            state_at_call_time.append(mock_widget.state)
+
+        mock_widget.on_state_updated = MagicMock(side_effect=capture_state)
+        screen.query_one = MagicMock(return_value=mock_widget)
+
+        msg = InputPane.ProjectSwitched(new_state)
+        screen.on_input_pane_project_switched(msg)
+
+        assert len(state_at_call_time) > 0
+        assert state_at_call_time[0] is new_state
+
+    def test_handler_tolerates_missing_widgets(self, tmp_path: Path) -> None:
+        """Handler must not raise if widgets are not mounted."""
+        screen = self._make_screen(tmp_path)
+        new_state = MagicMock()
+        new_state.project_path = tmp_path / "other"
+
+        from textual.css.query import NoMatches
+
+        screen.query_one = MagicMock(side_effect=NoMatches())
+
+        msg = InputPane.ProjectSwitched(new_state)
+        # Must not raise
+        screen.on_input_pane_project_switched(msg)

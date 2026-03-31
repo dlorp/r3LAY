@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.events import Paste
+from textual.message import Message
 from textual.widgets import Button, Static, TextArea
 
 from ...core.contradiction_monitor import ContradictionMonitor
@@ -87,6 +88,13 @@ class InputPane(Vertical):
     - Escape key to cancel generation
     - Command handling (/, /clear, /help, etc.)
     """
+
+    class ProjectSwitched(Message):
+        """Posted when /project switches to a new project path."""
+
+        def __init__(self, new_state: "R3LayState") -> None:
+            self.new_state = new_state
+            super().__init__()
 
     DEFAULT_CSS = """
     InputPane {
@@ -1357,6 +1365,9 @@ class InputPane(Vertical):
             f"Switched to project: **{new_path.name}**\n\nPath: `{new_path}`"
         )
         self.notify(f"Project: {new_path.name}")
+
+        # Broadcast state change to all panels via MainScreen
+        self.post_message(self.ProjectSwitched(new_state))
 
     def _handle_list_projects(self, response_pane) -> None:
         """Handle /projects command — list recent projects."""

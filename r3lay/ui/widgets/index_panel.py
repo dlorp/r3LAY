@@ -71,6 +71,10 @@ class IndexPanel(Vertical):
     def on_mount(self) -> None:
         self._refresh_stats()
 
+    def on_state_updated(self) -> None:
+        """Refresh stats after project switch."""
+        self._refresh_stats()
+
     def on_unmount(self) -> None:
         """Cancel pending clear confirmation timer on widget removal."""
         if self._clear_reset_timer is not None:

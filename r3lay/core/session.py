@@ -23,6 +23,22 @@ from typing import TYPE_CHECKING, Any, Literal
 
 _UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
+_MAX_TAGS = 100
+_MAX_TAG_LEN = 50
+
+
+def _validate_tags(raw: Any) -> list[str]:
+    """Validate and sanitize tags from deserialized session data."""
+    if not isinstance(raw, list):
+        return []
+    valid = [
+        str(t)[:_MAX_TAG_LEN]
+        for t in raw
+        if isinstance(t, str) and 0 < len(t) <= _MAX_TAG_LEN
+    ]
+    return valid[:_MAX_TAGS]
+
+
 if TYPE_CHECKING:
     from .axioms import AxiomManager
     from .project_context import ProjectContext
@@ -451,7 +467,7 @@ Use these when presenting information:
             updated_at=datetime.fromisoformat(data["updated_at"]),
             title=data.get("title"),
             project_path=Path(data["project_path"]) if data.get("project_path") else None,
-            tags=data.get("tags", []),
+            tags=_validate_tags(data.get("tags", [])),
         )
         return session
 
