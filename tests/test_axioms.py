@@ -13,6 +13,7 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from r3lay.core.axioms import (
@@ -739,43 +740,46 @@ class TestAxiomManagerSearch:
 
 
 class TestAxiomManagerConflictDetection:
-    """Tests for conflict detection."""
+    """Tests for conflict detection (keyword fallback, no embedder)."""
 
-    def test_find_conflicts_same_category(self, manager):
+    @pytest.mark.asyncio
+    async def test_find_conflicts_same_category(self, manager):
         """Conflicts found within same category."""
         ax1 = manager.create(
             statement="Timing belt interval is 100000 miles",
             category="specifications",
             auto_validate=True,
         )
-        conflicts = manager.find_conflicts(
+        conflicts = await manager.find_conflicts(
             statement="Timing belt interval is 60000 miles",
             category="specifications",
         )
         assert len(conflicts) == 1
         assert conflicts[0].id == ax1.id
 
-    def test_find_conflicts_different_category_no_match(self, manager):
+    @pytest.mark.asyncio
+    async def test_find_conflicts_different_category_no_match(self, manager):
         """No conflicts across different categories."""
         manager.create(
             statement="Timing belt interval is 100000 miles",
             category="specifications",
             auto_validate=True,
         )
-        conflicts = manager.find_conflicts(
+        conflicts = await manager.find_conflicts(
             statement="Timing belt interval is 60000 miles",
             category="procedures",  # different category
         )
         assert len(conflicts) == 0
 
-    def test_find_conflicts_only_active(self, manager):
+    @pytest.mark.asyncio
+    async def test_find_conflicts_only_active(self, manager):
         """Only active axioms are checked for conflicts."""
         manager.create(
             statement="Engine torque spec is 50 ft-lb",
             category="specifications",
         )
         # Not validated, so not active
-        conflicts = manager.find_conflicts(
+        conflicts = await manager.find_conflicts(
             statement="Engine torque spec is 45 ft-lb",
             category="specifications",
         )
@@ -1075,30 +1079,33 @@ class TestExtractKeywords:
 class TestConflictDetectionEdgeCases:
     """Tests for conflict detection edge cases."""
 
-    def test_find_conflicts_empty_statement(self, manager):
+    @pytest.mark.asyncio
+    async def test_find_conflicts_empty_statement(self, manager):
         """Empty statement returns no conflicts."""
         manager.create(
             statement="Timing belt spec",
             category="specifications",
             auto_validate=True,
         )
-        conflicts = manager.find_conflicts(statement="", category="specifications")
+        conflicts = await manager.find_conflicts(statement="", category="specifications")
         assert conflicts == []
 
-    def test_find_conflicts_all_stop_words(self, manager):
+    @pytest.mark.asyncio
+    async def test_find_conflicts_all_stop_words(self, manager):
         """Statement with only stop words returns no conflicts."""
         manager.create(
             statement="Timing belt spec",
             category="specifications",
             auto_validate=True,
         )
-        conflicts = manager.find_conflicts(
+        conflicts = await manager.find_conflicts(
             statement="the and or but",
             category="specifications",
         )
         assert conflicts == []
 
-    def test_find_conflicts_below_threshold(self, manager):
+    @pytest.mark.asyncio
+    async def test_find_conflicts_below_threshold(self, manager):
         """Low keyword overlap doesn't trigger conflict."""
         manager.create(
             statement="Engine oil capacity is five quarts synthetic blend",
@@ -1106,14 +1113,15 @@ class TestConflictDetectionEdgeCases:
             auto_validate=True,
         )
         # Only one overlapping keyword (engine)
-        conflicts = manager.find_conflicts(
+        conflicts = await manager.find_conflicts(
             statement="Engine timing belt replacement procedure",
             category="specifications",
         )
         # Should not conflict - overlap ratio below 30%
         assert len(conflicts) == 0
 
-    def test_find_conflicts_skips_non_active(self, manager):
+    @pytest.mark.asyncio
+    async def test_find_conflicts_skips_non_active(self, manager):
         """Non-active axioms are skipped in conflict detection."""
         ax1 = manager.create(
             statement="Timing belt interval 100k",
@@ -1131,7 +1139,7 @@ class TestConflictDetectionEdgeCases:
         )
         manager.invalidate(ax3.id)  # now terminal, not active
 
-        conflicts = manager.find_conflicts(
+        conflicts = await manager.find_conflicts(
             statement="Timing belt interval check",
             category="specifications",
         )
@@ -1559,3 +1567,384 @@ class TestResolveDisputeEdgeCases:
         result = manager.resolve_dispute(axiom.id, resolution="superseded")
         # Without new_axiom_id, should not change
         assert result.status == original_status
+
+
+# ============================================================================
+# Semantic Conflict Detection Tests
+# ============================================================================
+
+
+class FakeEmbeddingResult:
+    """Minimal stand-in for EmbeddingResult used by the mock embedder."""
+
+    def __init__(self, vectors: np.ndarray) -> None:
+        self.vectors = vectors
+        self.dimension = vectors.shape[1]
+
+
+class FakeEmbeddingBackend:
+    """Deterministic mock embedder for testing semantic conflict detection.
+
+    Maps specific keywords to basis vectors so that statements sharing
+    keywords produce high cosine similarity while unrelated statements
+    produce low similarity. This avoids needing real model weights.
+    """
+
+    def __init__(self) -> None:
+        self._loaded = True
+        self._dim = 8
+        # Keyword -> fixed unit vector index
+        self._keyword_map: dict[str, int] = {
+            "timing": 0,
+            "belt": 1,
+            "interval": 2,
+            "miles": 3,
+            "oil": 4,
+            "capacity": 5,
+            "quarts": 6,
+            "engine": 7,
+        }
+
+    @property
+    def is_loaded(self) -> bool:
+        return self._loaded
+
+    async def embed_texts(self, texts: list[str]) -> FakeEmbeddingResult:
+        import numpy as np
+
+        vectors = np.zeros((len(texts), self._dim), dtype=np.float32)
+        for i, text in enumerate(texts):
+            words = text.lower().split()
+            for word in words:
+                if word in self._keyword_map:
+                    vectors[i, self._keyword_map[word]] = 1.0
+            # Normalize to unit vector
+            norm = np.linalg.norm(vectors[i])
+            if norm > 0:
+                vectors[i] /= norm
+        return FakeEmbeddingResult(vectors)
+
+
+class TestSemanticConflictDetection:
+    """Tests for embedding-based semantic conflict detection."""
+
+    @pytest.fixture
+    def semantic_manager(self, temp_project):
+        """AxiomManager with a fake embedder attached."""
+        mgr = AxiomManager(temp_project)
+        mgr.set_embedder(FakeEmbeddingBackend())
+        return mgr
+
+    @pytest.mark.asyncio
+    async def test_semantic_same_topic_detects_conflict(self, semantic_manager):
+        """Statements about the same topic flag as potential conflicts."""
+        ax1 = semantic_manager.create(
+            statement="Timing belt interval is 100000 miles",
+            category="specifications",
+            auto_validate=True,
+        )
+        await semantic_manager.embed_axiom(ax1.id)
+
+        conflicts = await semantic_manager.find_conflicts(
+            statement="Timing belt interval is 60000 miles",
+            category="specifications",
+        )
+        assert len(conflicts) == 1
+        assert conflicts[0].id == ax1.id
+
+    @pytest.mark.asyncio
+    async def test_semantic_different_topic_no_conflict(self, semantic_manager):
+        """Unrelated statements do not flag as conflicts."""
+        ax1 = semantic_manager.create(
+            statement="Oil capacity is five quarts",
+            category="specifications",
+            auto_validate=True,
+        )
+        await semantic_manager.embed_axiom(ax1.id)
+
+        conflicts = await semantic_manager.find_conflicts(
+            statement="Timing belt interval is 60000 miles",
+            category="specifications",
+        )
+        assert len(conflicts) == 0
+
+    @pytest.mark.asyncio
+    async def test_semantic_cross_category_ignored(self, semantic_manager):
+        """High similarity across different categories does not conflict."""
+        ax1 = semantic_manager.create(
+            statement="Timing belt interval is 100000 miles",
+            category="specifications",
+            auto_validate=True,
+        )
+        await semantic_manager.embed_axiom(ax1.id)
+
+        conflicts = await semantic_manager.find_conflicts(
+            statement="Timing belt interval is 60000 miles",
+            category="procedures",
+        )
+        assert len(conflicts) == 0
+
+    @pytest.mark.asyncio
+    async def test_fallback_when_no_embedder(self, manager):
+        """Without an embedder, falls back to keyword overlap."""
+        ax1 = manager.create(
+            statement="Timing belt interval is 100000 miles",
+            category="specifications",
+            auto_validate=True,
+        )
+        # No embedder set -- should use keyword fallback
+        conflicts = await manager.find_conflicts(
+            statement="Timing belt interval is 60000 miles",
+            category="specifications",
+        )
+        assert len(conflicts) == 1
+        assert conflicts[0].id == ax1.id
+
+    @pytest.mark.asyncio
+    async def test_fallback_on_embedder_error(self, manager):
+        """Falls back to keyword overlap when embedder raises during query embed."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        ax1 = manager.create(
+            statement="Timing belt interval is 100000 miles",
+            category="specifications",
+            auto_validate=True,
+        )
+        # Embed with working backend first so semantic path is entered
+        manager.set_embedder(FakeEmbeddingBackend())
+        await manager.embed_axiom(ax1.id)
+
+        # Swap in broken embedder — semantic path will raise, triggering fallback
+        broken_embedder = MagicMock()
+        broken_embedder.is_loaded = True
+        broken_embedder.embed_texts = AsyncMock(side_effect=RuntimeError("GPU OOM"))
+        manager.set_embedder(broken_embedder)
+
+        conflicts = await manager.find_conflicts(
+            statement="Timing belt interval is 60000 miles",
+            category="specifications",
+        )
+        assert len(conflicts) == 1
+        assert conflicts[0].id == ax1.id
+        broken_embedder.embed_texts.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_embed_axiom_caches_vector(self, semantic_manager):
+        """embed_axiom stores vector in the embeddings dict."""
+        ax1 = semantic_manager.create(
+            statement="Timing belt interval",
+            category="specifications",
+        )
+        result = await semantic_manager.embed_axiom(ax1.id)
+        assert result is True
+        assert ax1.id in semantic_manager._embeddings
+
+    @pytest.mark.asyncio
+    async def test_embed_axiom_returns_false_no_embedder(self, manager):
+        """embed_axiom returns False when no embedder is attached."""
+        ax1 = manager.create(
+            statement="Timing belt interval",
+            category="specifications",
+        )
+        result = await manager.embed_axiom(ax1.id)
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_rebuild_embeddings(self, semantic_manager):
+        """rebuild_embeddings generates vectors for all axioms."""
+        semantic_manager.create(statement="Timing belt", category="specifications")
+        semantic_manager.create(statement="Oil capacity", category="specifications")
+        semantic_manager.create(statement="Torque spec", category="specifications")
+
+        count = await semantic_manager.rebuild_embeddings()
+        assert count == 3
+        assert len(semantic_manager._embeddings) == 3
+
+    @pytest.mark.asyncio
+    async def test_delete_removes_embedding(self, semantic_manager):
+        """Deleting an axiom also removes its cached embedding."""
+        ax1 = semantic_manager.create(
+            statement="Timing belt interval",
+            category="specifications",
+        )
+        await semantic_manager.embed_axiom(ax1.id)
+        assert ax1.id in semantic_manager._embeddings
+
+        semantic_manager.delete(ax1.id)
+        assert ax1.id not in semantic_manager._embeddings
+
+    @pytest.mark.asyncio
+    async def test_embedding_persistence(self, temp_project):
+        """Embeddings survive manager recreation (loaded from disk)."""
+        mgr1 = AxiomManager(temp_project)
+        mgr1.set_embedder(FakeEmbeddingBackend())
+        ax1 = mgr1.create(statement="Timing belt interval", category="specifications")
+        await mgr1.embed_axiom(ax1.id)
+        assert ax1.id in mgr1._embeddings
+
+        # Recreate manager -- should load embeddings from disk
+        mgr2 = AxiomManager(temp_project)
+        assert ax1.id in mgr2._embeddings
+
+    @pytest.mark.asyncio
+    async def test_search_semantic(self, semantic_manager):
+        """search_semantic ranks by similarity when embedder available."""
+        ax1 = semantic_manager.create(
+            statement="Timing belt interval is 100000 miles",
+            category="specifications",
+            auto_validate=True,
+        )
+        semantic_manager.create(
+            statement="Oil capacity is five quarts",
+            category="specifications",
+            auto_validate=True,
+        )
+        await semantic_manager.rebuild_embeddings()
+
+        results = await semantic_manager.search_semantic(
+            query="Timing belt replacement interval",
+            active_only=True,
+            limit=5,
+        )
+        # ax1 (timing belt) should rank first
+        assert len(results) >= 1
+        assert results[0].id == ax1.id
+
+    @pytest.mark.asyncio
+    async def test_search_semantic_fallback_no_embedder(self, manager):
+        """search_semantic falls back to substring search without embedder."""
+        manager.create(
+            statement="Timing belt interval",
+            category="specifications",
+            auto_validate=True,
+        )
+        results = await manager.search_semantic(
+            query="Timing",
+            active_only=True,
+        )
+        assert len(results) == 1
+
+    @pytest.mark.asyncio
+    async def test_set_embedder_none_reverts_to_keyword(self, semantic_manager):
+        """After detaching embedder, find_conflicts falls back to keywords."""
+        ax1 = semantic_manager.create(
+            statement="Timing belt interval is 100000 miles",
+            category="specifications",
+            auto_validate=True,
+        )
+        await semantic_manager.embed_axiom(ax1.id)
+
+        semantic_manager.set_embedder(None)
+
+        conflicts = await semantic_manager.find_conflicts(
+            statement="Timing belt interval is 60000 miles",
+            category="specifications",
+        )
+        assert len(conflicts) == 1
+        assert conflicts[0].id == ax1.id
+
+    @pytest.mark.asyncio
+    async def test_semantic_zero_vector_no_conflicts(self, semantic_manager):
+        """Zero embedding vector (no recognized keywords) produces no conflicts."""
+        ax1 = semantic_manager.create(
+            statement="Timing belt interval is 100000 miles",
+            category="specifications",
+            auto_validate=True,
+        )
+        await semantic_manager.embed_axiom(ax1.id)
+
+        conflicts = await semantic_manager.find_conflicts(
+            statement="xyxyzxy unknown words nowhere near threshold",
+            category="specifications",
+        )
+        assert conflicts == []
+
+    @pytest.mark.asyncio
+    async def test_semantic_falls_back_when_no_embeddings_for_category(self, semantic_manager):
+        """Embedder attached but no cached embeddings for the target category
+        triggers keyword fallback via the None sentinel."""
+        semantic_manager.create(
+            statement="Timing belt replacement procedure",
+            category="procedures",
+            auto_validate=True,
+        )
+
+        ax_spec = semantic_manager.create(
+            statement="Timing belt interval is 100000 miles",
+            category="specifications",
+            auto_validate=True,
+        )
+        # Do NOT embed ax_spec — force the None sentinel path
+
+        conflicts = await semantic_manager.find_conflicts(
+            statement="Timing belt interval is 60000 miles",
+            category="specifications",
+        )
+        assert len(conflicts) == 1
+        assert conflicts[0].id == ax_spec.id
+
+    @pytest.mark.asyncio
+    async def test_embeddings_retained_across_unload_reload(self, temp_project):
+        """Cached embeddings are retained when embedder is detached and re-attached."""
+        mgr = AxiomManager(temp_project)
+        mgr.set_embedder(FakeEmbeddingBackend())
+        ax1 = mgr.create(
+            statement="Timing belt interval is 100000 miles",
+            category="specifications",
+            auto_validate=True,
+        )
+        await mgr.embed_axiom(ax1.id)
+        assert ax1.id in mgr._embeddings
+
+        mgr.set_embedder(None)
+        assert ax1.id in mgr._embeddings
+
+        mgr.set_embedder(FakeEmbeddingBackend())
+        conflicts = await mgr.find_conflicts(
+            statement="Timing belt interval is 60000 miles",
+            category="specifications",
+        )
+        assert len(conflicts) == 1
+
+    @pytest.mark.asyncio
+    async def test_rebuild_embeddings_embedder_error_returns_zero(self, manager):
+        """rebuild_embeddings returns 0 and does not corrupt state on error."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        broken = MagicMock()
+        broken.is_loaded = True
+        broken.embed_texts = AsyncMock(side_effect=RuntimeError("OOM"))
+        manager.set_embedder(broken)
+
+        manager.create(statement="Some fact", category="specifications")
+        count = await manager.rebuild_embeddings()
+        assert count == 0
+        assert len(manager._embeddings) == 0
+
+    @pytest.mark.asyncio
+    async def test_rebuild_embeddings_no_embedder_returns_zero(self, manager):
+        """rebuild_embeddings returns 0 when no embedder is attached."""
+        manager.create(statement="Some fact", category="specifications")
+        count = await manager.rebuild_embeddings()
+        assert count == 0
+
+    @pytest.mark.asyncio
+    async def test_fallback_on_embedder_error_calls_embedder(self, manager):
+        """Verifies the embedder was actually called before falling back."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        broken_embedder = MagicMock()
+        broken_embedder.is_loaded = True
+        broken_embedder.embed_texts = AsyncMock(side_effect=RuntimeError("GPU OOM"))
+        manager.set_embedder(broken_embedder)
+
+        manager.create(
+            statement="Timing belt interval is 100000 miles",
+            category="specifications",
+            auto_validate=True,
+        )
+        await manager.find_conflicts(
+            statement="Timing belt interval is 60000 miles",
+            category="specifications",
+        )
+        broken_embedder.embed_texts.assert_called_once()

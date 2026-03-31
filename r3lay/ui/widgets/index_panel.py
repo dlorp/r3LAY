@@ -320,6 +320,12 @@ class IndexPanel(Vertical):
 
                         logger.info(f"Generated {num_embeddings} text embeddings")
 
+                        # Rebuild axiom embeddings for semantic conflict detection
+                        axiom_mgr = self.state.init_axioms()
+                        axiom_count = await axiom_mgr.rebuild_embeddings()
+                        if axiom_count > 0:
+                            logger.info(f"Rebuilt embeddings for {axiom_count} axioms")
+
                 except Exception as e:
                     # Log but don't fail - BM25 still works
                     logger.warning(f"Text embedding generation failed: {e}")
