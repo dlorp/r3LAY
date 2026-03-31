@@ -8,6 +8,8 @@ Run with: pytest tests/integration/ -m ollama -v
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from r3lay.core.backends import ModelLoadError
@@ -22,18 +24,18 @@ ENDPOINT = "http://localhost:11434"
 # =============================================================================
 
 
-@pytest.fixture(scope="module", loop_scope="module")
-async def ollama_available():
+@pytest.fixture(scope="module")
+def ollama_available():
     """Check Ollama availability, skip module if not running."""
-    available = await OllamaBackend.is_available(ENDPOINT)
+    available = asyncio.run(OllamaBackend.is_available(ENDPOINT))
     if not available:
         pytest.skip("Ollama is not running at " + ENDPOINT)
 
 
-@pytest.fixture(scope="module", loop_scope="module")
-async def available_model(ollama_available) -> str:
+@pytest.fixture(scope="module")
+def available_model(ollama_available) -> str:
     """Discover the first available model in Ollama."""
-    models = await scan_ollama(ENDPOINT)
+    models = asyncio.run(scan_ollama(ENDPOINT))
     if not models:
         pytest.skip("No models available in Ollama")
     # Prefer small models for faster tests
