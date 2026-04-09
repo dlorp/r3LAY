@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0.0",
+  "manufacturer": "Subaru",
+  "description": "Subaru-specific OBD-II diagnostic trouble codes",
+  "years": "1996-2000",
+  "models": ["Impreza", "Legacy", "Outback", "Forester"],
+  "codes": {
+    "P1400": {
+      "description": "Fuel Tank Pressure Control Solenoid Valve",
+      "category": "emissions",
+      "common_causes": [
+        "Failed pressure control solenoid",
+        "Wiring harness damage",
+        "Loose gas cap (check first)"
+      ]
+    },
+    "P1443": {
+      "description": "Vent Control Solenoid Function Problem",
+      "category": "emissions"
+    },
+    "P1507": {
+      "description": "Idle Air Control Valve Opening Coil Low Input",
+      "category": "idle_control"
+    },
+    "P1519": {
+      "description": "Imbalance Between Intake Manifold Pressure and Mass Air Flow Sensor",
+      "category": "fuel_air_metering"
+    }
+  }
+}

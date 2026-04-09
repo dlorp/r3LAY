@@ -1,0 +1,7 @@
+name: "1997 Subaru Impreza"
+type: automotive
+description: "EJ22 NA example vehicle profile"
+created: 2026-04-07
+status: active
+privacy: false
+tags: [subaru, ej22, example]

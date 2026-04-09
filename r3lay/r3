@@ -1,0 +1,74 @@
+#!/bin/bash
+# r3 -- speak with your projects
+# Install: chmod +x r3lay/r3 && sudo ln -s $(pwd)/r3lay/r3 /usr/local/bin/r3
+
+PROFILE="r3lay"
+
+case "$1" in
+  # Context commands (r3c is alias for r3-context)
+  r3c|r3-context|context)
+    hermes --profile $PROFILE chat "/r3-context ${2:-}"
+    ;;
+  # Planning mode (r3p is alias for r3-plan)
+  r3p|r3-plan|plan)
+    hermes --profile $PROFILE chat "/r3-plan ${2:-}"
+    ;;
+  # Session management
+  sn)
+    hermes --profile $PROFILE chat "/sn"
+    ;;
+  session)
+    hermes --profile $PROFILE chat "/session $2"
+    ;;
+  # Research
+  research)
+    hermes --profile $PROFILE chat "/research ${*:2}"
+    ;;
+  # Project health
+  status|health)
+    hermes --profile $PROFILE chat "/health"
+    ;;
+  # Conflicts
+  conflicts)
+    hermes --profile $PROFILE chat "/conflicts"
+    ;;
+  # Todos
+  todos)
+    hermes --profile $PROFILE chat "/todos ${2:-}"
+    ;;
+  # PR workflow
+  pr)
+    hermes --profile $PROFILE chat "/pr ${*:2}"
+    ;;
+  # Services
+  serve)
+    python3 -m r3lay.bridge
+    ;;
+  watch)
+    python3 -m r3lay.sync
+    ;;
+  up)
+    # Launch services in Ghostty splits
+    bash "$(dirname "$0")/../launchd/r3lay-up.sh"
+    ;;
+  # Index a project
+  index)
+    python3 -m r3lay.ingest "${2:-.}"
+    ;;
+  # Search
+  search)
+    python3 -m r3lay.search "${*:2}"
+    ;;
+  # Empty -- open interactive session
+  "")
+    hermes --profile $PROFILE chat
+    ;;
+  # Default -- project/message routing
+  *)
+    if [ -d "$HOME/r3LAY/$1" ] && [ -n "$2" ]; then
+      hermes --profile $PROFILE chat "Project: $1. ${*:2}"
+    else
+      hermes --profile $PROFILE chat "$*"
+    fi
+    ;;
+esac

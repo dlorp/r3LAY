@@ -1,0 +1,53 @@
+# Secrets — never commit
+.env
+.env.*
+config.yaml
+config.local.yaml
+hermes-profile/config.yaml
+
+# Runtime state — never commit
+.r3lay-global/
+projects/
+*.db
+*.db-shm
+*.db-wal
+
+# Extension binaries — never commit (platform-specific)
+extensions/*.so
+extensions/*.dylib
+extensions/*.dll
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# Testing
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Session docs
+SESSION_NOTES.md
+*_REWORK.md

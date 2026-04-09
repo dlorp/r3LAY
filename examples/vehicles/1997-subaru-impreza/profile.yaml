@@ -1,0 +1,25 @@
+vehicle:
+  # VIN intentionally omitted (user fills in ~/r3LAY/)
+  year: 1997
+  make: "Subaru"
+  model: "Impreza"
+  trim: "L"
+  engine:
+    code: "EJ22"
+    displacement: 2.2
+    cylinders: 4
+    aspiration: "NA"
+    fuel: "gasoline"
+  transmission:
+    type: "manual"
+    speeds: 5
+
+obd2:
+  protocol: "ISO 9141-2"
+  dtc_database: "dtc-subaru.json"
+
+maintenance:
+  intervals_file: "maintenance.yaml"
+
+research:
+  axioms_directory: "axioms/"
