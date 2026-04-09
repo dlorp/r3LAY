@@ -1,0 +1,77 @@
+# hermes-profile/config.template.yaml
+# TEMPLATE -- copy to config.yaml and fill in real values
+# config.yaml is gitignored
+
+# Identity
+profile: r3lay
+role: project-manager
+
+# Inference -- default: qwen3.6-plus via OpenRouter (zero cost)
+# Fallback: Ollama local (used when privacy:true or OpenRouter is down)
+model:
+  provider: openrouter
+  model: qwen/qwen3.6-plus:free
+  api_key: ${OPENROUTER_API_KEY}
+
+fallback:
+  provider: ollama
+  model: qwen3:8b             # local fallback for privacy:true projects
+
+escalation:
+  provider: openrouter
+  model: deepseek/deepseek-v3.2
+  api_key: ${OPENROUTER_API_KEY}
+
+# Paths
+paths:
+  projects: ~/r3LAY
+  db: ~/r3LAY/.r3lay-global/r3lay.db
+  bridge_url: http://localhost:8765
+  bridge_secret: ${R3LAY_BRIDGE_SECRET}
+
+# Model routing
+routing:
+  always_local:               # these use fallback model (Ollama) always
+    - conflict_check          # fast, no network dependency
+    - status_query
+  default:                    # these use primary model (OpenRouter)
+    - file_update
+    - project_search
+    - session_debrief
+  escalation_allowed:         # these can escalate to deepseek-v3.2
+    - deep_research
+    - compilation
+
+# Privacy default for new projects (overridden per project.yaml)
+privacy:
+  default: false
+
+# Permissions
+permissions:
+  tools:
+    - file_read
+    - file_write
+    - bridge_api
+    - web_search
+    - model_inference
+  denied:
+    - agent_routing
+    - system_shell
+    - network_arbitrary
+
+# Filesystem sandbox
+sandbox:
+  read:
+    - ~/r3LAY/
+  write:
+    - ~/r3LAY/
+  deny:
+    - ~/.hermes/profiles/
+    - ~/.ssh/
+    - ~/.gnupg/
+
+# Discord is a Hermes feature, not r3LAY's.
+# If you want Discord access, configure it in your Hermes setup.
+# discord:
+#   enabled: false
+#   token: ${DISCORD_TOKEN}

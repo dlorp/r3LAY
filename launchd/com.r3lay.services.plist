@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.r3lay.services</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/dperez/Documents/Programming/r3lay-v2/launchd/r3lay-up.sh</string>
+        <string>--detach</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/dperez/Library/Logs/r3lay-launcher.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/dperez/Library/Logs/r3lay-launcher.err</string>
+</dict>
+</plist>

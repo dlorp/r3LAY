@@ -1,5 +1,5 @@
 vehicle:
-  # VIN intentionally omitted (user fills in ~/.r3lay/)
+  # VIN intentionally omitted (user fills in ~/r3LAY/)
   year: 1997
   make: "Subaru"
   model: "Impreza"
@@ -20,6 +20,6 @@ obd2:
 
 maintenance:
   intervals_file: "maintenance.yaml"
-  
+
 research:
   axioms_directory: "axioms/"

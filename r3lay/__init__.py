@@ -1,3 +1,3 @@
-"""r3LAY - TUI Research Assistant."""
+"""r3LAY: local-first personal project brain."""
 
-__version__ = "0.13.0"
+__version__ = "2.0.0"
