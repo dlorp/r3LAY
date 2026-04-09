@@ -26,7 +26,7 @@ prompts, then the Hermes runtime dispatches to:
 - Performance, test coverage gaps
 - Return: [PASS|FAIL|WARN] + findings
 
-**w3b (validation):**
+**r4bbit (validation):**
 - API signatures verified against current docs via web_search
 - No deprecated methods, patterns match best practices
 - Return: [PASS|FAIL|WARN] + findings + doc links
@@ -62,4 +62,4 @@ Poll CI status every 30s, timeout after 10 minutes.
 ## PR body format
 
 Sections: What, Why, How, Key changes, Code snippets, Testing, Review checklist.
-Review checklist includes s3ntry/3tch/w3b results, CI status, version bump.
+Review checklist includes s3ntry/3tch/r4bbit results, CI status, version bump.

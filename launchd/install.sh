@@ -1,9 +1,10 @@
 #!/bin/bash
-# Install r3LAY LaunchAgent -- opens Ghostty with services on login
+# Install r3LAY LaunchAgent
 # Run once: bash launchd/install.sh
 
 LAUNCH_DIR="$HOME/Library/LaunchAgents"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 echo "Installing r3LAY LaunchAgent..."
 
@@ -11,16 +12,16 @@ echo "Installing r3LAY LaunchAgent..."
 chmod +x "$SCRIPT_DIR/r3lay-up.sh"
 chmod +x "$SCRIPT_DIR/r3lay-up.fish"
 
-# Copy plist
-cp "$SCRIPT_DIR/com.r3lay.services.plist" "$LAUNCH_DIR/"
+# Generate plist with correct paths for this machine
+sed -e "s|__R3LAY_DIR__|$PROJECT_DIR|g" \
+    -e "s|__HOME__|$HOME|g" \
+    "$SCRIPT_DIR/com.r3lay.services.plist" > "$LAUNCH_DIR/com.r3lay.services.plist"
 
-# Create log directory
 mkdir -p "$HOME/Library/Logs"
 
-# Load service
 launchctl load "$LAUNCH_DIR/com.r3lay.services.plist"
 
-echo "Installed. On next login, Ghostty opens with r3LAY services."
+echo "Installed for $USER."
 echo ""
 echo "Manual start:  r3 up"
 echo "Check status:  tmux has-session -t r3lay && echo running"

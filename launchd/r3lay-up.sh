@@ -3,9 +3,10 @@
 #
 # Close the window = kill everything. r3 up = start fresh.
 
-TMUX="/opt/homebrew/bin/tmux"
-PROJECT_DIR="/Users/dperez/Documents/Programming/r3lay-v2"
-PYTHON="/Library/Frameworks/Python.framework/Versions/3.13/bin/python3"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+TMUX="$(command -v tmux || echo /opt/homebrew/bin/tmux)"
+PYTHON="$(command -v python3)"
 
 if [ ! -x "$TMUX" ]; then
     echo "tmux not found. Install: brew install tmux"

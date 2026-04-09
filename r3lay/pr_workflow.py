@@ -4,7 +4,7 @@ All git operations use file_read/file_write tools or the bridge API.
 All commits attributed to dlorp. No AI markers. No Co-Authored-By.
 NEVER push to main. NEVER auto-merge. PRs created as draft.
 
-The 3-agent review (s3ntry, 3tch, w3b) is dispatched by the Hermes skill,
+The 3-agent review (s3ntry, 3tch, r4bbit) is dispatched by the Hermes skill,
 not by this module directly — r3LAY cannot route to other agents.
 This module provides the data structures and helpers the skill needs.
 """
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class ReviewResult:
     """Result from a single review agent."""
 
-    agent: str  # s3ntry | 3tch | w3b
+    agent: str  # s3ntry | 3tch | r4bbit
     verdict: str  # PASS | FAIL | WARN
     findings: list[str] = field(default_factory=list)
     doc_links: list[str] = field(default_factory=list)
@@ -54,7 +54,7 @@ class ReviewReport:
             "-" * 40,
         ]
         for r in self.results:
-            label = {"s3ntry": "security", "3tch": "code", "w3b": "validation"}.get(
+            label = {"s3ntry": "security", "3tch": "code", "r4bbit": "validation"}.get(
                 r.agent, r.agent
             )
             lines.append(f"{r.agent} ({label}):  [{r.verdict}] -- {len(r.findings)} findings")
@@ -173,14 +173,14 @@ def format_pr_body(
 
     if review_report:
         for r in review_report.results:
-            label = {"s3ntry": "security", "3tch": "code", "w3b": "validation"}.get(
+            label = {"s3ntry": "security", "3tch": "code", "r4bbit": "validation"}.get(
                 r.agent, r.agent
             )
             lines.append(f"- [x] {r.agent} {label} review: {r.verdict}")
     else:
         lines.append("- [ ] s3ntry security review: pending")
         lines.append("- [ ] 3tch code review: pending")
-        lines.append("- [ ] w3b validation: pending")
+        lines.append("- [ ] r4bbit validation: pending")
 
     lines.append("- [ ] CI checks: pending")
 
