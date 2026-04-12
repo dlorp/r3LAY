@@ -59,7 +59,7 @@ def _create_apsw_connection(db_path: Path) -> Any:
     conn = apsw.Connection(str(db_path))
     # Enable WAL and other pragmas
     conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA mmap_size=268435456")
+    conn.execute("PRAGMA mmap_size=0")
     conn.execute("PRAGMA foreign_keys=ON")
 
     # Load sqlite-vec
@@ -235,7 +235,7 @@ def get_connection(
     if conn is not None:
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA mmap_size=268435456")
+        conn.execute("PRAGMA mmap_size=0")
         conn.execute("PRAGMA foreign_keys=ON")
 
         sqlite_vec.load(conn)
