@@ -37,12 +37,12 @@ dev = [
     "ruff>=0.3.0",
 ]
 rerank = [
-    "sentence-transformers>=2.2.0",
+    "sentence-transformers>=5.4.0",
 ]
 # Vector search with FAISS (subprocess-isolated embedders avoid Textual fd conflicts)
 vector = [
     "faiss-cpu>=1.7.0",
-    "sentence-transformers>=2.2.0",
+    "sentence-transformers>=5.4.0",
 ]
 # macOS clipboard image support (better browser image paste handling)
 clipboard = [
