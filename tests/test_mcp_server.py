@@ -408,6 +408,7 @@ async def test_all_tools_registered():
         "search_chunks",
         "get_project_context",
         "list_active_projects",
+        "init_project",
     }
     assert expected == names, f"tool mismatch: missing={expected - names}, extra={names - expected}"
 
@@ -429,6 +430,7 @@ async def test_tool_schemas_have_docstrings():
             "search_chunks",
             "get_project_context",
             "list_active_projects",
+            "init_project",
         }:
             assert tool.description, f"{tool.name} has no description"
             assert len(tool.description) > 50, f"{tool.name} description too short"

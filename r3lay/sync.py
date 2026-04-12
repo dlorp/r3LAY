@@ -227,12 +227,11 @@ class R3LayEventHandler(FileSystemEventHandler):
             return
 
         if self._should_skip(path):
+            logger.debug("Skipped: %s", path.name)
             return
 
         if not self._debounce(event.src_path):
             return
-
-        logger.info("File changed: %s", path)
 
         if self._loop:
             asyncio.run_coroutine_threadsafe(
@@ -247,8 +246,14 @@ class R3LayEventHandler(FileSystemEventHandler):
         return self._ingest_sem
 
     async def _handle_change(self, file_path: Path) -> None:
-        """Process a file change: check hash, re-ingest if changed."""
+        """Process a file change: check hash, re-ingest if changed.
+
+        Logs differentiated outcomes at appropriate levels:
+          INFO  — actual indexing happened (the user should see this)
+          DEBUG — skips, hash matches, vanished files (noise unless debugging)
+        """
         if file_path.is_symlink():
+            logger.debug("Skipped (symlink): %s", file_path.name)
             return
         sem = self._get_or_create_semaphore()
         async with sem:
@@ -257,10 +262,7 @@ class R3LayEventHandler(FileSystemEventHandler):
             try:
                 content = file_path.read_text(encoding="utf-8", errors="replace")
             except FileNotFoundError:
-                # Race: file was transient (e.g. an editor's atomic-write
-                # temp file or a Hermes bundled-manifest rename). Debug-log
-                # and move on — this is normal and not worth ERROR noise.
-                logger.debug("File vanished before read: %s", file_path)
+                logger.debug("Skipped (vanished): %s", file_path.name)
                 conn.close()
                 return
             except Exception as e:
@@ -272,24 +274,23 @@ class R3LayEventHandler(FileSystemEventHandler):
 
             project_root = self._find_project_root(file_path)
             if not project_root:
-                logger.debug("No project root found for %s, skipping", file_path)
+                logger.debug("Skipped (no project root): %s", file_path.name)
                 conn.close()
                 return
 
             project_id = sha256_path(str(project_root))[:16]
             relative_path = str(file_path.relative_to(project_root))
-            # Must match ingest.py's namespaced file_id format
             file_id = sha256_path(f"{project_id}:{relative_path}")
 
             row = conn.execute("SELECT content_hash FROM files WHERE id = ?", (file_id,)).fetchone()
 
             if row and row[0] == new_hash:
-                logger.debug("Hash unchanged, skipping: %s", relative_path)
+                logger.debug("Unchanged: %s", relative_path)
                 conn.close()
                 return
 
             chunks = await ingest_file(conn, file_path, project_id, project_root)
-            logger.info("Re-ingested %s: %d chunks", relative_path, chunks)
+            logger.info("Indexed: %s (%d chunks)", relative_path, chunks)
 
             conn.close()
 

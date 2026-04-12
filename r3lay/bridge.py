@@ -149,6 +149,11 @@ class SessionNotesRequest(BaseModel):
     model_used: str | None = None
 
 
+class ProjectInitRequest(BaseModel):
+    path: str
+    auto_write: bool = False
+
+
 class CompileRequest(BaseModel):
     project_id: str
 
@@ -602,6 +607,200 @@ async def api_update_session_notes(
         raise HTTPException(status_code=404, detail="Project not found")
 
     return {"status": "updated"}
+
+
+# =============================================================================
+# Project auto-init — extrapolate .r3lay/project.yaml from manifest files
+# =============================================================================
+
+
+def _extrapolate_project_metadata(project_path: Path) -> dict[str, Any]:
+    """Scan manifest files and extrapolate project metadata.
+
+    Pure function — reads files, returns a dict. No side effects.
+    Checks: README.md, pyproject.toml, package.json, Cargo.toml, go.mod,
+    .git/config. Falls back to directory name for the project name.
+    """
+    meta: dict[str, Any] = {
+        "name": project_path.name,
+        "description": "",
+        "type": "other",
+        "language": "",
+        "privacy": "false",
+        "tags": [],
+    }
+    sources: list[str] = []
+
+    # README — first heading + first paragraph
+    for readme_name in ("README.md", "README.rst", "README"):
+        readme = project_path / readme_name
+        if readme.is_file():
+            try:
+                text = readme.read_text(encoding="utf-8", errors="replace")[:2000]
+                lines = text.strip().splitlines()
+                for line in lines:
+                    stripped = line.strip().lstrip("#").strip()
+                    if stripped and not meta["description"]:
+                        # Skip if it's just the project name repeated
+                        if stripped.lower() != meta["name"].lower():
+                            meta["description"] = stripped[:200]
+                        continue
+                    if stripped and meta["description"]:
+                        break
+                sources.append(readme_name)
+            except OSError:
+                pass
+            break
+
+    # pyproject.toml
+    pyproject = project_path / "pyproject.toml"
+    if pyproject.is_file():
+        try:
+            text = pyproject.read_text(encoding="utf-8", errors="replace")
+            # Simple TOML parsing without dependency — just regex the key fields
+            import re as _re
+
+            name_match = _re.search(r'^name\s*=\s*"([^"]+)"', text, _re.MULTILINE)
+            if name_match:
+                meta["name"] = name_match.group(1)
+            desc_match = _re.search(r'^description\s*=\s*"([^"]+)"', text, _re.MULTILINE)
+            if desc_match and not meta["description"]:
+                meta["description"] = desc_match.group(1)[:200]
+            meta["language"] = "python"
+            if "python" not in meta["tags"]:
+                meta["tags"].append("python")
+            sources.append("pyproject.toml")
+        except OSError:
+            pass
+
+    # package.json
+    pkg_json = project_path / "package.json"
+    if pkg_json.is_file():
+        try:
+            import json as _json
+
+            data = _json.loads(pkg_json.read_text(encoding="utf-8", errors="replace"))
+            if data.get("name"):
+                meta["name"] = data["name"]
+            if data.get("description") and not meta["description"]:
+                meta["description"] = str(data["description"])[:200]
+            # Detect React/TypeScript
+            deps = {
+                **data.get("dependencies", {}),
+                **data.get("devDependencies", {}),
+            }
+            if "typescript" in deps or any((project_path / f).exists() for f in ("tsconfig.json",)):
+                meta["language"] = "typescript"
+                meta["tags"].append("typescript")
+            else:
+                meta["language"] = meta["language"] or "javascript"
+                meta["tags"].append("javascript")
+            if "react" in deps or "next" in deps:
+                meta["tags"].append("react")
+            sources.append("package.json")
+        except (OSError, ValueError):
+            pass
+
+    # Cargo.toml
+    cargo = project_path / "Cargo.toml"
+    if cargo.is_file():
+        try:
+            text = cargo.read_text(encoding="utf-8", errors="replace")
+            import re as _re
+
+            name_match = _re.search(r'^name\s*=\s*"([^"]+)"', text, _re.MULTILINE)
+            if name_match:
+                meta["name"] = name_match.group(1)
+            meta["language"] = "rust"
+            meta["tags"].append("rust")
+            sources.append("Cargo.toml")
+        except OSError:
+            pass
+
+    # go.mod
+    gomod = project_path / "go.mod"
+    if gomod.is_file():
+        try:
+            text = gomod.read_text(encoding="utf-8", errors="replace")
+            import re as _re
+
+            mod_match = _re.search(r"^module\s+(\S+)", text, _re.MULTILINE)
+            if mod_match:
+                # Use last path segment as name
+                meta["name"] = mod_match.group(1).rsplit("/", 1)[-1]
+            meta["language"] = "go"
+            meta["tags"].append("go")
+            sources.append("go.mod")
+        except OSError:
+            pass
+
+    # .git/config — extract remote origin URL
+    git_config = project_path / ".git" / "config"
+    if git_config.is_file():
+        try:
+            text = git_config.read_text(encoding="utf-8", errors="replace")
+            import re as _re
+
+            url_match = _re.search(r"url\s*=\s*(\S+)", text)
+            if url_match:
+                meta["repo"] = url_match.group(1)
+            sources.append(".git/config")
+        except OSError:
+            pass
+
+    # Deduplicate tags
+    meta["tags"] = list(dict.fromkeys(meta["tags"]))
+
+    return meta, sources
+
+
+@app.post("/project/init")
+async def api_project_init(
+    req: ProjectInitRequest,
+    _auth=Depends(verify_auth),
+) -> dict[str, Any]:
+    """Extrapolate .r3lay/project.yaml from manifest files.
+
+    Returns a preview of the metadata by default. Set auto_write=True to
+    write the file immediately. The agent should ALWAYS preview first and
+    confirm with the user before writing (matches the "inform don't act"
+    rule from SOUL.md).
+    """
+    from ruamel.yaml import YAML
+
+    project_path = _validate_tracked_path(req.path)
+
+    existing = project_path / ".r3lay" / "project.yaml"
+    if existing.exists():
+        return {"status": "already_initialized", "path": str(existing)}
+
+    metadata, sources = _extrapolate_project_metadata(project_path)
+    from datetime import datetime
+
+    metadata["auto_init"] = True
+    metadata["auto_init_sources"] = sources
+    from datetime import timezone
+
+    metadata["created"] = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    metadata["notes"] = (
+        "Auto-initialized by r3LAY. Review fields and drop auto_init flag when confirmed."
+    )
+
+    if req.auto_write:
+        r3lay_dir = project_path / ".r3lay"
+        r3lay_dir.mkdir(exist_ok=True)
+        yaml = YAML()
+        yaml.default_flow_style = False
+        with open(existing, "w") as f:
+            yaml.dump(metadata, f)
+        logger.info("Auto-initialized project metadata: %s", existing)
+        return {
+            "status": "written",
+            "path": str(existing),
+            "metadata": metadata,
+        }
+
+    return {"status": "preview", "path": str(existing), "metadata": metadata}
 
 
 # =============================================================================
@@ -1236,7 +1435,7 @@ def main() -> None:
         print_bridge_banner()
     uvicorn.run(
         "r3lay.bridge:app",
-        host="127.0.0.1",
+        host="0.0.0.0",
         port=8765,
         log_config=LOG_CONFIG,
     )

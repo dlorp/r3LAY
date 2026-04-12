@@ -337,6 +337,7 @@ def test_all_routes_require_auth(bridge_client):
         ("GET", "/conflicts"),
         ("POST", "/conflicts/resolve"),
         ("POST", "/compile"),
+        ("POST", "/project/init"),
     ]
 
     for method, path in routes_to_test:
@@ -352,3 +353,64 @@ def test_all_routes_require_auth(bridge_client):
             f"{method} {path} returned {resp.status_code} instead of 401 — "
             f"missing Depends(verify_auth)?"
         )
+
+
+# =============================================================================
+# Project auto-init
+# =============================================================================
+
+
+def test_project_init_preview(bridge_client, tmp_path, fixture_cleanup):
+    """POST /project/init returns extrapolated metadata without writing."""
+    proj = _make_tracked_dir(tmp_path, name="initme", with_git=True)
+    # Remove the .r3lay dir so init has something to do
+    import shutil
+
+    shutil.rmtree(proj / ".r3lay")
+
+    # Add a pyproject.toml for extrapolation
+    (proj / "pyproject.toml").write_text(
+        '[project]\nname = "cool-tool"\ndescription = "A tool that does cool things"\n'
+    )
+
+    response = bridge_client.post(
+        "/project/init",
+        json={"path": str(proj), "auto_write": False},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "preview"
+    assert data["metadata"]["name"] == "cool-tool"
+    assert data["metadata"]["language"] == "python"
+    assert "pyproject.toml" in data["metadata"]["auto_init_sources"]
+    # File should NOT exist
+    assert not (proj / ".r3lay" / "project.yaml").exists()
+
+
+def test_project_init_write(bridge_client, tmp_path, fixture_cleanup):
+    """POST /project/init with auto_write=True creates the file."""
+    proj = _make_tracked_dir(tmp_path, name="writable", with_git=False)
+    import shutil
+
+    shutil.rmtree(proj / ".r3lay")
+
+    response = bridge_client.post(
+        "/project/init",
+        json={"path": str(proj), "auto_write": True},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "written"
+    assert (proj / ".r3lay" / "project.yaml").exists()
+
+
+def test_project_init_already_initialized(bridge_client, tmp_path, fixture_cleanup):
+    """POST /project/init on a project that already has metadata returns early."""
+    proj = _make_tracked_dir(tmp_path, name="existing")
+
+    response = bridge_client.post(
+        "/project/init",
+        json={"path": str(proj), "auto_write": False},
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "already_initialized"

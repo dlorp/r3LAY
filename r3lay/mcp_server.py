@@ -336,6 +336,35 @@ async def list_active_projects() -> list[dict[str, Any]]:
     return await _get("/projects/active")
 
 
+@mcp.tool()
+async def init_project(
+    path: str,
+    auto_write: bool = False,
+) -> dict[str, Any]:
+    """Extrapolate .r3lay/project.yaml from a project's manifest files.
+
+    Scans README.md, pyproject.toml, package.json, Cargo.toml, go.mod,
+    and .git/config to guess project name, description, language, tags,
+    and repo URL. Returns a preview by default so the agent can show the
+    user what r3LAY would write.
+
+    Use this when the user drops a new folder into the workspace and it
+    doesn't have a `.r3lay/project.yaml` yet. ALWAYS preview first and
+    show the user the extrapolated metadata before writing — set
+    auto_write=True only after explicit user confirmation.
+
+    Args:
+        path: Absolute path to the project directory.
+        auto_write: If False (default), returns a preview of the metadata
+            without writing. If True, creates .r3lay/project.yaml.
+
+    Returns:
+        {status: "preview"|"written"|"already_initialized", path, metadata}
+    """
+    body: dict[str, Any] = {"path": path, "auto_write": auto_write}
+    return await _post("/project/init", body)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Entry point
 # ─────────────────────────────────────────────────────────────────────────────
