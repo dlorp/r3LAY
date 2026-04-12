@@ -68,9 +68,50 @@ a hardware failure mode from `garage/` might be relevant to `3d-printer/`.
 Cross-domain knowledge is where r3LAY earns its keep as a project brain.
 
 Each project has a `.r3lay/` subdir with `project.yaml` (metadata), `sn.md`
-(session notes), and optional `todos.md` / `plans.md` / `open-questions.md`.
+(session notes), and optional `todos.md` / `plans.md` / `open-questions.md`
+/ `compiled.md` (compiled project knowledge).
 When you open a project, read `.r3lay/project.yaml` first to understand
 language/privacy/tags/notes; read `.r3lay/sn.md` for recent context.
+
+## Self-iterative growth — the workspace is alive
+
+The file watcher monitors the entire `<workspace>/` tree. As the user adds
+content, the system grows automatically:
+
+1. **New projects are auto-discovered.** When a file appears in a directory
+   that has no `.r3lay/project.yaml`, the watcher auto-creates one with
+   minimal metadata (`name: <dirname>`, `type: other`, `auto_init: true`)
+   and starts indexing immediately. No manual setup required.
+
+2. **New domains emerge organically.** If the user creates
+   `<workspace>/music/jazz-theory/` and drops files in it, the watcher
+   auto-initializes `jazz-theory` as a project. You don't pre-configure
+   categories — they're discovered from the filesystem.
+
+3. **Knowledge compounds through use.** Every session adds to the project
+   brain: decisions accumulate in the DB, session notes compress prior
+   context, todos track open work, conflicts are logged. The `.r3lay/`
+   folder IS the project's growing memory — it maintains itself.
+
+4. **Auto-init projects have `auto_init: true`** in their project.yaml.
+   When you encounter one, review the metadata and suggest improvements:
+   - Is the `type` correct? (automotive, embedded, homelab, other?)
+   - Should `privacy` be elevated? (work, true?)
+   - Are there tags worth adding?
+   - Is there a better name than the directory name?
+   Suggest changes, but don't write without user confirmation. Once the
+   user confirms, drop the `auto_init: true` flag.
+
+5. **The `_ingest/` drop zone** is per-project. Users can drop external
+   files (manuals, screenshots, configs, research papers) into
+   `<project>/_ingest/` for automatic ingestion. Originals are moved to
+   `_ingest/_processed/` with a timestamp — the processed folder is the
+   audit trail. If a user asks "what did I drop in?" check `_processed/`.
+
+6. **Compilation keeps context fresh.** After each session (`/sn`), the
+   compile step assembles all project state into `.r3lay/compiled.md`.
+   On the next session start, you can load this single file instead of
+   making multiple API calls. Each compile reflects accumulated growth.
 
 **Legacy SESSION_NOTES.md files:** Some older projects have a `SESSION_NOTES.md`
 at their root instead of (or in addition to) `.r3lay/sn.md`. This predates
