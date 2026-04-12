@@ -208,6 +208,15 @@ of the single v2.0.0 PR that replaces the v1 codebase.
   `security.website_blocklist`, `approvals.mode`, `browser.allow_private_urls`)
 
 ### Deferred (post-v2.0.0 work)
+- **cr-sqlite CRDT sync** — schema has hooks (`CRSQL_AS_CRR` calls
+  stripped by `_prepare_schema_sql`), extension loading is stubbed
+  (`load_crsqlite=False`). Enables multi-device DB sync when activated.
+  Deferred until a second device (lorpBot, Pi) needs real-time sync
+  rather than git-based vault exchange.
+- **LLM distillation pass** — Hermes synthesizes compiled.md into a
+  narrative with cross-referencing and contradiction detection. Deferred
+  until compiled output grows too large for direct consumption. See
+  compilation/SKILL.md "Future" section.
 - **HRR primitives** — indefinitely deferred; existing retrieval stack
   (dense + FTS5 + graph + RRF + MMR + decisions table) covers the
   project-brain use case (see
