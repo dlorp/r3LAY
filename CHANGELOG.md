@@ -82,20 +82,27 @@ of the single v2.0.0 PR that replaces the v1 codebase.
 - `_meta/documentation/auto-r3lay-project-init.md` — design sketch for
   auto-creating `.r3lay/project.yaml` when new projects appear (deferred)
 
-### Added — MCP migration (2026-04-11)
-- `r3lay/mcp_server.py` — FastMCP stdio server exposing 9 native tools:
+### Added — MCP migration + compile/distill (2026-04-11)
+- `r3lay/mcp_server.py` — FastMCP stdio server exposing 11 native tools:
   `track_path`, `untrack_path`, `list_tracked`, `reindex_path`, `git_check`,
-  `git_pull`, `search_chunks`, `get_project_context`, `list_active_projects`.
+  `git_pull`, `search_chunks`, `get_project_context`, `list_active_projects`,
+  `init_project`, `compile_project`.
   Runs as a host subprocess spawned by Hermes (not in the Docker sandbox),
   hits `localhost:8765` directly — no `host.docker.internal` indirection.
   Reads `~/.r3lay/api-secret` for auth (same precedence as the r3 CLI).
+- `compile_project` tool + `POST /compile` endpoint: Karpathy-style
+  deterministic project knowledge synthesis. Assembles metadata, session
+  notes, active decisions, todos, open questions, conflicts, and file
+  inventory into a single structured markdown document. Optionally persists
+  to `.r3lay/compiled.md` for cold-start context loading. No LLM call —
+  pure DB + file assembly.
 - `mcp>=1.0.0` added to `pyproject.toml` dependencies
 - `r3lay-mcp` entry point in `[project.scripts]`
 - `mcp_servers.r3lay` block in `hermes-profile/config.template.yaml`
   with `__REPO_DIR__` templating — install.sh sed-substitutes the absolute
   venv python path at install time, so Hermes can spawn the subprocess
   without requiring PATH manipulation
-- `tests/test_mcp_server.py` — 18 tests covering every tool's request shape,
+- `tests/test_mcp_server.py` — 20 tests covering every tool's request shape,
   auth header, error paths (401/403/409/502), and FastMCP tool registration.
   Uses `httpx.MockTransport` to stub the bridge without running it.
 - Tools are typed (path: str, auto_index: bool, etc.) and their docstrings
@@ -201,10 +208,6 @@ of the single v2.0.0 PR that replaces the v1 codebase.
   `security.website_blocklist`, `approvals.mode`, `browser.allow_private_urls`)
 
 ### Deferred (post-v2.0.0 work)
-- **Auto-`.r3lay/project.yaml`** — design sketch at
-  `_meta/documentation/auto-r3lay-project-init.md`. Can now be built on
-  top of the MCP surface (`project_init` or similar typed tool) since
-  the migration landed in this PR.
 - **HRR primitives** — indefinitely deferred; existing retrieval stack
   (dense + FTS5 + graph + RRF + MMR + decisions table) covers the
   project-brain use case (see

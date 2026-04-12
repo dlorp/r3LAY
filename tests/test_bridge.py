@@ -414,3 +414,194 @@ def test_project_init_already_initialized(bridge_client, tmp_path, fixture_clean
     )
     assert response.status_code == 200
     assert response.json()["status"] == "already_initialized"
+
+
+# =============================================================================
+# Compile / Distill
+# =============================================================================
+
+
+def _seed_project_for_compile(bridge_client, tmp_db, tmp_path):
+    """Helper: seed a project with decisions, files, and session notes for compile tests."""
+    from r3lay.ingest import sha256_path
+
+    proj = tmp_path / "compileproj"
+    proj.mkdir()
+    (proj / ".r3lay").mkdir()
+    (proj / ".r3lay" / "project.yaml").write_text(
+        "name: compileproj\ntype: python\ndescription: A compilable project\nprivacy: false\n"
+    )
+    (proj / ".r3lay" / "sn.md").write_text(
+        "# Session Notes -- compileproj\nLast updated: 2026-04-11 21:00\n\n"
+        "## Active context\nWorking on compile endpoint.\n"
+    )
+    (proj / ".r3lay" / "todos.md").write_text(
+        "# Todos -- compileproj\nLast updated: 2026-04-11\n\n"
+        "## Active\n- [ ] Implement compile\n- [ ] Write tests\n"
+    )
+    (proj / ".r3lay" / "open-questions.md").write_text(
+        "# Open Questions -- compileproj\nLast updated: 2026-04-11\n\n"
+        "- Should we add LLM synthesis later?\n"
+    )
+
+    project_id = sha256_path(str(proj))[:16]
+
+    tmp_db.execute(
+        """INSERT INTO projects (id, name, path, type, description, privacy, status)
+           VALUES (?, 'compileproj', ?, 'python', 'A compilable project', 'false', 'active')""",
+        (project_id, str(proj)),
+    )
+
+    # Add a file record
+    file_id = sha256_path(f"{project_id}:README.md")
+    tmp_db.execute(
+        """INSERT INTO files
+           (id, project_id, path, file_type, quality_weight, provenance, content_hash)
+           VALUES (?, ?, 'README.md', 'md', 0.9, 'human', 'abc123')""",
+        (file_id, project_id),
+    )
+
+    # Add a decision
+    tmp_db.execute(
+        """INSERT INTO decisions
+           (id, project_id, statement, rationale, category, confidence)
+           VALUES ('dec-1', ?, 'Use Qwen3 embeddings',
+                   'Best sub-1B model', 'architecture', 0.95)""",
+        (project_id,),
+    )
+
+    tmp_db.commit()
+    return proj, project_id
+
+
+def test_compile_returns_document(bridge_client, tmp_db, tmp_path):
+    """POST /compile returns a compiled markdown document with stats."""
+    proj, project_id = _seed_project_for_compile(bridge_client, tmp_db, tmp_path)
+
+    response = bridge_client.post("/compile", json={"project_id": project_id, "write": False})
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["status"] == "compiled"
+    assert body["project_id"] == project_id
+    assert body["written_to"] is None  # write=False
+
+    doc = body["document"]
+    assert "# Project Compilation: compileproj" in doc
+    assert "Use Qwen3 embeddings" in doc
+    assert "Implement compile" in doc
+    assert "Should we add LLM synthesis later?" in doc
+    assert "Working on compile endpoint." in doc
+    assert "README.md" in doc
+
+    # Stats
+    assert body["files"] == 1
+    assert body["decisions"] == 1
+    assert body["todos"] == 2
+    assert body["questions"] == 1
+    assert body["conflicts"] == 0
+    assert body["privacy"] == "false"
+
+
+def test_compile_writes_file(bridge_client, tmp_db, tmp_path):
+    """POST /compile with write=True persists .r3lay/compiled.md."""
+    proj, project_id = _seed_project_for_compile(bridge_client, tmp_db, tmp_path)
+
+    response = bridge_client.post("/compile", json={"project_id": project_id, "write": True})
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["written_to"] is not None
+    compiled_path = proj / ".r3lay" / "compiled.md"
+    assert compiled_path.exists()
+    content = compiled_path.read_text()
+    assert "# Project Compilation: compileproj" in content
+    assert body["document"] == content
+
+
+def test_compile_write_default_is_true(bridge_client, tmp_db, tmp_path):
+    """POST /compile without write key defaults to write=True."""
+    proj, project_id = _seed_project_for_compile(bridge_client, tmp_db, tmp_path)
+
+    response = bridge_client.post("/compile", json={"project_id": project_id})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["written_to"] is not None
+    assert (proj / ".r3lay" / "compiled.md").exists()
+
+
+def test_compile_404_on_missing_project(bridge_client):
+    """POST /compile with nonexistent project_id returns 404."""
+    response = bridge_client.post("/compile", json={"project_id": "nonexistent-id"})
+    assert response.status_code == 404
+
+
+def test_compile_empty_project(bridge_client, tmp_db, tmp_path):
+    """POST /compile on a project with no files/decisions/todos returns valid doc."""
+    from r3lay.ingest import sha256_path
+
+    proj = tmp_path / "emptyproj"
+    proj.mkdir()
+    (proj / ".r3lay").mkdir()
+    project_id = sha256_path(str(proj))[:16]
+    tmp_db.execute(
+        """INSERT INTO projects (id, name, path, type, privacy, status)
+           VALUES (?, 'emptyproj', ?, 'other', 'false', 'active')""",
+        (project_id, str(proj)),
+    )
+    tmp_db.commit()
+
+    response = bridge_client.post("/compile", json={"project_id": project_id, "write": False})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["files"] == 0
+    assert body["decisions"] == 0
+    assert body["todos"] == 0
+    assert body["questions"] == 0
+    assert body["conflicts"] == 0
+    doc = body["document"]
+    assert "_No active decisions._" in doc
+    assert "_No active todos._" in doc
+    assert "_No open questions._" in doc
+    assert "_No pending conflicts._" in doc
+    assert "_No indexed files._" in doc
+
+
+def test_compile_excludes_superseded_decisions(bridge_client, tmp_db, tmp_path):
+    """Superseded decisions must not appear in the compiled document."""
+    proj, project_id = _seed_project_for_compile(bridge_client, tmp_db, tmp_path)
+    tmp_db.execute(
+        """INSERT INTO decisions (id, project_id, statement, superseded_by)
+           VALUES ('dec-old', ?, 'Old approach (superseded)', 'dec-1')""",
+        (project_id,),
+    )
+    tmp_db.commit()
+
+    response = bridge_client.post("/compile", json={"project_id": project_id, "write": False})
+    assert response.status_code == 200
+    body = response.json()
+    assert "Old approach (superseded)" not in body["document"]
+    assert body["decisions"] == 1
+
+
+def test_compile_includes_pending_conflicts_only(bridge_client, tmp_db, tmp_path):
+    """Only pending conflicts appear; resolved conflicts are excluded."""
+    proj, project_id = _seed_project_for_compile(bridge_client, tmp_db, tmp_path)
+    tmp_db.execute(
+        """INSERT INTO conflicts (id, project_id, description, severity, resolution)
+           VALUES ('c-pending', ?, 'Breaking API change', 'high', 'pending')""",
+        (project_id,),
+    )
+    tmp_db.execute(
+        """INSERT INTO conflicts (id, project_id, description, severity, resolution)
+           VALUES ('c-resolved', ?, 'Old resolved conflict', 'low', 'resolved')""",
+        (project_id,),
+    )
+    tmp_db.commit()
+
+    response = bridge_client.post("/compile", json={"project_id": project_id, "write": False})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["conflicts"] == 1
+    assert "Breaking API change" in body["document"]
+    assert "Old resolved conflict" not in body["document"]
