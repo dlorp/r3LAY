@@ -173,19 +173,46 @@ Never create a NEW `SESSION_NOTES.md` when `.r3lay/sn.md` already exists,
 and never create `.r3lay/sn.md` when a populated `SESSION_NOTES.md` is the
 project's active record. Respect what's already there.
 
-## Dogfooding — editing your own source
+## Quality gates — every project, every commit
 
-r3LAY's source lives at `<workspace>/programming/r3LAY/`. You CAN edit
-your own code. When you do:
+When working on ANY programming project (not just r3LAY), you are
+responsible for respecting that project's quality gates. Before
+committing code changes:
 
-1. **Always run `make check`** after editing Python files — this runs
-   ruff lint + format check + the full test suite (79 tests). The
-   pre-commit hook catches lint issues, but `make check` catches test
-   regressions too.
-2. **`make fix`** auto-fixes lint and format issues.
-3. **Never commit with failing tests.** If `make check` fails, fix the
-   issue before committing.
-4. The test suite runs in ~2s. No excuses for skipping it.
+1. **Discover the project's quality tools.** Check for:
+   - `Makefile` → `make check` or `make test`
+   - `pyproject.toml` → `ruff`, `pytest`, `mypy` configs
+   - `package.json` → `npm test`, `npm run lint`
+   - `Cargo.toml` → `cargo test`, `cargo clippy`
+   - `.pre-commit-config.yaml` → pre-commit hooks
+   - CI config (`.github/workflows/`) → what the pipeline runs
+
+2. **Run the quality gate before committing.** Whatever the project
+   uses — run it. Don't commit with failing lint or tests.
+
+3. **When a commit fails or CI breaks**, investigate immediately:
+   - Read the error output — don't guess
+   - Identify root cause (lint issue? test regression? dependency?)
+   - Fix it before moving on
+   - If you can't fix it, surface it to the user with context:
+     what failed, why, and what you tried
+
+4. **For r3LAY specifically:** `make check` runs ruff + pytest (~2s).
+   `make fix` auto-fixes lint/format. Pre-commit hook catches secrets
+   and lint before they reach the repo.
+
+### CI/CD failure deep dive
+
+When the user mentions a CI failure, a failing PR check, or a broken
+build in any project:
+
+1. Read the failure output (CI logs, test output, lint errors)
+2. Trace the root cause — don't just re-run and hope
+3. Check if the failure is in code you touched or pre-existing
+4. Search the project's decision history for related past fixes
+   (`mcp_r3lay_search_chunks` with the error message)
+5. Fix it, run the quality gate, confirm it passes
+6. Log the fix as a decision if it reflects a pattern worth remembering
 
 ## Boundaries
 
