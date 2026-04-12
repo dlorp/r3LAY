@@ -283,6 +283,67 @@ class R3LayEventHandler(FileSystemEventHandler):
         self._touch_heartbeat()
         return project_dir
 
+    def _register_file_reference(
+        self, conn, file_path: Path, project_id: str, project_root: Path
+    ) -> None:
+        """Register a file as a reference in the DB without text extraction.
+
+        Used for images/PDFs where OCR returned no text. Creates a file
+        record with file_type='image-ref' and a descriptive stub so the
+        agent can discover the file via search and view it with vision
+        capabilities during a session.
+
+        The file goes to _processed/ (not _unsupported/) because it's
+        a valid asset — it just needs the model's eyes, not OCR.
+        """
+        from datetime import datetime, timezone
+
+        relative_path = str(file_path.relative_to(project_root))
+        file_id = sha256_path(f"{project_id}:{relative_path}")
+        suffix = file_path.suffix.lower()
+        now = datetime.now(timezone.utc).isoformat()
+
+        # Determine a human-readable type hint
+        if suffix in (".pdf",):
+            type_hint = "PDF document (no extractable text — may be scanned/image-only)"
+        elif suffix in (".png", ".jpg", ".jpeg", ".webp", ".tiff", ".bmp"):
+            type_hint = f"Image ({suffix})"
+        else:
+            type_hint = f"Binary file ({suffix})"
+
+        # Stub content that's searchable by filename and type
+        stub = (
+            f"File reference: {file_path.name}\n"
+            f"Type: {type_hint}\n"
+            f"Path: {relative_path}\n"
+            f"Ingested: {now}\n"
+            f"Note: No text was extracted from this file. "
+            f"Use the model's vision capabilities to view it during a session."
+        )
+
+        content_hash = sha256_hex(stub)
+
+        conn.execute(
+            """INSERT INTO files (id, project_id, path, title, content,
+                                  content_hash, file_type, provenance,
+                                  quality_weight, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, 'image-ref', 'human', 0.3,
+                       datetime('now'))
+               ON CONFLICT(id) DO UPDATE SET
+                 content=excluded.content,
+                 content_hash=excluded.content_hash,
+                 updated_at=datetime('now')""",
+            (
+                file_id,
+                project_id,
+                relative_path,
+                file_path.name,
+                stub,
+                content_hash,
+            ),
+        )
+        conn.commit()
+
     def _touch_heartbeat(self) -> None:
         """Update the heartbeat file with current ISO timestamp.
 
@@ -488,15 +549,26 @@ class R3LayEventHandler(FileSystemEventHandler):
             project_id = sha256_path(str(project_root))[:16]
 
             # For PDF/image files, extract text first and ingest the
-            # extracted content as a .md file alongside the original
+            # extracted content as a .md file alongside the original.
+            # If extraction returns no text (e.g., a photo with no
+            # readable text), register as an image reference so the
+            # agent knows the file exists and can view it with vision.
             if self._is_extractable(file_path):
                 extracted = extract_text(file_path)
+
                 if not extracted or not extracted.strip():
-                    logger.warning("Extraction returned no text: %s", file_path.name)
-                    dest = self._move_to_subdir(file_path, "_unsupported")
-                    if dest:
-                        logger.info("Moved to unsupported: %s", dest)
+                    # No text — register as image/file reference
+                    self._register_file_reference(conn, file_path, project_id, project_root)
+                    logger.info(
+                        "Registered as reference (no extractable text): %s",
+                        file_path.name,
+                    )
+                    self._touch_heartbeat()
                     conn.close()
+                    # Still move to _processed/ (not _unsupported/)
+                    dest = self._move_to_subdir(file_path, "_processed")
+                    if dest:
+                        logger.info("Moved to processed: %s", dest)
                     return
 
                 # Write extracted text as a .md file next to the original

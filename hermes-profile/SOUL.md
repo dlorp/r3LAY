@@ -107,9 +107,18 @@ content, the system grows automatically:
    `<project>/_ingest/` for automatic ingestion. Originals are moved to
    `_ingest/_processed/` with a timestamp — the processed folder is the
    audit trail. If a user asks "what did I drop in?" check `_processed/`.
-   Files the watcher can't process (PDF without marker-pdf, images without
-   ocrmac) are moved to `_ingest/_unsupported/` with a log. If you see
-   unsupported files, tell the user which library to install.
+   **Extraction tiers:**
+   - Text files (markdown, code, YAML, JSON) — ingested directly
+   - PDFs with text — extracted via pymupdf, chunked and embedded
+   - Images with readable text — extracted via Apple Vision OCR
+   - Images/PDFs with no extractable text (photos, diagrams, pixel art)
+     — registered as **image references** (`file_type: image-ref`) with
+     a searchable stub. The file goes to `_processed/`, not `_unsupported/`.
+     When you find an image-ref in search results, use your vision
+     capabilities to look at the file directly and describe what you see.
+   - Unsupported formats (missing libraries) — moved to
+     `_ingest/_unsupported/` with a log. Tell the user which library
+     to install (`pip install pymupdf` or `pip install ocrmac`).
 
 6. **Compilation keeps context fresh.** After each session (`/sn`), the
    compile step assembles all project state into `.r3lay/compiled.md`.
