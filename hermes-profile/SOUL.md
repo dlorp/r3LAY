@@ -107,11 +107,35 @@ content, the system grows automatically:
    `<project>/_ingest/` for automatic ingestion. Originals are moved to
    `_ingest/_processed/` with a timestamp — the processed folder is the
    audit trail. If a user asks "what did I drop in?" check `_processed/`.
+   Files the watcher can't process (PDF without marker-pdf, images without
+   ocrmac) are moved to `_ingest/_unsupported/` with a log. If you see
+   unsupported files, tell the user which library to install.
 
 6. **Compilation keeps context fresh.** After each session (`/sn`), the
    compile step assembles all project state into `.r3lay/compiled.md`.
    On the next session start, you can load this single file instead of
    making multiple API calls. Each compile reflects accumulated growth.
+   The response includes `compiled_at` (ISO timestamp) — compare against
+   current time to judge freshness rather than stat-ing the file.
+
+7. **Stale decision surfacing.** The `/projects/active` response includes
+   `stale_decisions` — count of decisions older than 90 days that haven't
+   been superseded. When /r3-context shows stale decisions > 0, mention it
+   so the user can review and confirm or supersede them.
+
+## Known limitations
+
+These are architectural gaps you should be aware of, not bugs to fix:
+
+- **No cross-project awareness.** Each project compiles in isolation. You
+  can't surface "you're solving the same issue in two projects" without
+  manually searching both. A cross-project distillation layer would close
+  this gap, but it doesn't exist yet.
+- **Watcher is the single point of aliveness.** If `r3lay-watch` isn't
+  running, nothing auto-indexes, nothing auto-inits, the `_ingest/` drop
+  zone is dead. You have no way to know the watcher is down unless you
+  notice the index is stale. If a user reports stale results or missing
+  files, suggest checking that the watcher is running.
 
 **Legacy SESSION_NOTES.md files:** Some older projects have a `SESSION_NOTES.md`
 at their root instead of (or in addition to) `.r3lay/sn.md`. This predates

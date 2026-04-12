@@ -29,8 +29,12 @@ from watchdog.observers import Observer
 
 from .db import get_db
 from .ingest import (
+    IMAGE_EXTENSIONS,
     MAX_FILE_SIZE,
+    PDF_EXTENSIONS,
     SKIP_DIRS,
+    can_extract,
+    extract_text,
     ingest_file,
     sha256_hex,
     sha256_path,
@@ -384,12 +388,42 @@ class R3LayEventHandler(FileSystemEventHandler):
 
             conn.close()
 
+    def _is_extractable(self, path: Path) -> bool:
+        """Check if a file needs special extraction (PDF, image)."""
+        suffix = path.suffix.lower()
+        return suffix in PDF_EXTENSIONS or suffix in IMAGE_EXTENSIONS
+
+    def _move_to_subdir(self, file_path: Path, subdir: str) -> Path | None:
+        """Move a file to a subdirectory of its parent with timestamp prefix.
+
+        Uses shutil.move to handle cross-device renames (bind mounts).
+        Returns the destination path on success, None on failure.
+        """
+        import shutil
+        from datetime import datetime
+
+        dest_dir = file_path.parent / subdir
+        dest_dir.mkdir(exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
+        dest = dest_dir / f"{timestamp}_{file_path.name}"
+        try:
+            shutil.move(str(file_path), str(dest))
+            return dest
+        except OSError as e:
+            logger.error("Failed to move %s to %s: %s", file_path.name, subdir, e)
+            return None
+
     async def _handle_ingest_drop(self, file_path: Path) -> None:
         """Handle a file dropped into a project's _ingest/ directory.
 
-        1. Reject symlinks (prevents data exfiltration via symlink → secret)
-        2. Ingest the file into the project's index
-        3. Move original to _ingest/_processed/ (keep for audit)
+        Flow:
+        1. Reject symlinks (prevents data exfiltration via symlink -> secret)
+        2. Check if the file needs special extraction (PDF, image)
+           a. If extractable and library available: extract text, ingest
+           b. If extractable but library missing: move to _unsupported/
+           c. If binary/unknown: move to _unsupported/
+        3. Ingest the file (or extracted text) into the project's index
+        4. Move original to _ingest/_processed/ (keep for audit)
 
         External consumers (HDLS agents) query the bridge to discover
         new content and make their own forwarding decisions based on
@@ -398,6 +432,23 @@ class R3LayEventHandler(FileSystemEventHandler):
         if file_path.is_symlink():
             logger.warning("Rejecting symlink in _ingest/ drop: %s", file_path)
             return
+
+        # Check for unsupported files before acquiring the semaphore
+        if self._is_extractable(file_path) and not can_extract(file_path):
+            dest = self._move_to_subdir(file_path, "_unsupported")
+            if dest:
+                logger.warning(
+                    "Unsupported file type (missing library): %s -> %s",
+                    file_path.name,
+                    dest,
+                )
+            else:
+                logger.warning(
+                    "Unsupported file type (missing library): %s (install marker-pdf or ocrmac)",
+                    file_path.name,
+                )
+            return
+
         sem = self._get_or_create_semaphore()
         async with sem:
             conn = get_db(self._db_path)
@@ -414,32 +465,69 @@ class R3LayEventHandler(FileSystemEventHandler):
 
             project_id = sha256_path(str(project_root))[:16]
 
-            try:
-                chunks = await ingest_file(conn, file_path, project_id, project_root)
-                logger.info("Ingested drop %s: %d chunks", file_path.name, chunks)
-            except Exception as e:
-                logger.error("Failed to ingest drop %s: %s", file_path, e)
-                conn.close()
-                return
+            # For PDF/image files, extract text first and ingest the
+            # extracted content as a .md file alongside the original
+            if self._is_extractable(file_path):
+                extracted = extract_text(file_path)
+                if not extracted or not extracted.strip():
+                    logger.warning("Extraction returned no text: %s", file_path.name)
+                    dest = self._move_to_subdir(file_path, "_unsupported")
+                    if dest:
+                        logger.info("Moved to unsupported: %s", dest)
+                    conn.close()
+                    return
+
+                # Write extracted text as a .md file next to the original
+                extracted_path = file_path.with_suffix(".extracted.md")
+                extracted_path.write_text(
+                    f"# Extracted: {file_path.name}\n\n{extracted}",
+                    encoding="utf-8",
+                )
+                try:
+                    chunks = await ingest_file(
+                        conn,
+                        extracted_path,
+                        project_id,
+                        project_root,
+                    )
+                    logger.info(
+                        "Ingested extracted %s: %d chunks",
+                        file_path.name,
+                        chunks,
+                    )
+                except Exception as e:
+                    logger.error("Failed to ingest extracted %s: %s", file_path, e)
+                    conn.close()
+                    return
+                finally:
+                    # Clean up the temp extracted file
+                    extracted_path.unlink(missing_ok=True)
+            else:
+                try:
+                    chunks = await ingest_file(
+                        conn,
+                        file_path,
+                        project_id,
+                        project_root,
+                    )
+                    logger.info(
+                        "Ingested drop %s: %d chunks",
+                        file_path.name,
+                        chunks,
+                    )
+                except Exception as e:
+                    logger.error("Failed to ingest drop %s: %s", file_path, e)
+                    conn.close()
+                    return
 
             conn.close()
 
-        # Move to _processed/ with timestamp prefix to avoid collisions and
-        # shutil.move to handle cross-device renames (e.g., bind mounts).
-        import shutil
-        from datetime import datetime
-
-        processed_dir = file_path.parent / "_processed"
-        processed_dir.mkdir(exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
-        dest = processed_dir / f"{timestamp}_{file_path.name}"
-        try:
-            shutil.move(str(file_path), str(dest))
+        # Move to _processed/ with timestamp prefix
+        dest = self._move_to_subdir(file_path, "_processed")
+        if dest:
             logger.info("Moved to processed: %s", dest)
-        except OSError as e:
-            logger.error("Failed to move %s to processed: %s", file_path, e)
-            # Mark the file as already-ingested to prevent watchdog re-triggering
-            # and causing duplicate ingests on every subsequent fs event.
+        else:
+            # Mark the file as already-ingested to prevent re-triggering
             failed_marker = file_path.with_suffix(file_path.suffix + ".ingested")
             try:
                 os.rename(str(file_path), str(failed_marker))
