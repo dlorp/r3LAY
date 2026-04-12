@@ -303,9 +303,9 @@ def scan_project_files(project_path: Path) -> list[Path]:
         if not item.is_file():
             continue
 
-        # Skip directories in SKIP_DIRS
+        # Skip directories in SKIP_DIRS + cloud sync staging dirs
         parts = item.relative_to(project_path).parts
-        if any(p in SKIP_DIRS for p in parts):
+        if any(p in SKIP_DIRS or p.startswith(".tmp.") for p in parts):
             # Exception: allow .r3lay/project.yaml
             if not (parts[0] == ".r3lay" and item.name == "project.yaml"):
                 continue

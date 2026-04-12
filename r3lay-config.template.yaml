@@ -9,18 +9,18 @@
 # ─────────────────────────────────────────────────────────
 # Embedding model — used for vector search (ingest + query)
 # ─────────────────────────────────────────────────────────
-# Run: ollama pull qllama/multilingual-e5-large-instruct
+# Run: ollama pull qwen3-embedding:0.6b
 #
-# multilingual-e5-large-instruct is recommended for technical knowledge bases
-# with mixed code + prose. It's the instruction-tuned variant of E5-large
-# (1024-dim, strong multilingual + code retrieval on MTEB benchmarks).
-# Instruction-tuned models outperform base models on asymmetric retrieval
-# (short query → long document) which is r3LAY's primary access pattern.
+# Qwen3-Embedding 0.6B: 61.83 MTEB Retrieval, 75.41 MTEB-Code — best sub-1B
+# model for mixed code + prose retrieval. Instruction-tuned for asymmetric
+# queries (short NL query → long document), 32K context window (can embed
+# entire files without truncation), Matryoshka (MRL) support for dimension
+# reduction if needed later. 639MB Q8_0, ~1.2GB RAM.
 #
-# Alternatives: bge-m3, nomic-embed-text, mxbai-embed-large
+# Alternatives: snowflake-arctic-embed2:568m, mxbai-embed-large, nomic-embed-text
 embedding:
-  model: qllama/multilingual-e5-large-instruct
-  dim: 1024                    # must match your model's output dimension
+  model: qwen3-embedding:0.6b
+  dim: 1024                    # MRL supports 32-1024; use 1024 for max quality
   ollama_url: http://localhost:11434
 
 # ─────────────────────────────────────────────────────────

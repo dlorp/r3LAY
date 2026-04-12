@@ -57,9 +57,16 @@ def _create_apsw_connection(db_path: Path) -> Any:
     import apsw.ext
 
     conn = apsw.Connection(str(db_path))
-    # Enable WAL and other pragmas
-    conn.execute("PRAGMA journal_mode=WAL")
+    # page_size must be set before any tables exist (new DBs only;
+    # existing DBs require VACUUM to change). 8192 is optimal for
+    # 4KB+ BLOBs (1024-dim float32 embeddings = 4096 bytes exactly).
+    conn.execute("PRAGMA page_size=8192")
+    conn.execute("PRAGMA journal_mode=DELETE")
+    conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute("PRAGMA mmap_size=0")
+    conn.execute("PRAGMA cache_size=-128000")
+    conn.execute("PRAGMA temp_store=MEMORY")
+    conn.execute("PRAGMA busy_timeout=5000")
     conn.execute("PRAGMA foreign_keys=ON")
 
     # Load sqlite-vec
@@ -234,8 +241,13 @@ def get_connection(
     conn = _try_stdlib_connection(db_path)
     if conn is not None:
         conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA page_size=8192")
+        conn.execute("PRAGMA journal_mode=DELETE")
+        conn.execute("PRAGMA synchronous=NORMAL")
         conn.execute("PRAGMA mmap_size=0")
+        conn.execute("PRAGMA cache_size=-128000")
+        conn.execute("PRAGMA temp_store=MEMORY")
+        conn.execute("PRAGMA busy_timeout=5000")
         conn.execute("PRAGMA foreign_keys=ON")
 
         sqlite_vec.load(conn)
