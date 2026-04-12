@@ -31,8 +31,14 @@ def _try_stdlib_connection(db_path: Path) -> sqlite3.Connection | None:
     """Try to create a stdlib sqlite3 connection with extension loading.
 
     Returns None if enable_load_extension is not available.
+
+    check_same_thread=False is required because FastAPI may run sync
+    dependencies (get_conn) in a thread pool worker, then hand the connection
+    off to an async endpoint running in the main event loop thread. SQLite
+    is thread-safe at the C level for our usage pattern (one connection per
+    request, no concurrent use), so disabling the Python check is safe.
     """
-    conn = sqlite3.connect(str(db_path))
+    conn = sqlite3.connect(str(db_path), check_same_thread=False)
     try:
         conn.enable_load_extension(True)
         return conn
@@ -68,12 +74,38 @@ class _ApswWrapper:
     """Minimal adapter wrapping apsw.Connection to match sqlite3.Connection API.
 
     Provides: execute, commit, close, row_factory-like behavior.
+
+    Transaction handling:
+        APSW runs in SQLite autocommit mode outside of explicit transactions,
+        which means one fsync per statement — 50-100x slower than stdlib sqlite3
+        for bulk writes. To match stdlib semantics (all writes between commits
+        batched into one transaction) we track an implicit transaction state:
+
+        - On first execute() after commit() or open, issue BEGIN.
+        - On commit(), issue COMMIT if a transaction is active.
+        - close() commits any pending transaction before closing.
+
+        This gives sqlite3.Connection-compatible performance for bulk ingest.
     """
 
     def __init__(self, conn: Any) -> None:
         self._conn = conn
+        self._in_txn = False
+
+    def _ensure_txn(self) -> None:
+        """Begin an implicit transaction if not already in one."""
+        if not self._in_txn:
+            self._conn.execute("BEGIN")
+            self._in_txn = True
 
     def execute(self, sql: str, params: tuple | list = ()) -> _ApswCursorWrapper:
+        # DDL statements and pragmas shouldn't auto-open a transaction
+        stripped = sql.lstrip().upper()
+        ddl_prefixes = ("CREATE", "DROP", "ALTER", "PRAGMA", "BEGIN", "COMMIT", "ROLLBACK")
+        is_ddl = stripped.startswith(ddl_prefixes)
+        if not is_ddl:
+            self._ensure_txn()
+
         cursor = self._conn.cursor()
         cursor.execute(sql, params)
         # get_description() fails for DDL statements (CREATE, DROP, etc.)
@@ -84,14 +116,36 @@ class _ApswWrapper:
         return _ApswCursorWrapper(cursor, desc)
 
     def executescript(self, sql: str) -> None:
-        """Execute multiple SQL statements at once (like sqlite3.executescript)."""
+        """Execute multiple SQL statements at once (like sqlite3.executescript).
+
+        Commits any pending transaction first — executescript runs its own
+        top-level statements and can't be nested inside our implicit BEGIN.
+        """
+        if self._in_txn:
+            self._conn.execute("COMMIT")
+            self._in_txn = False
         self._conn.execute(sql)
 
     def commit(self) -> None:
-        # apsw auto-commits by default; explicit commit via COMMIT if in transaction
-        pass
+        """Commit the current implicit transaction, if any."""
+        if self._in_txn:
+            self._conn.execute("COMMIT")
+            self._in_txn = False
+
+    def rollback(self) -> None:
+        """Rollback the current implicit transaction, if any."""
+        if self._in_txn:
+            self._conn.execute("ROLLBACK")
+            self._in_txn = False
 
     def close(self) -> None:
+        # Commit any pending transaction before closing to avoid losing writes
+        if self._in_txn:
+            try:
+                self._conn.execute("COMMIT")
+            except Exception:
+                pass
+            self._in_txn = False
         self._conn.close()
 
     @property
@@ -245,8 +299,17 @@ def init_schema(conn: Any) -> None:
     logger.info("Database schema initialized")
 
 
+# Track which DB paths have already been schema-initialized so we don't
+# re-run the entire schema.sql on every get_db() call. This was a
+# measurable cost under the watcher's per-event connection pattern.
+_SCHEMA_INIT_PATHS: set[Path] = set()
+
+
 def get_db(db_path: Path | None = None) -> Any:
     """Get a fully initialized database connection.
+
+    Schema initialization is cached per-process per-path: init_schema() runs
+    exactly once per unique db_path for the lifetime of the process.
 
     Args:
         db_path: Path to the database file. Defaults to ~/r3LAY/.r3lay-global/r3lay.db.
@@ -255,5 +318,8 @@ def get_db(db_path: Path | None = None) -> Any:
         Ready-to-use connection.
     """
     conn = get_connection(db_path)
-    init_schema(conn)
+    key = (db_path or DEFAULT_DB_PATH).resolve()
+    if key not in _SCHEMA_INIT_PATHS:
+        init_schema(conn)
+        _SCHEMA_INIT_PATHS.add(key)
     return conn

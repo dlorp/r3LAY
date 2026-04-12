@@ -1,0 +1,23 @@
+name: r3LAY
+description: Local-first project brain. Hermes-agent + FastAPI bridge + SQLite+vec+FTS5 index that lets you speak to your projects.
+language: python
+privacy: false
+tags: [project-brain, rag, hermes-agent, fastapi, sqlite-vec, llm]
+repo: https://github.com/dlorp/r3LAY
+stack:
+  backend: python/fastapi
+  agent: hermes
+  db: sqlite + vec0 + fts5
+  deploy: tmux + docker (hermes sandbox)
+external_services:
+  - ollama
+  - openrouter
+notes:
+  - This is r3LAY's own source code. The agent running r3LAY IS reading
+    this file — it can modify its own source via normal file tools.
+  - Dogfooding: when fixing a bug in r3LAY, use r3LAY's own search and
+    conflict-detection to plan the fix.
+  - Template config uses __HOME__ and __REPO_DIR__ placeholders rendered
+    at install time (Hermes's YAML loader has no env var substitution).
+  - Docker sandbox is the security boundary — platform_toolsets.cli +
+    terminal.backend: docker. See hermes-profile/SOUL.md for vault rules.

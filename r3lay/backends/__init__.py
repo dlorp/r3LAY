@@ -8,7 +8,7 @@ Adapters for different LLM inference engines:
 
 Usage:
     from r3lay.backends import create_backend
-    backend = create_backend("ollama", model_name="qwen3:8b")
+    backend = create_backend("ollama", model_name="your-model")
     await backend.load()
     async for token in backend.generate_stream(messages):
         print(token, end="")

@@ -41,6 +41,14 @@ logger = logging.getLogger(__name__)
 # Debounce interval: ignore rapid-fire events for the same file
 DEBOUNCE_SECONDS = 1.0
 
+# Periodic cleanup: drop debounce entries older than this
+DEBOUNCE_CACHE_MAX = 2000
+DEBOUNCE_CACHE_TTL = 60.0
+
+# Bound concurrent ingest work so a bulk git checkout doesn't spawn
+# thousands of parallel Ollama embed calls.
+INGEST_CONCURRENCY = 4
+
 # Default watch root
 DEFAULT_WATCH_ROOT = Path.home() / "r3LAY"
 
@@ -51,15 +59,23 @@ INGEST_DIR = "_ingest"
 class R3LayEventHandler(FileSystemEventHandler):
     """Handle filesystem events for r3LAY project files."""
 
-    def __init__(self, db_path: Path | None = None) -> None:
+    def __init__(
+        self,
+        db_path: Path | None = None,
+        watch_root: Path | None = None,
+    ) -> None:
         super().__init__()
         self._db_path = db_path
+        self._watch_root = watch_root or DEFAULT_WATCH_ROOT
         self._last_event: dict[str, float] = {}
         self._loop: asyncio.AbstractEventLoop | None = None
+        # Bound in-flight ingest work (created lazily when loop is attached)
+        self._ingest_sem: asyncio.Semaphore | None = None
 
     def _should_skip(self, path: Path) -> bool:
         """Check if a path should be skipped."""
         parts = path.parts
+        name = path.name
 
         # Skip .git directories
         if ".git" in parts:
@@ -69,10 +85,28 @@ class R3LayEventHandler(FileSystemEventHandler):
         if ".r3lay-global" in parts:
             return True
 
+        # Skip Hermes runtime state that may be nested inside a tracked repo
+        # (e.g. r3LAY's own hermes-profile/skills/ is live-written by the
+        # Hermes skill installer — bundled manifest tmp files, skill caches,
+        # session state). These are not project content and shouldn't be
+        # indexed.
+        if "hermes-profile" in parts:
+            # Allow only the version-controlled skill + soul files, skip
+            # everything else (bundled_manifest, tmp files, sandboxes, etc.)
+            if name.endswith(".tmp") or name.startswith(".bundled_manifest"):
+                return True
+
+        # Skip transient writer artifacts across the board
+        if name.endswith(".tmp") or name.endswith("~"):
+            return True
+        if name.startswith(".#") or name.startswith("#"):  # editor swap/lock
+            return True
+        if name == ".DS_Store":
+            return True
+
         # Find the r3LAY root to get relative path
         try:
-            r3lay_root = DEFAULT_WATCH_ROOT
-            rel_parts = path.relative_to(r3lay_root).parts
+            rel_parts = path.relative_to(self._watch_root).parts
         except ValueError:
             return True
 
@@ -119,8 +153,19 @@ class R3LayEventHandler(FileSystemEventHandler):
         return False
 
     def _debounce(self, path: str) -> bool:
-        """Return True if this event should be processed (not debounced)."""
+        """Return True if this event should be processed (not debounced).
+
+        Also performs periodic cleanup of the debounce cache so it doesn't grow
+        unbounded over long watcher runs.
+        """
         now = time.monotonic()
+
+        # Periodic cleanup: drop entries older than the TTL when the cache
+        # grows past the soft cap. Avoids unbounded memory growth.
+        if len(self._last_event) > DEBOUNCE_CACHE_MAX:
+            cutoff = now - DEBOUNCE_CACHE_TTL
+            self._last_event = {p: t for p, t in self._last_event.items() if t > cutoff}
+
         last = self._last_event.get(path, 0.0)
         if now - last < DEBOUNCE_SECONDS:
             return False
@@ -130,7 +175,7 @@ class R3LayEventHandler(FileSystemEventHandler):
     def _find_project_root(self, file_path: Path) -> Path | None:
         """Walk up from file to find the containing project (has .r3lay/project.yaml)."""
         current = file_path.parent
-        r3lay_root = DEFAULT_WATCH_ROOT
+        r3lay_root = self._watch_root
 
         while current != r3lay_root.parent:
             if (current / ".r3lay" / "project.yaml").exists():
@@ -191,81 +236,117 @@ class R3LayEventHandler(FileSystemEventHandler):
                 self._loop,
             )
 
+    def _get_or_create_semaphore(self) -> asyncio.Semaphore:
+        """Lazily create the ingest semaphore bound to the current loop."""
+        if self._ingest_sem is None:
+            self._ingest_sem = asyncio.Semaphore(INGEST_CONCURRENCY)
+        return self._ingest_sem
+
     async def _handle_change(self, file_path: Path) -> None:
         """Process a file change: check hash, re-ingest if changed."""
-        conn = get_db(self._db_path)
-
-        try:
-            content = file_path.read_text(encoding="utf-8", errors="replace")
-        except Exception as e:
-            logger.error("Failed to read %s: %s", file_path, e)
-            conn.close()
+        if file_path.is_symlink():
             return
+        sem = self._get_or_create_semaphore()
+        async with sem:
+            conn = get_db(self._db_path)
 
-        new_hash = sha256_hex(content)
+            try:
+                content = file_path.read_text(encoding="utf-8", errors="replace")
+            except FileNotFoundError:
+                # Race: file was transient (e.g. an editor's atomic-write
+                # temp file or a Hermes bundled-manifest rename). Debug-log
+                # and move on — this is normal and not worth ERROR noise.
+                logger.debug("File vanished before read: %s", file_path)
+                conn.close()
+                return
+            except Exception as e:
+                logger.error("Failed to read %s: %s", file_path, e)
+                conn.close()
+                return
 
-        project_root = self._find_project_root(file_path)
-        if not project_root:
-            logger.debug("No project root found for %s, skipping", file_path)
+            new_hash = sha256_hex(content)
+
+            project_root = self._find_project_root(file_path)
+            if not project_root:
+                logger.debug("No project root found for %s, skipping", file_path)
+                conn.close()
+                return
+
+            project_id = sha256_path(str(project_root))[:16]
+            relative_path = str(file_path.relative_to(project_root))
+            # Must match ingest.py's namespaced file_id format
+            file_id = sha256_path(f"{project_id}:{relative_path}")
+
+            row = conn.execute("SELECT content_hash FROM files WHERE id = ?", (file_id,)).fetchone()
+
+            if row and row[0] == new_hash:
+                logger.debug("Hash unchanged, skipping: %s", relative_path)
+                conn.close()
+                return
+
+            chunks = await ingest_file(conn, file_path, project_id, project_root)
+            logger.info("Re-ingested %s: %d chunks", relative_path, chunks)
+
             conn.close()
-            return
-
-        relative_path = str(file_path.relative_to(project_root))
-        file_id = sha256_path(relative_path)
-
-        row = conn.execute("SELECT content_hash FROM files WHERE id = ?", (file_id,)).fetchone()
-
-        if row and row[0] == new_hash:
-            logger.debug("Hash unchanged, skipping: %s", relative_path)
-            conn.close()
-            return
-
-        project_id = sha256_path(str(project_root))[:16]
-
-        chunks = await ingest_file(conn, file_path, project_id, project_root)
-        logger.info("Re-ingested %s: %d chunks", relative_path, chunks)
-
-        conn.close()
 
     async def _handle_ingest_drop(self, file_path: Path) -> None:
         """Handle a file dropped into a project's _ingest/ directory.
 
-        1. Ingest the file into the project's index
-        2. Move original to _ingest/_processed/ (keep for audit)
+        1. Reject symlinks (prevents data exfiltration via symlink → secret)
+        2. Ingest the file into the project's index
+        3. Move original to _ingest/_processed/ (keep for audit)
 
         External consumers (HDLS agents) query the bridge to discover
         new content and make their own forwarding decisions based on
         the project's privacy level.
         """
-        conn = get_db(self._db_path)
-
-        project_root = self._find_project_root(file_path)
-        if not project_root:
-            logger.warning("No project root for ingest drop: %s", file_path)
-            conn.close()
+        if file_path.is_symlink():
+            logger.warning("Rejecting symlink in _ingest/ drop: %s", file_path)
             return
+        sem = self._get_or_create_semaphore()
+        async with sem:
+            conn = get_db(self._db_path)
 
-        project_id = sha256_path(str(project_root))[:16]
+            project_root = self._find_project_root(file_path)
+            if not project_root:
+                logger.warning("No project root for ingest drop: %s", file_path)
+                conn.close()
+                return
 
-        try:
-            chunks = await ingest_file(conn, file_path, project_id, project_root)
-            logger.info("Ingested drop %s: %d chunks", file_path.name, chunks)
-        except Exception as e:
-            logger.error("Failed to ingest drop %s: %s", file_path, e)
+            project_id = sha256_path(str(project_root))[:16]
+
+            try:
+                chunks = await ingest_file(conn, file_path, project_id, project_root)
+                logger.info("Ingested drop %s: %d chunks", file_path.name, chunks)
+            except Exception as e:
+                logger.error("Failed to ingest drop %s: %s", file_path, e)
+                conn.close()
+                return
+
             conn.close()
-            return
 
-        conn.close()
+        # Move to _processed/ with timestamp prefix to avoid collisions and
+        # shutil.move to handle cross-device renames (e.g., bind mounts).
+        import shutil
+        from datetime import datetime
 
-        # Move to _processed/
         processed_dir = file_path.parent / "_processed"
         processed_dir.mkdir(exist_ok=True)
-        dest = processed_dir / file_path.name
+        timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
+        dest = processed_dir / f"{timestamp}_{file_path.name}"
         try:
-            os.rename(str(file_path), str(dest))
+            shutil.move(str(file_path), str(dest))
             logger.info("Moved to processed: %s", dest)
         except OSError as e:
             logger.error("Failed to move %s to processed: %s", file_path, e)
+            # Mark the file as already-ingested to prevent watchdog re-triggering
+            # and causing duplicate ingests on every subsequent fs event.
+            failed_marker = file_path.with_suffix(file_path.suffix + ".ingested")
+            try:
+                os.rename(str(file_path), str(failed_marker))
+                logger.info("Marked ingested: %s", failed_marker)
+            except OSError:
+                pass
 
 
 def atomic_write(
@@ -273,6 +354,7 @@ def atomic_write(
     content: str,
     conn,
     provenance: str = "ai-updated",
+    watch_root: Path | None = None,
 ) -> None:
     """Atomic write pattern for agent-initiated file writes.
 
@@ -283,6 +365,8 @@ def atomic_write(
         content: File content to write.
         conn: SQLite connection for the transaction.
         provenance: Provenance tag for the file record.
+        watch_root: Root directory to search within for the project root.
+                    Defaults to DEFAULT_WATCH_ROOT — override for tests.
     """
     tmp_path = file_path.with_suffix(file_path.suffix + ".tmp")
     content_hash = sha256_hex(content)
@@ -290,7 +374,7 @@ def atomic_write(
     try:
         tmp_path.write_text(content, encoding="utf-8")
 
-        r3lay_root = DEFAULT_WATCH_ROOT
+        r3lay_root = watch_root or DEFAULT_WATCH_ROOT
         project_root = None
         current = file_path.parent
         while current != r3lay_root.parent:
@@ -302,8 +386,10 @@ def atomic_write(
             current = current.parent
 
         if project_root:
+            project_id = sha256_path(str(project_root))[:16]
             relative_path = str(file_path.relative_to(project_root))
-            file_id = sha256_path(relative_path)
+            # Must match ingest.py's namespaced file_id format
+            file_id = sha256_path(f"{project_id}:{relative_path}")
 
             quality = 0.8 if provenance == "ai-updated" else 0.7
             conn.execute(
@@ -339,12 +425,16 @@ async def watch(
         logger.info("Creating r3LAY root: %s", root)
         root.mkdir(parents=True, exist_ok=True)
 
-    from .banner import print_watcher_banner
+    if not os.environ.get("R3LAY_BANNER_SHOWN"):
+        from .banner import print_watcher_banner
 
-    print_watcher_banner(str(root))
+        print_watcher_banner(str(root))
 
-    handler = R3LayEventHandler(db_path)
-    handler._loop = asyncio.get_event_loop()
+    handler = R3LayEventHandler(db_path=db_path, watch_root=root)
+    # Use get_running_loop() — we're already inside asyncio.run() context.
+    # get_event_loop() is deprecated in 3.12+ and returns a dead loop outside
+    # a running coroutine.
+    handler._loop = asyncio.get_running_loop()
 
     observer = Observer()
     observer.schedule(handler, str(root), recursive=True)
