@@ -96,6 +96,10 @@ class R3LayEventHandler(FileSystemEventHandler):
             if name.endswith(".tmp") or name.startswith(".bundled_manifest"):
                 return True
 
+        # Skip cloud sync staging dirs (Google Drive .tmp.driveupload/, iCloud)
+        if any(p.startswith(".tmp.") for p in parts):
+            return True
+
         # Skip transient writer artifacts across the board
         if name.endswith(".tmp") or name.endswith("~"):
             return True
