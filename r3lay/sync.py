@@ -56,6 +56,9 @@ INGEST_CONCURRENCY = 4
 # Default watch root
 DEFAULT_WATCH_ROOT = Path.home() / "r3LAY"
 
+# Heartbeat file — updated on activity, not on timer
+HEARTBEAT_PATH = DEFAULT_WATCH_ROOT / ".r3lay-global" / "watcher-heartbeat"
+
 # Ingest drop zone directory name
 INGEST_DIR = "_ingest"
 
@@ -277,7 +280,25 @@ class R3LayEventHandler(FileSystemEventHandler):
         conn.commit()
 
         logger.info("Auto-initialized project: %s -> %s", name, project_dir)
+        self._touch_heartbeat()
         return project_dir
+
+    def _touch_heartbeat(self) -> None:
+        """Update the heartbeat file with current ISO timestamp.
+
+        Called on activity only (index, ingest drop, auto-init) — not on a
+        timer. If the watcher is idle because nothing changed, the heartbeat
+        stays at the last activity time. The bridge reads this to determine
+        watcher aliveness.
+        """
+        from datetime import datetime, timezone
+
+        try:
+            heartbeat = self._watch_root / ".r3lay-global" / "watcher-heartbeat"
+            heartbeat.parent.mkdir(parents=True, exist_ok=True)
+            heartbeat.write_text(datetime.now(timezone.utc).isoformat(), encoding="utf-8")
+        except OSError:
+            pass  # Non-critical — don't let heartbeat failures break indexing
 
     def _is_ingest_drop(self, path: Path) -> bool:
         """Check if this file was dropped into an _ingest/ directory."""
@@ -385,6 +406,7 @@ class R3LayEventHandler(FileSystemEventHandler):
 
             chunks = await ingest_file(conn, file_path, project_id, project_root)
             logger.info("Indexed: %s (%d chunks)", relative_path, chunks)
+            self._touch_heartbeat()
 
             conn.close()
 
@@ -495,6 +517,7 @@ class R3LayEventHandler(FileSystemEventHandler):
                         file_path.name,
                         chunks,
                     )
+                    self._touch_heartbeat()
                 except Exception as e:
                     logger.error("Failed to ingest extracted %s: %s", file_path, e)
                     conn.close()
@@ -515,6 +538,7 @@ class R3LayEventHandler(FileSystemEventHandler):
                         file_path.name,
                         chunks,
                     )
+                    self._touch_heartbeat()
                 except Exception as e:
                     logger.error("Failed to ingest drop %s: %s", file_path, e)
                     conn.close()

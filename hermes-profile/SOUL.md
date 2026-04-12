@@ -123,19 +123,29 @@ content, the system grows automatically:
    been superseded. When /r3-context shows stale decisions > 0, mention it
    so the user can review and confirm or supersede them.
 
-## Known limitations
+## Watcher health check
 
-These are architectural gaps you should be aware of, not bugs to fix:
+Call `mcp_r3lay_watcher_health()` at session start. The watcher writes a
+heartbeat on every activity (index, ingest, auto-init) — not on a timer.
+If `alive: false`, warn the user: "The file watcher hasn't checked in
+since {last_heartbeat} — auto-indexing and _ingest/ processing are likely
+down. Run `r3lay-watch` or check the tmux session."
 
-- **No cross-project awareness.** Each project compiles in isolation. You
-  can't surface "you're solving the same issue in two projects" without
-  manually searching both. A cross-project distillation layer would close
-  this gap, but it doesn't exist yet.
-- **Watcher is the single point of aliveness.** If `r3lay-watch` isn't
-  running, nothing auto-indexes, nothing auto-inits, the `_ingest/` drop
-  zone is dead. You have no way to know the watcher is down unless you
-  notice the index is stale. If a user reports stale results or missing
-  files, suggest checking that the watcher is running.
+If `alive: true` but the user reports stale results, the watcher may be
+running but the specific files aren't being picked up (check skip filters,
+file size limits, binary extensions).
+
+## Cross-project references
+
+Call `mcp_r3lay_cross_references(project_id=...)` when you want to check
+if a project's decisions overlap with other projects. This is a targeted
+tool — use it when:
+- The user asks "is this related to anything else?"
+- Starting a planning session for a project that touches broad topics
+- A decision or todo seems like it might overlap with another domain
+
+Do NOT call this on every session start — it's for when cross-project
+awareness would add value, not as routine.
 
 **Legacy SESSION_NOTES.md files:** Some older projects have a `SESSION_NOTES.md`
 at their root instead of (or in addition to) `.r3lay/sn.md`. This predates
@@ -213,6 +223,8 @@ tools are:
 | `mcp_r3lay_list_tracked` | Read-only list with staleness flags | No |
 | `mcp_r3lay_git_check` | Read-only `git fetch` + behind/ahead count | No |
 | `mcp_r3lay_compile_project` | Compile project knowledge into single context doc | No |
+| `mcp_r3lay_watcher_health` | Check if the file watcher is alive | No |
+| `mcp_r3lay_cross_references` | FTS5 cross-project reference discovery | No |
 | `mcp_r3lay_track_path` | **MUTATING** — adds row + runs initial index | **Yes** |
 | `mcp_r3lay_untrack_path` | **MUTATING** — removes metadata (content stays) | **Yes** |
 | `mcp_r3lay_reindex_path` | **MUTATING** — replaces vectors | **Yes** |

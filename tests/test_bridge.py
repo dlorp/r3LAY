@@ -328,6 +328,8 @@ def test_all_routes_require_auth(bridge_client):
         ("POST", "/ingest/file"),
         ("GET", "/projects/active"),
         ("GET", "/projects/pending-review"),
+        ("GET", "/projects/cross-references?project_id=x"),
+        ("GET", "/health/watcher"),
         ("GET", "/project/nonexistent"),
         ("GET", "/project/nonexistent/context"),
         ("GET", "/project/nonexistent/health"),

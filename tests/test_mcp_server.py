@@ -519,6 +519,8 @@ EXPECTED_TOOLS = {
     "list_active_projects",
     "init_project",
     "compile_project",
+    "watcher_health",
+    "cross_references",
 }
 
 
