@@ -49,9 +49,10 @@ Trigger: user types /r3-context or /r3-context {project}
 ```
 r3LAY Projects
 --------------
-944 (automotive) -- 3 todos, 1 question, 2 overdue
+944 (automotive) -- 3 todos, 1 question -- 4 stale decisions
 r3lay (software) -- 5 todos, 0 questions
 homelab (homelab) -- 0 todos, 2 questions -- conflicts
+music (other) -- 0 todos, 0 questions [auto-init: needs review]
 
 Type /r3-plan {project} to start a planning session.
 Type /compile {project} for a full context document.

@@ -429,8 +429,16 @@ def scan_project_files(project_path: Path) -> list[Path]:
                 f"Refusing to walk. Tighten SKIP_DIRS or split the project."
             )
 
-        # Skip binary files by extension (fast path)
-        if item.suffix.lower() in {
+        # Skip binary files by extension (fast path).
+        # PDFs and images are conditionally allowed when extraction
+        # libraries are available (pymupdf, ocrmac).
+        suffix = item.suffix.lower()
+        if suffix in PDF_EXTENSIONS or suffix in IMAGE_EXTENSIONS:
+            if not can_extract(item):
+                logger.debug("Skipping %s (no extraction library): %s", suffix, item)
+                continue
+            # Extractable — let it through to ingest_file
+        elif suffix in {
             ".bin",
             ".exe",
             ".dll",
@@ -446,13 +454,8 @@ def scan_project_files(project_path: Path) -> list[Path]:
             ".xz",
             ".7z",
             ".rar",
-            ".png",
-            ".jpg",
-            ".jpeg",
             ".gif",
-            ".bmp",
             ".ico",
-            ".webp",
             ".avif",
             ".mp3",
             ".mp4",
@@ -479,7 +482,6 @@ def scan_project_files(project_path: Path) -> list[Path]:
             ".docx",
             ".xlsx",
             ".pptx",
-            ".pdf",
         }:
             continue
 
@@ -517,12 +519,22 @@ async def ingest_file(
     # the old scheme, causing ON CONFLICT(id) to silently overwrite).
     file_id = sha256_path(f"{project_id}:{relative_path}")
     file_type = detect_file_type(file_path)
+    suffix = file_path.suffix.lower()
 
-    try:
-        content = file_path.read_text(encoding="utf-8", errors="replace")
-    except Exception as e:
-        logger.error("Failed to read %s: %s", file_path, e)
-        return 0
+    # For PDFs and images, extract text via the extraction pipeline
+    # rather than reading raw bytes as text.
+    if suffix in PDF_EXTENSIONS or suffix in IMAGE_EXTENSIONS:
+        extracted = extract_text(file_path)
+        if not extracted or not extracted.strip():
+            logger.debug("No extractable text in %s", relative_path)
+            return 0
+        content = f"# Extracted: {file_path.name}\n\n{extracted}"
+    else:
+        try:
+            content = file_path.read_text(encoding="utf-8", errors="replace")
+        except Exception as e:
+            logger.error("Failed to read %s: %s", file_path, e)
+            return 0
 
     content_hash = sha256_hex(content)
 

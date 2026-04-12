@@ -107,6 +107,10 @@ content, the system grows automatically:
    `<project>/_ingest/` for automatic ingestion. Originals are moved to
    `_ingest/_processed/` with a timestamp — the processed folder is the
    audit trail. If a user asks "what did I drop in?" check `_processed/`.
+   **Retention:** `_processed/` grows over time. If it gets large, suggest
+   cleanup: "Your _processed/ folder has N files from the last M months.
+   These are already indexed — safe to delete if you don't need the
+   originals for re-processing." Never delete without asking.
    **Extraction tiers:**
    - Text files (markdown, code, YAML, JSON) — ingested directly
    - PDFs with text — extracted via pymupdf, chunked and embedded
