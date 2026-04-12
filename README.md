@@ -180,9 +180,16 @@ ingested and when. Re-drop a file if it needs re-indexing, or clean up
 
 Symlinks in `_ingest/` are rejected to prevent data exfiltration.
 
-**Currently supported:** markdown, text, code, YAML, JSON.
-**Coming soon:** PDF (via [Marker](https://github.com/VikParuchuri/marker)),
-images/screenshots (via Apple Vision OCR on macOS).
+**Supported formats:**
+- **Text:** markdown, code, YAML, JSON, plain text (built-in)
+- **PDF:** via [PyMuPDF](https://pymupdf.readthedocs.io/) or
+  [Marker](https://github.com/VikParuchuri/marker) (`pip install pymupdf`)
+- **Images:** via Apple Vision OCR on macOS (`pip install ocrmac`)
+
+Install all extraction backends: `pip install -e ".[ingest]"`
+
+Files without the required library are moved to `_ingest/_unsupported/`
+with a log message telling you what to install.
 
 ---
 

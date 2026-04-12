@@ -34,6 +34,9 @@ dev = [
 mlx = ["mlx>=0.5.0", "mlx-lm>=0.5.0"]
 llamacpp = ["llama-cpp-python>=0.2.0"]
 nli = ["sentence-transformers>=3.0.0"]
+pdf = ["pymupdf>=1.25.0"]
+ocr = ["ocrmac>=1.0.0"]
+ingest = ["pymupdf>=1.25.0", "ocrmac>=1.0.0"]
 
 [project.scripts]
 r3lay-serve = "r3lay.bridge:main"
