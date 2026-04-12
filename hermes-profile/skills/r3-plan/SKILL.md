@@ -1,3 +1,15 @@
+---
+name: r3-plan
+description: Enter planning mode for an r3LAY project — loads prior session notes, todos, questions, decisions, and generates a session plan. Full session start.
+version: 1.0.0
+author: r3LAY
+license: MIT
+metadata:
+  hermes:
+    tags: [r3lay, project-management, planning, session]
+    related_skills: [r3-context, sn]
+---
+
 # /r3-plan -- planning mode (full session start)
 
 Trigger: user types /r3-plan or /r3-plan {project}

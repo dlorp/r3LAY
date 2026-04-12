@@ -1,9 +1,102 @@
 # Secrets — never commit
 .env
 .env.*
+!.env.template
+!hermes-profile/.env.template
 config.yaml
 config.local.yaml
 hermes-profile/config.yaml
+hermes-profile/.env
+
+# r3LAY backend config (template is committed)
+r3lay-config.yaml
+!r3lay-config.template.yaml
+
+# Hermes runtime state (never commit — lives in ~/.hermes/profiles/r3lay/)
+hermes-profile/.hermes_history
+hermes-profile/.skills_prompt_snapshot.json
+hermes-profile/.update_check
+hermes-profile/auth.json
+hermes-profile/auth.lock
+hermes-profile/bin/
+hermes-profile/cron/
+hermes-profile/images/
+hermes-profile/logs/
+hermes-profile/memories/
+hermes-profile/models_dev_cache.json
+hermes-profile/sandboxes/
+hermes-profile/sessions/
+hermes-profile/state.db
+hermes-profile/state.db-shm
+hermes-profile/state.db-wal
+
+# ─────────────────────────────────────────────────────────
+# Hermes bundled skills — allowlist pattern
+# ─────────────────────────────────────────────────────────
+# Hermes's skill installer drops default/bundled skills into the profile's
+# skills/ dir. Most of them aren't relevant to r3LAY (apple, gaming, email,
+# smart-home, etc.) and shouldn't ship with the open-source repo.
+#
+# The rule: ignore everything in hermes-profile/skills/, then explicitly
+# re-include (a) r3LAY's own shipped skills and (b) the curated subset of
+# bundled skills that r3LAY's agent genuinely uses.
+#
+# If you're adding a new skill to the repo, you MUST add an allowlist
+# entry below or git will silently ignore it.
+
+# The bundled-skill manifest — Hermes installer bookkeeping, never commit
+hermes-profile/skills/.bundled_manifest
+
+# Ignore everything directly under hermes-profile/skills/
+hermes-profile/skills/*
+
+# ── r3LAY's own skills (shipped in the repo) ─────────────────────────────
+# NOTE: tracked-path skills (track, untrack, reindex, git-status) were
+# removed as part of the MCP migration — the agent calls mcp_r3lay_*
+# tools directly now. See _meta/learnings/mcp-vs-skill-md-tool-hallucination.md
+!hermes-profile/skills/compilation/
+!hermes-profile/skills/deep-research/
+!hermes-profile/skills/pr-workflow/
+!hermes-profile/skills/project-update/
+!hermes-profile/skills/r3-context/
+!hermes-profile/skills/r3-plan/
+!hermes-profile/skills/sn/
+
+# ── Curated bundled Hermes skills that r3LAY actively uses ───────────────
+# github/ — whole subtree (codebase-inspection, github-auth, github-code-review,
+#           github-issues, github-pr-workflow, github-repo-management).
+#           Directly aligned with r3LAY's PR workflow and tracked-repo ops.
+!hermes-profile/skills/github/
+
+# research/ — only llm-wiki (r3LAY uses it via skills.config.wiki.path).
+#             arxiv/blogwatcher/polymarket are hyph4/pr0b3 territory, skip.
+!hermes-profile/skills/research/
+hermes-profile/skills/research/*
+!hermes-profile/skills/research/llm-wiki/
+
+# software-development/ — planning + debugging + tdd + code review request.
+#                          Skip subagent-driven-development (r3LAY is single-agent).
+!hermes-profile/skills/software-development/
+hermes-profile/skills/software-development/*
+!hermes-profile/skills/software-development/plan/
+!hermes-profile/skills/software-development/requesting-code-review/
+!hermes-profile/skills/software-development/systematic-debugging/
+!hermes-profile/skills/software-development/test-driven-development/
+!hermes-profile/skills/software-development/writing-plans/
+
+# note-taking/ — only obsidian (vault is obsidian-style markdown).
+!hermes-profile/skills/note-taking/
+hermes-profile/skills/note-taking/*
+!hermes-profile/skills/note-taking/obsidian/
+
+# ─────────────────────────────────────────────────────────
+# Personal HDLS configs — never commit to open-source repo
+# ─────────────────────────────────────────────────────────
+# hdls/ used to hold hyph4 reference configs from the HDLS ecosystem.
+# Moved to ~/Documents/knowledge_vault/_meta/notebooks/hdls-agent-configs/
+# on 2026-04-11 because that content is personal/proprietary, not r3LAY's
+# job to ship. Keep this ignore rule so it can't accidentally re-land.
+hdls/
 
 # Runtime state — never commit
 .r3lay-global/

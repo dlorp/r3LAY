@@ -1,77 +1,326 @@
 # hermes-profile/config.template.yaml
-# TEMPLATE -- copy to config.yaml and fill in real values
-# config.yaml is gitignored
+# TEMPLATE — copied to ~/.hermes/profiles/r3lay/config.yaml by install.sh
+#
+# This file configures ONLY the Hermes agent (chat interface).
+# r3LAY backend config (embedding, paths, ingest models) lives in
+# r3lay-config.yaml at the repo root.
+#
+# EVERY KEY in this file is traceable to Hermes's DEFAULT_CONFIG schema in
+# ~/.hermes/hermes-agent/hermes_cli/config.py (see _KNOWN_ROOT_KEYS).
+# Do NOT add keys that don't exist in Hermes's schema — they'll be silently
+# ignored. For sandbox/permissions, use Hermes's real mechanisms:
+# platform_toolsets, terminal.backend, approvals.mode, command_allowlist,
+# security.website_blocklist.
 
-# Identity
-profile: r3lay
-role: project-manager
+_config_version: 12                     # hermes_cli/config.py:572
 
-# Inference -- default: qwen3.6-plus via OpenRouter (zero cost)
-# Fallback: Ollama local (used when privacy:true or OpenRouter is down)
+# ─────────────────────────────────────────────────────────
+# Visual skin (HDLS phosphor orange aesthetic)
+# ─────────────────────────────────────────────────────────
+display:
+  skin: hdls
+
+# ─────────────────────────────────────────────────────────
+# Primary chat model
+# ─────────────────────────────────────────────────────────
+# MiniMax M2.7 is tool-tuned for agentic workflows with explicit function
+# calling support. Much more reliable at following SKILL.md instructions
+# than general-purpose free models (which tend to hallucinate endpoints
+# and URLs). Released 2026-03-18, $0.30/1M input, $1.20/1M output, cache
+# reads at $0.06/1M make repeat-context sessions extremely cheap
+# (~$0.01-0.02/session at typical r3LAY usage).
+#
+# Free fallbacks retained for cost control and offline scenarios:
+#   - gemma 4 31B (free, higher tier with $10+ credits unlocks 1000 req/day)
+#   - nemotron 120B (free, deeper reasoning for edge cases)
+#   - local ollama qwen3:8b (no rate limits, no cost, works offline)
 model:
   provider: openrouter
-  model: qwen/qwen3.6-plus:free
-  api_key: ${OPENROUTER_API_KEY}
+  model: minimax/minimax-m2.7
 
-fallback:
-  provider: ollama
-  model: qwen3:8b             # local fallback for privacy:true projects
+# Cascading fallback chain — auto-switches on 429/4xx/5xx.
+# Reset to primary at the start of every new turn.
+fallback_providers:
+  - provider: openrouter
+    model: google/gemma-4-31b-it:free
+  - provider: openrouter
+    model: nvidia/nemotron-3-super-120b-a12b:free
+  - provider: ollama
+    model: qwen3:8b
+    base_url: http://localhost:11434
 
-escalation:
-  provider: openrouter
-  model: deepseek/deepseek-v3.2
-  api_key: ${OPENROUTER_API_KEY}
+# ─────────────────────────────────────────────────────────
+# Tool gate — THE real permission system
+# ─────────────────────────────────────────────────────────
+# hermes_cli/tools_config.py:487 — _get_platform_tools()
+# Only the toolsets listed here are exposed to the LLM.
+#
+# `terminal` is in the list because r3LAY's shell-wrap skills (track,
+# untrack, reindex, git-check, git-pull) invoke the `r3` CLI wrapper via
+# the terminal tool. Docker backend (below) sandboxes shell commands —
+# they run inside the nikolaik container with only the 1:1-mounted host
+# paths available. The container IS the security boundary.
+#
+# NOT LISTED → disabled:
+#   - code_execution          (no arbitrary code eval, even sandboxed)
+#   - browser                 (no browser automation — r3LAY uses web tool)
+#   - delegation              (r3LAY is single-agent, no subagent spawning)
+#   - skills                  (no self-creation of new skills at runtime)
+#   - cronjob                 (no scheduled task creation)
+#   - tts / image_gen / moa   (unused)
+platform_toolsets:
+  cli:
+    - file            # read_file / write_file / patch — runs in Docker sandbox
+    - search          # search_files
+    - web             # web_search / web_extract (gated by website_blocklist)
+    - vision          # vision_analyze
+    - memory          # persistent memory
+    - session_search
+    - todo
+    - clarify
+    - terminal        # shell commands (Docker-sandboxed) — required for `r3`
+                      # shell-wrap + llm-wiki's obsidian-sync helper
 
-# Paths
-paths:
-  projects: ~/r3LAY
-  db: ~/r3LAY/.r3lay-global/r3lay.db
-  bridge_url: http://localhost:8765
-  bridge_secret: ${R3LAY_BRIDGE_SECRET}
+# ─────────────────────────────────────────────────────────
+# REAL filesystem sandbox via Docker
+# ─────────────────────────────────────────────────────────
+# hermes_cli/config.py:240-277
+# docs/user-guide/security.md:271-331
+#
+# File tools (read_file, write_file, patch) piggyback on the terminal
+# backend via ShellFileOperations — switching to docker sandboxes BOTH
+# shell commands AND file operations in one stroke.
+#
+# DOCKER REQUIRED. If Docker Desktop is not installed/running:
+#   - Change `backend: docker` to `backend: local` below
+#   - Be aware: local backend has NO filesystem sandboxing — the agent
+#     can read anything your UID can read (including ~/.ssh/)
+#
+# NOTE FOR OPEN-SOURCE INSTALLS:
+# The paths below use __HOME__ and __REPO_DIR__ as placeholders. install.sh
+# substitutes them with the current user's actual home and repo directory
+# when copying this template into ~/.hermes/profiles/r3lay/config.yaml.
+# Hermes's YAML loader does NOT process ${HOME}-style env vars (grep
+# hermes_cli/config.py if you doubt it), so templating happens at install
+# time, not runtime.
+terminal:
+  backend: docker
+  docker_image: nikolaik/python-nodejs:python3.11-nodejs20
+  # Default working dir = programming subdir where projects live. Uses an
+  # absolute host path because the volume mounts below are 1:1 (container
+  # path == host path).
+  cwd: __HOME__/r3LAY/programming
+  timeout: 180
+  persistent_shell: true
 
-# Model routing
-routing:
-  always_local:               # these use fallback model (Ollama) always
-    - conflict_check          # fast, no network dependency
-    - status_query
-  default:                    # these use primary model (OpenRouter)
-    - file_update
-    - project_search
-    - session_debrief
-  escalation_allowed:         # these can escalate to deepseek-v3.2
-    - deep_research
-    - compilation
+  # CRITICAL: do not auto-mount the host launch directory as /workspace.
+  # We use explicit 1:1 volumes instead so container paths match host paths
+  # exactly (enables the agent to pass paths to the host-side bridge without
+  # any translation step).
+  docker_mount_cwd_to_workspace: false
 
-# Privacy default for new projects (overridden per project.yaml)
+  # 1:1 host→container volume mounts.
+  #
+  # Model A workspace layout (canonical):
+  #   __HOME__/r3LAY/                  — workspace root
+  #     .r3lay-global/r3lay.db         — the search/ingest index
+  #     programming/
+  #       r3LAY/                       — r3LAY source code (this repo)
+  #       myc3lium/                    — active project
+  #       SYNAPSE_ENGINE/              — active project
+  #       t3rra1n/                     — active project
+  #       _meta/                       — cross-project strategies/learnings
+  #
+  # ONE mount covers the whole workspace, including r3LAY's own source
+  # because it lives at programming/r3LAY. If you cloned r3LAY outside
+  # __HOME__/r3LAY (e.g. into ~/Code/r3LAY), add a second mount:
+  #     - "~/Code/r3LAY:~/Code/r3LAY:rw"
+  #
+  # The knowledge vault is mounted separately — it lives outside the
+  # workspace, shared with the lorpBot/hyph4 ecosystem via git sync.
+  # r3LAY reads widely, writes only to _incoming/ (g0blin routes from
+  # there). See hermes-profile/SOUL.md for the vault access rules.
+  docker_volumes:
+    - "__HOME__/r3LAY:__HOME__/r3LAY:rw"
+    - "__HOME__/Documents/knowledge_vault:__HOME__/Documents/knowledge_vault:rw"
+
+  # Env vars the container needs:
+  #   HOME: make `~` expand to the real host home inside the container, so
+  #     tooling that uses ~/foo paths resolves to the mounted volumes.
+  #   R3LAY_BRIDGE_URL: routes `r3 track/untrack/...` curl calls back to
+  #     the host bridge (host.docker.internal is Docker Desktop's magic
+  #     name for the host — container-internal localhost does NOT reach
+  #     the host network stack).
+  #   PATH: prepend the r3LAY repo's r3lay/ dir so `r3` is on PATH.
+  docker_env:
+    HOME: __HOME__
+    R3LAY_BRIDGE_URL: "http://host.docker.internal:8765"
+    PATH: "__REPO_DIR__/r3lay:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+  # Host env vars to forward into the container. The API secret is per-user
+  # and auto-generated — forward so the r3 shell wrapper can authenticate
+  # against the host bridge.
+  docker_forward_env:
+    - R3LAY_API_KEY
+
+  # Resource caps (DoS guard)
+  container_cpu: 2
+  container_memory: 4096    # MB
+  container_disk: 10240     # MB
+  container_persistent: true
+
+  env_passthrough: []
+
+# ─────────────────────────────────────────────────────────
+# Network: SSRF + deny-list
+# ─────────────────────────────────────────────────────────
+# tools/website_policy.py, docs/user-guide/security.md:470-481
+# SSRF + private-IP blocking is ALWAYS on regardless of config.
+# This adds a user-defined domain deny-list for web_search/web_extract.
+security:
+  redact_secrets: true
+  tirith_enabled: true
+  tirith_fail_open: false           # fail-closed on pre-exec scan
+  website_blocklist:
+    enabled: true
+    domains:
+      - "*.internal.local"
+      - metadata.google.internal
+      - metadata.goog
+    shared_files: []
+
+browser:
+  allow_private_urls: false         # block localhost / RFC1918 in browser tool
+
+# ─────────────────────────────────────────────────────────
+# Approval gate
+# ─────────────────────────────────────────────────────────
+# tools/approval.py, docs/user-guide/security.md:23-65
+# NOTE: Container backends bypass approvals entirely (approval.py:554) —
+# the Docker container IS the boundary. This section is insurance in
+# case a future change drops Docker.
+approvals:
+  mode: manual
+  timeout: 60
+
+# IMPORTANT: tools/approval.py:554 short-circuits approvals when env_type is
+# docker/singularity/modal/daytona — "the container IS the boundary" by
+# design. So command_allowlist is effectively a no-op under this config.
+#
+# The mutation-confirmation UX for tracked paths lives in the SKILL.md files
+# ("Continue? [y/n]" in-chat prompts) + the bridge's own per-path locks
+# + allowed_roots validation. Those ARE the security layers.
+#
+# This list is kept empty (the allowlist doesn't help under Docker) but
+# documented here so the reasoning survives.
+command_allowlist: []
+
+# ─────────────────────────────────────────────────────────
+# File read DoS guard
+# ─────────────────────────────────────────────────────────
+file_read_max_chars: 100000
+
+# ─────────────────────────────────────────────────────────
+# Rollback on bad writes
+# ─────────────────────────────────────────────────────────
+checkpoints:
+  enabled: true
+  max_snapshots: 50
+
+# ─────────────────────────────────────────────────────────
+# Privacy
+# ─────────────────────────────────────────────────────────
 privacy:
-  default: false
+  redact_pii: true
 
-# Permissions
-permissions:
-  tools:
-    - file_read
-    - file_write
-    - bridge_api
-    - web_search
-    - model_inference
-  denied:
-    - agent_routing
-    - system_shell
-    - network_arbitrary
+# ─────────────────────────────────────────────────────────
+# MCP servers
+# ─────────────────────────────────────────────────────────
+# hermes_cli/config.py :: mcp_servers schema
+# docs/user-guide/features/mcp.md
+#
+# The r3LAY bridge is exposed to the agent as a native MCP tool surface.
+# Tools register as mcp_r3lay_<name> (track_path, untrack_path, list_tracked,
+# reindex_path, git_check, git_pull, search_chunks, get_project_context,
+# list_active_projects). The schema IS the contract — typed parameters,
+# docstrings the agent sees as part of its tool list, enforced by the MCP
+# runtime before the call reaches the bridge.
+#
+# Why MCP instead of shell-wrap skills (the short version):
+# SKILL.md + terminal + curl loses against the LLM's statistical prior for
+# "what a REST API looks like". The agent invents ports, endpoint names, and
+# drops auth headers ~20-40% of the time even with explicit instructions.
+# MCP tools are schema-typed, not advisory prose, so the failure mode goes
+# away entirely.
+#
+# Subprocess runs on the HOST (not in the Docker sandbox — Hermes spawns MCP
+# stdio processes directly). That means it can hit localhost:8765 with no
+# host.docker.internal indirection. It reads ~/.r3lay/api-secret directly for
+# bridge auth (same precedence as the r3 CLI wrapper).
+#
+# __REPO_DIR__ is substituted by install.sh at install time. Open-source
+# users who clone r3LAY and run `./install.sh` get the right absolute paths
+# baked into their live ~/.hermes/profiles/r3lay/config.yaml.
+mcp_servers:
+  r3lay:
+    command: __REPO_DIR__/.venv/bin/python
+    args:
+      - "-m"
+      - "r3lay.mcp_server"
+    env:
+      # Bridge URL for the MCP server itself. The server runs on the host, so
+      # plain localhost works — no host.docker.internal. Override only if the
+      # bridge lives on a different port or host.
+      R3LAY_BRIDGE_URL: "http://localhost:8765"
+      # Make the r3lay package importable. Hermes's MCP stdio launcher does
+      # NOT support a cwd parameter, and the venv python can only find the
+      # r3lay module if (a) `pip install -e .` was run in the venv, OR (b)
+      # PYTHONPATH points at the repo root. (b) is zero-config at install
+      # time — install.sh substitutes __REPO_DIR__ here.
+      PYTHONPATH: __REPO_DIR__
+    # Startup + call timeouts. Indexing a large tracked path can take a
+    # while — bump connect_timeout if you see spurious disconnects.
+    timeout: 300
+    connect_timeout: 15
+    # Suppress the auto-added MCP utility wrappers. FastMCP advertises
+    # prompts/resources lifecycle even when empty, so Hermes would
+    # otherwise register mcp_r3lay_{list,read}_resources and
+    # mcp_r3lay_{list,get}_prompts — 4 dead tools that clutter the tool
+    # list. We only expose typed callable tools from this server.
+    tools:
+      prompts: false
+      resources: false
 
-# Filesystem sandbox
-sandbox:
-  read:
-    - ~/r3LAY/
-  write:
-    - ~/r3LAY/
-  deny:
-    - ~/.hermes/profiles/
-    - ~/.ssh/
-    - ~/.gnupg/
+# ─────────────────────────────────────────────────────────
+# Skill configuration
+# ─────────────────────────────────────────────────────────
+# hermes_cli/config.py:1338-1354 — resolved as skills.config.<logical_key>
+# The llm-wiki skill (bundled in Hermes at skills/research/llm-wiki/) declares
+# a config var `wiki.path` that points at the knowledge base directory.
+#
+# Path is CONTAINER-relative: the vault is mounted 1:1 via docker_volumes
+# at __HOME__/Documents/knowledge_vault (same path inside and outside the
+# container). The skill's read_file / write_file tool calls find the wiki
+# content at that path. Host-side it's ~/Documents/knowledge_vault, which
+# is a git-synced repo shared with lorpBot (g0blin routes files from
+# _incoming/ into domain folders on its next cron pass).
+skills:
+  config:
+    wiki:
+      path: __HOME__/Documents/knowledge_vault
 
-# Discord is a Hermes feature, not r3LAY's.
-# If you want Discord access, configure it in your Hermes setup.
-# discord:
-#   enabled: false
-#   token: ${DISCORD_TOKEN}
+# ─────────────────────────────────────────────────────────
+# Agent budgets
+# ─────────────────────────────────────────────────────────
+agent:
+  max_turns: 90
+  gateway_timeout: 1800
+  gateway_timeout_warning: 900
+
+# ─────────────────────────────────────────────────────────
+# Logging
+# ─────────────────────────────────────────────────────────
+logging:
+  level: INFO
+  max_size_mb: 5
+  backup_count: 3

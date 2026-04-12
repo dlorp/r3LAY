@@ -21,6 +21,7 @@ dependencies = [
     "spacy>=3.7.0",
     "numpy>=1.26.0",
     "sqlite-vec>=0.1.6",
+    "mcp>=1.27.0,<2",
 ]
 
 [project.optional-dependencies]
@@ -38,6 +39,7 @@ nli = ["sentence-transformers>=3.0.0"]
 r3lay-serve = "r3lay.bridge:main"
 r3lay-watch = "r3lay.sync:main"
 r3lay-index = "r3lay.ingest:main"
+r3lay-mcp = "r3lay.mcp_server:main"
 
 [tool.ruff]
 line-length = 100

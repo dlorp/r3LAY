@@ -1,3 +1,15 @@
+---
+name: r3-context
+description: Lightweight read-only project context — lists active r3LAY projects with todo/question/conflict counts. Fast, no LLM inference needed. One bridge call.
+version: 1.0.0
+author: r3LAY
+license: MIT
+metadata:
+  hermes:
+    tags: [r3lay, project-management, context]
+    related_skills: [r3-plan, sn]
+---
+
 # /r3-context -- lightweight context (read-only, fast)
 
 Trigger: user types /r3-context or /r3-context {project}

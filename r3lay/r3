@@ -1,74 +1,254 @@
 #!/bin/bash
 # r3 -- speak with your projects
 # Install: chmod +x r3lay/r3 && sudo ln -s $(pwd)/r3lay/r3 /usr/local/bin/r3
+#
+# Self-contained: auto-detects the r3LAY repo via the script's real path,
+# sets PYTHONPATH, and uses a venv if one exists at <repo>/.venv.
+# Works from anywhere without requiring `pip install -e .`.
 
 PROFILE="r3lay"
+
+# Resolve the script's real path (follows symlinks like /usr/local/bin/r3)
+SOURCE="$0"
+while [ -L "$SOURCE" ]; do
+    DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Make the r3lay package importable from anywhere
+export PYTHONPATH="$REPO_DIR:${PYTHONPATH:-}"
+
+# Prefer the repo's venv Python if it exists
+if [ -x "$REPO_DIR/.venv/bin/python3" ]; then
+    PYTHON="$REPO_DIR/.venv/bin/python3"
+else
+    PYTHON="$(command -v python3)"
+fi
+
+# Load the bridge API secret so child processes (curl, skills) can authenticate.
+# Precedence: existing env var > ~/.r3lay/api-secret file
+if [ -z "${R3LAY_API_KEY:-}" ] && [ -r "$HOME/.r3lay/api-secret" ]; then
+    R3LAY_API_KEY="$(cat "$HOME/.r3lay/api-secret")"
+    export R3LAY_API_KEY
+fi
+
+# Bridge URL — overridable so the Hermes Docker sandbox can target
+# host.docker.internal:8765 via the R3LAY_BRIDGE_URL env var while host
+# shells keep using localhost.
+BRIDGE_URL="${R3LAY_BRIDGE_URL:-http://localhost:8765}"
+
+# Helper: join remaining args (from $2 onward) into a single space-separated
+# string while preserving the original argument boundaries.
+join_rest() {
+    shift  # drop the subcommand name ($1)
+    if [ $# -eq 0 ]; then
+        printf ''
+    else
+        printf '%s' "$1"
+        shift
+        printf ' %s' "$@"
+    fi
+}
+
+# Helper: assert the API key is present before any bridge call.
+_require_key() {
+    if [ -z "${R3LAY_API_KEY:-}" ]; then
+        echo "error: R3LAY_API_KEY not set and ~/.r3lay/api-secret unreadable" >&2
+        echo "hint: start r3 up once on the host to auto-generate the secret" >&2
+        exit 2
+    fi
+}
+
+# Helper: build a JSON body from key/value pairs via python3 for correct escaping.
+# Usage: _json path /foo auto_index true notes "optional message"
+_json() {
+    python3 - "$@" <<'PY'
+import json, sys
+args = sys.argv[1:]
+out = {}
+for i in range(0, len(args), 2):
+    k = args[i]
+    v = args[i + 1] if i + 1 < len(args) else ""
+    if v == "":
+        out[k] = None
+    elif v in ("true", "false"):
+        out[k] = (v == "true")
+    else:
+        out[k] = v
+print(json.dumps(out))
+PY
+}
+
+# Helper: POST a JSON body to a bridge endpoint and surface the response.
+_bridge_post() {
+    _require_key
+    local endpoint="$1"
+    local body="$2"
+    curl -fsS -X POST "${BRIDGE_URL}${endpoint}" \
+        -H 'Content-Type: application/json' \
+        -H "X-R3LAY-Key: ${R3LAY_API_KEY}" \
+        -d "$body"
+    echo
+}
+
+_bridge_get() {
+    _require_key
+    local endpoint="$1"
+    curl -fsS "${BRIDGE_URL}${endpoint}" \
+        -H "X-R3LAY-Key: ${R3LAY_API_KEY}"
+    echo
+}
+
+_bridge_delete() {
+    _require_key
+    local endpoint="$1"
+    curl -fsS -X DELETE "${BRIDGE_URL}${endpoint}" \
+        -H "X-R3LAY-Key: ${R3LAY_API_KEY}"
+    echo
+}
 
 case "$1" in
   # Context commands (r3c is alias for r3-context)
   r3c|r3-context|context)
-    hermes --profile $PROFILE chat "/r3-context ${2:-}"
+    hermes --profile "$PROFILE" chat "/r3-context ${2:-}"
     ;;
   # Planning mode (r3p is alias for r3-plan)
   r3p|r3-plan|plan)
-    hermes --profile $PROFILE chat "/r3-plan ${2:-}"
+    hermes --profile "$PROFILE" chat "/r3-plan ${2:-}"
     ;;
   # Session management
   sn)
-    hermes --profile $PROFILE chat "/sn"
+    hermes --profile "$PROFILE" chat "/sn"
     ;;
   session)
-    hermes --profile $PROFILE chat "/session $2"
+    hermes --profile "$PROFILE" chat "/session ${2:-}"
     ;;
   # Research
   research)
-    hermes --profile $PROFILE chat "/research ${*:2}"
+    args="$(join_rest "$@")"
+    hermes --profile "$PROFILE" chat "/research $args"
     ;;
   # Project health
   status|health)
-    hermes --profile $PROFILE chat "/health"
+    hermes --profile "$PROFILE" chat "/health"
     ;;
   # Conflicts
   conflicts)
-    hermes --profile $PROFILE chat "/conflicts"
+    hermes --profile "$PROFILE" chat "/conflicts"
     ;;
   # Todos
   todos)
-    hermes --profile $PROFILE chat "/todos ${2:-}"
+    hermes --profile "$PROFILE" chat "/todos ${2:-}"
     ;;
   # PR workflow
   pr)
-    hermes --profile $PROFILE chat "/pr ${*:2}"
+    args="$(join_rest "$@")"
+    hermes --profile "$PROFILE" chat "/pr $args"
     ;;
   # Services
   serve)
-    python3 -m r3lay.bridge
+    "$PYTHON" -m r3lay.bridge
     ;;
   watch)
-    python3 -m r3lay.sync
+    "$PYTHON" -m r3lay.sync
     ;;
   up)
-    # Launch services in Ghostty splits
-    bash "$(dirname "$0")/../launchd/r3lay-up.sh"
+    # Launch services in tmux splits
+    bash "$REPO_DIR/launchd/r3lay-up.sh"
     ;;
   # Index a project
   index)
-    python3 -m r3lay.ingest "${2:-.}"
+    "$PYTHON" -m r3lay.ingest "${2:-.}"
     ;;
   # Search
   search)
-    python3 -m r3lay.search "${*:2}"
+    args="$(join_rest "$@")"
+    "$PYTHON" -m r3lay.search "$args"
+    ;;
+  # ──────────────────────────────────────────────────────────
+  # Tracked-path subcommands — shell-wrapped bridge calls.
+  # These fire Hermes's built-in approval TUI when called via
+  # the terminal tool from inside the Docker sandbox.
+  # ──────────────────────────────────────────────────────────
+  tracked|list-tracked)
+    # GET /tracked — list all tracked paths (read-only, safe)
+    _bridge_get "/tracked"
+    ;;
+  track)
+    # r3 track <path> [--no-index] [notes...]
+    target="${2:-}"
+    if [ -z "$target" ]; then
+        echo "Usage: r3 track <path> [--no-index] [notes...]" >&2
+        exit 2
+    fi
+    shift 2
+    auto_index="true"
+    if [ "${1:-}" = "--no-index" ]; then
+        auto_index="false"
+        shift
+    fi
+    notes=""
+    if [ $# -gt 0 ]; then
+        notes="$*"
+    fi
+    body="$(_json path "$target" auto_index "$auto_index" notes "$notes")"
+    _bridge_post "/tracked" "$body"
+    ;;
+  untrack)
+    # r3 untrack <id>
+    tid="${2:-}"
+    if [ -z "$tid" ]; then
+        echo "Usage: r3 untrack <tracked_id>" >&2
+        echo "hint: run 'r3 tracked' to list ids" >&2
+        exit 2
+    fi
+    _bridge_delete "/tracked/$tid"
+    ;;
+  reindex)
+    # r3 reindex <id>
+    tid="${2:-}"
+    if [ -z "$tid" ]; then
+        echo "Usage: r3 reindex <tracked_id>" >&2
+        exit 2
+    fi
+    body="$(_json tracked_id "$tid")"
+    _bridge_post "/reindex" "$body"
+    ;;
+  git-check)
+    # r3 git-check <id> — read-only, runs git fetch
+    tid="${2:-}"
+    if [ -z "$tid" ]; then
+        echo "Usage: r3 git-check <tracked_id>" >&2
+        exit 2
+    fi
+    body="$(_json tracked_id "$tid")"
+    _bridge_post "/git/check" "$body"
+    ;;
+  git-pull)
+    # r3 git-pull <id> — MUTATING, bridge enforces clean tree
+    tid="${2:-}"
+    if [ -z "$tid" ]; then
+        echo "Usage: r3 git-pull <tracked_id>" >&2
+        exit 2
+    fi
+    body="$(_json tracked_id "$tid")"
+    _bridge_post "/git/pull" "$body"
     ;;
   # Empty -- open interactive session
   "")
-    hermes --profile $PROFILE chat
+    hermes --profile "$PROFILE" chat
     ;;
   # Default -- project/message routing
   *)
-    if [ -d "$HOME/r3LAY/$1" ] && [ -n "$2" ]; then
-      hermes --profile $PROFILE chat "Project: $1. ${*:2}"
+    if [ -d "$HOME/r3LAY/$1" ] && [ -n "${2:-}" ]; then
+      project="$1"
+      args="$(join_rest "$@")"
+      hermes --profile "$PROFILE" chat "Project: $project. $args"
     else
-      hermes --profile $PROFILE chat "$*"
+      hermes --profile "$PROFILE" chat "$*"
     fi
     ;;
 esac

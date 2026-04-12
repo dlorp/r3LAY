@@ -1,8 +1,8 @@
 """File ingestion pipeline: file -> chunks -> embed -> store.
 
 Reads files from project folders, splits them into chunks (markdown header splitting),
-generates embeddings via bge-m3 through Ollama, and stores everything in the unified
-SQLite database (vec_chunks + FTS5).
+generates embeddings via the configured embedding model through Ollama, and stores
+everything in the unified SQLite database (vec_chunks + FTS5).
 """
 
 from __future__ import annotations
@@ -17,14 +17,10 @@ from uuid import uuid4
 import httpx
 import numpy as np
 
+from .config import get_embedding_dim, get_embedding_model, get_ollama_url
 from .db import get_db
 
 logger = logging.getLogger(__name__)
-
-# Embedding config
-EMBEDDING_MODEL = "bge-m3"
-EMBEDDING_DIM = 1024
-OLLAMA_URL = "http://localhost:11434"
 
 # File type detection
 MARKDOWN_EXTENSIONS = {".md", ".markdown", ".mkd"}
@@ -32,6 +28,7 @@ YAML_EXTENSIONS = {".yaml", ".yml"}
 CODE_EXTENSIONS = {".py", ".js", ".ts", ".rs", ".go", ".c", ".h", ".cpp", ".java", ".sh"}
 SKIP_DIRS = {".r3lay", ".git", "__pycache__", "node_modules", ".venv"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+MAX_FILES_PER_PROJECT = 100_000  # DoS guard — refuse to walk enormous trees
 
 
 def sha256_hex(content: str) -> str:
@@ -58,6 +55,27 @@ def detect_file_type(path: Path) -> str:
     if suffix == ".pdf":
         return "pdf"
     return "other"
+
+
+def _is_binary_content(path: Path, sniff_bytes: int = 8192) -> bool:
+    """Content-sniff a file to detect binary data.
+
+    Checks for NUL bytes (strong binary indicator) and attempts a UTF-8
+    decode on the first sniff_bytes of the file. Returns True if the file
+    looks binary — binary files should be skipped to avoid garbage chunks
+    in the vector index.
+    """
+    try:
+        with path.open("rb") as f:
+            sample = f.read(sniff_bytes)
+        if b"\x00" in sample:
+            return True
+        sample.decode("utf-8")
+        return False
+    except UnicodeDecodeError:
+        return True
+    except OSError:
+        return True
 
 
 def chunk_markdown(content: str, source_path: str = "") -> list[dict]:
@@ -184,62 +202,104 @@ def chunk_file(content: str, file_type: str, source_path: str = "") -> list[dict
 
 
 async def embed_text(text: str, prefix: str = "passage: ") -> list[float]:
-    """Generate embedding for text using bge-m3 via Ollama.
+    """Generate embedding for text via the configured embedding model.
 
     Args:
         text: Text to embed.
         prefix: Task prefix — "passage: " for ingest, "query: " for search.
 
     Returns:
-        Embedding vector as list of floats (1024 dimensions).
+        Embedding vector as list of floats.
+
+    Raises:
+        RuntimeError: on empty/malformed response or dimension mismatch.
     """
+    model = get_embedding_model()
+    url = get_ollama_url()
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(
-            f"{OLLAMA_URL}/api/embed",
-            json={"model": EMBEDDING_MODEL, "input": prefix + text},
+            f"{url}/api/embed",
+            json={"model": model, "input": prefix + text},
         )
         resp.raise_for_status()
         data = resp.json()
-        # Ollama /api/embed returns {"embeddings": [[...]]}
         embeddings = data.get("embeddings", [])
-        if embeddings:
-            return embeddings[0]
-        raise RuntimeError(f"No embeddings returned from Ollama for model {EMBEDDING_MODEL}")
+        if not embeddings:
+            raise RuntimeError(f"Empty embedding response from Ollama for model {model}")
+        expected_dim = get_embedding_dim()
+        if len(embeddings[0]) != expected_dim:
+            raise RuntimeError(
+                f"Embedding dim mismatch for {model}: got {len(embeddings[0])}, "
+                f"expected {expected_dim}"
+            )
+        return embeddings[0]
 
 
 async def embed_batch(texts: list[str], prefix: str = "passage: ") -> list[list[float]]:
-    """Generate embeddings for multiple texts via Ollama.
+    """Generate embeddings for multiple texts via the configured embedding model.
 
     Args:
         texts: List of texts to embed.
-        prefix: Task prefix for bge-m3.
+        prefix: Task prefix for embedding model.
 
     Returns:
         List of embedding vectors.
+
+    Raises:
+        RuntimeError: if Ollama returns fewer embeddings than inputs, or if
+                      any embedding has the wrong dimension.
     """
+    if not texts:
+        return []
+    model = get_embedding_model()
+    url = get_ollama_url()
     async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.post(
-            f"{OLLAMA_URL}/api/embed",
-            json={"model": EMBEDDING_MODEL, "input": [prefix + t for t in texts]},
+            f"{url}/api/embed",
+            json={"model": model, "input": [prefix + t for t in texts]},
         )
         resp.raise_for_status()
         data = resp.json()
-        return data.get("embeddings", [])
+        embeddings = data.get("embeddings", [])
+        # Validate count — silent partial results are the single most common
+        # cause of "mysteriously missing chunks" in a project's index.
+        if len(embeddings) != len(texts):
+            raise RuntimeError(
+                f"Embedding count mismatch for {model}: got {len(embeddings)}, "
+                f"expected {len(texts)} (partial response from Ollama)"
+            )
+        expected_dim = get_embedding_dim()
+        for i, emb in enumerate(embeddings):
+            if len(emb) != expected_dim:
+                raise RuntimeError(
+                    f"Embedding {i} has dim {len(emb)}, expected {expected_dim} for model {model}"
+                )
+        return embeddings
 
 
 def scan_project_files(project_path: Path) -> list[Path]:
     """Recursively scan a project folder for indexable files.
 
     Skips .r3lay/ (except project.yaml), .git/, binary files, and files >10MB.
+    Symlinks (both files and directories) are NEVER followed — prevents
+    filesystem escape via ln -s / . Enforces MAX_FILES_PER_PROJECT cap.
 
     Args:
         project_path: Root of the project folder.
 
     Returns:
         List of file paths to ingest.
+
+    Raises:
+        RuntimeError: if the project exceeds MAX_FILES_PER_PROJECT.
     """
-    files = []
+    files: list[Path] = []
+    count = 0
     for item in project_path.rglob("*"):
+        # Never follow symlinks (prevents escape to arbitrary filesystem locations).
+        # Path.rglob follows directory symlinks on 3.13+ by default.
+        if item.is_symlink():
+            continue
         if not item.is_file():
             continue
 
@@ -251,11 +311,21 @@ def scan_project_files(project_path: Path) -> list[Path]:
                 continue
 
         # Skip large files
-        if item.stat().st_size > MAX_FILE_SIZE:
-            logger.debug("Skipping large file: %s", item)
+        try:
+            if item.stat().st_size > MAX_FILE_SIZE:
+                logger.debug("Skipping large file: %s", item)
+                continue
+        except OSError:
             continue
 
-        # Skip binary files (rough heuristic)
+        count += 1
+        if count > MAX_FILES_PER_PROJECT:
+            raise RuntimeError(
+                f"Project file count exceeds cap ({MAX_FILES_PER_PROJECT}). "
+                f"Refusing to walk. Tighten SKIP_DIRS or split the project."
+            )
+
+        # Skip binary files by extension (fast path)
         if item.suffix.lower() in {
             ".bin",
             ".exe",
@@ -267,16 +337,52 @@ def scan_project_files(project_path: Path) -> list[Path]:
             ".zip",
             ".gz",
             ".tar",
+            ".tgz",
+            ".bz2",
+            ".xz",
+            ".7z",
+            ".rar",
             ".png",
             ".jpg",
             ".jpeg",
             ".gif",
             ".bmp",
             ".ico",
+            ".webp",
+            ".avif",
             ".mp3",
             ".mp4",
             ".wav",
+            ".flac",
+            ".ogg",
+            ".webm",
+            ".mkv",
+            ".mov",
+            ".db",
+            ".sqlite",
+            ".sqlite3",
+            ".wasm",
+            ".pyc",
+            ".pyd",
+            ".class",
+            ".jar",
+            ".war",
+            ".deb",
+            ".rpm",
+            ".iso",
+            ".img",
+            ".dmg",
+            ".docx",
+            ".xlsx",
+            ".pptx",
+            ".pdf",
         }:
+            continue
+
+        # Content sniff — catches files with unknown extensions or misnamed
+        # files (e.g., foo.txt that's actually a binary blob).
+        if _is_binary_content(item):
+            logger.debug("Skipping binary (content sniff): %s", item)
             continue
 
         files.append(item)
@@ -302,7 +408,10 @@ async def ingest_file(
         Number of chunks stored.
     """
     relative_path = str(file_path.relative_to(project_root))
-    file_id = sha256_path(relative_path)
+    # Namespace file_id by project_id to prevent collisions across projects
+    # (two projects both containing README.md would hash to the same id under
+    # the old scheme, causing ON CONFLICT(id) to silently overwrite).
+    file_id = sha256_path(f"{project_id}:{relative_path}")
     file_type = detect_file_type(file_path)
 
     try:
@@ -339,11 +448,14 @@ async def ingest_file(
         (file_id, project_id, relative_path, title, content, content_hash, file_type),
     )
 
-    # Delete old chunks for this file
+    # Delete old chunks for this file (scoped by file_id AND project_id as a
+    # defense-in-depth check — prior to the file_id namespacing fix, cross-project
+    # collisions could cause this DELETE to wipe another project's chunks).
     old_chunk_ids = [
         row[0]
         for row in conn.execute(
-            "SELECT chunk_id FROM chunks WHERE file_id = ?", (file_id,)
+            "SELECT chunk_id FROM chunks WHERE file_id = ? AND project_id = ?",
+            (file_id, project_id),
         ).fetchall()
     ]
     if old_chunk_ids:

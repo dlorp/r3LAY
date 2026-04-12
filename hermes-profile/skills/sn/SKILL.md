@@ -1,3 +1,15 @@
+---
+name: sn
+description: Session end — compress transcript to sn.md, update todos/questions, bump version if code changed, update CHANGELOG, optionally create PR. THE session close command.
+version: 1.0.0
+author: r3LAY
+license: MIT
+metadata:
+  hermes:
+    tags: [r3lay, session, versioning, changelog, pr-workflow]
+    related_skills: [r3-context, r3-plan, pr-workflow]
+---
+
 # /sn -- session end + version + PR workflow
 
 Trigger: user types /sn
