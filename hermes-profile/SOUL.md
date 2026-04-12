@@ -113,8 +113,19 @@ Before using remote models, check the project's privacy level.
 
 ## Session context
 
-When opening a project, read .r3lay/sn.md and load it as prior context.
-When closing a session, compress the transcript and update sn.md.
+When opening a project:
+1. Check for `.r3lay/compiled.md` first -- if it exists and is recent
+   (< 24h old), load it as full project context in one read. This is the
+   compiled knowledge document produced by `mcp_r3lay_compile_project`.
+2. If no compiled.md (or it's stale), read `.r3lay/sn.md` for prior
+   session context.
+3. For richer context, call `mcp_r3lay_get_project_context(project_id)`
+   which returns sn.md + decisions + todos + questions + conflicts.
+
+When closing a session:
+1. Compress the transcript and update sn.md (via /sn skill).
+2. Re-compile the project (`mcp_r3lay_compile_project`) so the next
+   session has a fresh compiled.md ready for cold-start.
 
 ## Conflict handling
 
@@ -136,6 +147,7 @@ tools are:
 |---|---|---|
 | `mcp_r3lay_list_tracked` | Read-only list with staleness flags | No |
 | `mcp_r3lay_git_check` | Read-only `git fetch` + behind/ahead count | No |
+| `mcp_r3lay_compile_project` | Compile project knowledge into single context doc | No |
 | `mcp_r3lay_track_path` | **MUTATING** — adds row + runs initial index | **Yes** |
 | `mcp_r3lay_untrack_path` | **MUTATING** — removes metadata (content stays) | **Yes** |
 | `mcp_r3lay_reindex_path` | **MUTATING** — replaces vectors | **Yes** |
@@ -180,8 +192,10 @@ The contract:
 
 Search, project context, and active-project listing are also native MCP
 tools: `mcp_r3lay_search_chunks`, `mcp_r3lay_get_project_context`,
-`mcp_r3lay_list_active_projects`. Use them wherever you previously would
-have asked "what does the bridge know about X".
+`mcp_r3lay_list_active_projects`, `mcp_r3lay_compile_project`. Use them
+wherever you previously would have asked "what does the bridge know about X".
+`compile_project` is the heavy-context option — one call returns the full
+project state as a single markdown document for cold-start loading.
 
 ## Knowledge vault access — read widely, write only to _incoming/
 

@@ -327,6 +327,56 @@ async def test_list_active_projects_returns_list(mock_bridge):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# init_project
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+async def test_init_project_posts_expected_body(mock_bridge):
+    from r3lay.mcp_server import init_project
+
+    mock_bridge.stub(
+        "POST",
+        "/project/init",
+        200,
+        {
+            "status": "preview",
+            "path": "/proj/.r3lay/project.yaml",
+            "metadata": {"name": "myproj"},
+        },
+    )
+
+    result = await init_project(path="/proj", auto_write=False)
+
+    assert result["status"] == "preview"
+    req = mock_bridge.requests[-1]
+    assert req.method == "POST"
+    assert req.url.path == "/project/init"
+    body = json.loads(req.content)
+    assert body == {"path": "/proj", "auto_write": False}
+
+
+async def test_init_project_auto_write_true(mock_bridge):
+    from r3lay.mcp_server import init_project
+
+    mock_bridge.stub(
+        "POST",
+        "/project/init",
+        200,
+        {
+            "status": "written",
+            "path": "/proj/.r3lay/project.yaml",
+            "metadata": {"name": "myproj"},
+        },
+    )
+
+    result = await init_project(path="/proj", auto_write=True)
+
+    assert result["status"] == "written"
+    body = json.loads(mock_bridge.requests[-1].content)
+    assert body["auto_write"] is True
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Error handling — tools raise on non-2xx so Hermes surfaces the failure
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -387,8 +437,89 @@ async def test_bridge_502_raises(mock_bridge):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# compile_project
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+async def test_compile_project_posts_expected_body(mock_bridge):
+    from r3lay.mcp_server import compile_project
+
+    mock_bridge.stub(
+        "POST",
+        "/compile",
+        200,
+        {
+            "status": "compiled",
+            "project_id": "proj-xyz",
+            "document": "# Project Compilation: test\n...",
+            "written_to": "/path/.r3lay/compiled.md",
+            "files": 10,
+            "chunks": 50,
+            "decisions": 3,
+            "todos": 2,
+            "questions": 1,
+            "conflicts": 0,
+        },
+    )
+
+    result = await compile_project(project_id="proj-xyz", write=True)
+
+    assert result["status"] == "compiled"
+    assert result["files"] == 10
+    assert result["decisions"] == 3
+
+    req = mock_bridge.requests[-1]
+    assert req.method == "POST"
+    assert req.url.path == "/compile"
+    body = json.loads(req.content)
+    assert body == {"project_id": "proj-xyz", "write": True}
+
+
+async def test_compile_project_write_false(mock_bridge):
+    from r3lay.mcp_server import compile_project
+
+    mock_bridge.stub(
+        "POST",
+        "/compile",
+        200,
+        {
+            "status": "compiled",
+            "project_id": "p1",
+            "document": "# doc",
+            "written_to": None,
+            "files": 0,
+            "chunks": 0,
+            "decisions": 0,
+            "todos": 0,
+            "questions": 0,
+            "conflicts": 0,
+        },
+    )
+
+    result = await compile_project(project_id="p1", write=False)
+
+    assert result["written_to"] is None
+    body = json.loads(mock_bridge.requests[-1].content)
+    assert body["write"] is False
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Server registration — confirm FastMCP picked up every tool
 # ─────────────────────────────────────────────────────────────────────────────
+
+EXPECTED_TOOLS = {
+    "track_path",
+    "untrack_path",
+    "list_tracked",
+    "reindex_path",
+    "git_check",
+    "git_pull",
+    "search_chunks",
+    "get_project_context",
+    "list_active_projects",
+    "init_project",
+    "compile_project",
+}
 
 
 async def test_all_tools_registered():
@@ -398,19 +529,9 @@ async def test_all_tools_registered():
     tools = await mcp.list_tools()
     names = {t.name for t in tools}
 
-    expected = {
-        "track_path",
-        "untrack_path",
-        "list_tracked",
-        "reindex_path",
-        "git_check",
-        "git_pull",
-        "search_chunks",
-        "get_project_context",
-        "list_active_projects",
-        "init_project",
-    }
-    assert expected == names, f"tool mismatch: missing={expected - names}, extra={names - expected}"
+    assert EXPECTED_TOOLS == names, (
+        f"tool mismatch: missing={EXPECTED_TOOLS - names}, extra={names - EXPECTED_TOOLS}"
+    )
 
 
 async def test_tool_schemas_have_docstrings():
@@ -420,17 +541,6 @@ async def test_tool_schemas_have_docstrings():
 
     tools = await mcp.list_tools()
     for tool in tools:
-        if tool.name in {
-            "track_path",
-            "untrack_path",
-            "list_tracked",
-            "reindex_path",
-            "git_check",
-            "git_pull",
-            "search_chunks",
-            "get_project_context",
-            "list_active_projects",
-            "init_project",
-        }:
+        if tool.name in EXPECTED_TOOLS:
             assert tool.description, f"{tool.name} has no description"
             assert len(tool.description) > 50, f"{tool.name} description too short"

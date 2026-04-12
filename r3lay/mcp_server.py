@@ -365,6 +365,41 @@ async def init_project(
     return await _post("/project/init", body)
 
 
+@mcp.tool()
+async def compile_project(
+    project_id: str,
+    write: bool = True,
+) -> dict[str, Any]:
+    """Compile a project's knowledge into a single context document.
+
+    Deterministic Karpathy-style synthesis — NO LLM call. Assembles project
+    metadata, session notes (sn.md), active decisions, todos, open questions,
+    pending conflicts, and file inventory into one structured markdown document
+    that gives complete project context in a single read.
+
+    Use this when:
+    - Starting a new session and need full project context fast
+    - The user asks for a "state of the project" summary
+    - Cold-starting an agent that needs project context without multi-call
+      assembly (load compiled.md instead of calling 5 separate endpoints)
+
+    The compiled document is a SNAPSHOT — it reflects the state at compilation
+    time. Re-compile after significant changes (new decisions, completed todos,
+    session debrief) to keep it fresh.
+
+    Args:
+        project_id: The project to compile.
+        write: If True (default), persists the document to .r3lay/compiled.md
+            for cold-start loading. If False, returns the document without
+            writing to disk.
+
+    Returns:
+        {status: "compiled", project_id, document, written_to,
+         files, chunks, decisions, todos, questions, conflicts}
+    """
+    return await _post("/compile", {"project_id": project_id, "write": write})
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Entry point
 # ─────────────────────────────────────────────────────────────────────────────

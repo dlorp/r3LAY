@@ -156,6 +156,7 @@ class ProjectInitRequest(BaseModel):
 
 class CompileRequest(BaseModel):
     project_id: str
+    write: bool = True
 
 
 class ConflictResolveRequest(BaseModel):
@@ -804,17 +805,259 @@ async def api_project_init(
 
 
 # =============================================================================
-# Compile Endpoint (Phase 4 stub)
+# Compile Endpoint — Karpathy-style project knowledge synthesis
 # =============================================================================
+#
+# Deterministic compilation: no LLM call. Assembles DB + file data into a
+# structured markdown document that gives an agent (or human) complete project
+# context in one shot. Think "state of the project" — the compressed knowledge
+# graph in prose form.
+#
+# Inputs: project metadata, session notes, active decisions, todos, open
+# questions, pending conflicts, file inventory with quality weights.
+#
+# Output: single markdown document, optionally persisted to .r3lay/compiled.md
+# for cold-start loading by /r3-context or direct file reads.
+
+
+def _compile_project(conn, project_id: str) -> tuple[str, dict[str, Any], Path, str]:
+    """Build the compiled markdown document for a project.
+
+    Reads DB + files, returns markdown string + stats dict. Does not write
+    to disk. Raises HTTPException 404 if the project is not found.
+
+    Args:
+        conn: Active database connection.
+        project_id: The project to compile.
+
+    Returns:
+        (markdown_text, stats_dict, project_path, privacy_value).
+
+    Raises:
+        HTTPException: 404 if project not found.
+    """
+    from datetime import datetime, timezone
+
+    project = conn.execute(
+        "SELECT id, name, path, type, description, privacy, status FROM projects WHERE id = ?",
+        (project_id,),
+    ).fetchone()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    project_path = Path(project[2])
+    project_name = project[1]
+    project_type = project[3] or "other"
+    project_desc = project[4] or ""
+    project_privacy = project[5] or "false"
+    project_status = project[6] or "active"
+
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+    # --- Gather data ---
+
+    # File stats
+    file_rows = conn.execute(
+        """SELECT path, file_type, quality_weight, provenance
+           FROM files WHERE project_id = ?
+           ORDER BY quality_weight DESC, path""",
+        (project_id,),
+    ).fetchall()
+    file_count = len(file_rows)
+
+    # Chunk count
+    chunk_row = conn.execute(
+        "SELECT COUNT(*) FROM chunks WHERE project_id = ?",
+        (project_id,),
+    ).fetchone()
+    chunk_count = chunk_row[0] if chunk_row else 0
+
+    # Active decisions (not superseded), capped at 50
+    decisions = conn.execute(
+        """SELECT statement, rationale, category, confidence,
+                  decided_at, decided_by, source
+           FROM decisions
+           WHERE project_id = ? AND superseded_by IS NULL
+           ORDER BY decided_at DESC
+           LIMIT 50""",
+        (project_id,),
+    ).fetchall()
+
+    # Pending conflicts, capped at 50
+    conflicts = conn.execute(
+        """SELECT proposed_change, description, severity, detected_at
+           FROM conflicts
+           WHERE project_id = ? AND resolution = 'pending'
+           ORDER BY detected_at DESC
+           LIMIT 50""",
+        (project_id,),
+    ).fetchall()
+
+    # Session notes
+    sn = get_sn_for_project_id(conn, project_id)
+
+    # Active todos and open questions from project files
+    todos = parse_active_todos(project_path)
+    questions = parse_questions(project_path)
+
+    # --- Assemble markdown ---
+
+    lines: list[str] = []
+
+    # Header
+    lines.append(f"# Project Compilation: {project_name}")
+    lines.append(
+        f"Compiled: {now} | Files: {file_count} | Chunks: {chunk_count} "
+        f"| Decisions: {len(decisions)}"
+    )
+    lines.append("")
+
+    # Identity
+    lines.append("## Identity")
+    lines.append(f"- **Name**: {project_name}")
+    lines.append(f"- **Type**: {project_type}")
+    if project_desc:
+        lines.append(f"- **Description**: {project_desc}")
+    lines.append(f"- **Privacy**: {project_privacy}")
+    lines.append(f"- **Status**: {project_status}")
+    lines.append(f"- **Path**: {project_path}")
+    lines.append("")
+
+    # Session context
+    lines.append("## Session Context")
+    if sn:
+        lines.append(sn.strip())
+    else:
+        lines.append("_No session notes._")
+    lines.append("")
+
+    # Active decisions
+    lines.append(f"## Active Decisions ({len(decisions)})")
+    if decisions:
+        for i, d in enumerate(decisions, 1):
+            statement = d[0]
+            rationale = d[1] or ""
+            category = d[2] or ""
+            confidence = d[3] if d[3] is not None else 1.0
+            decided_at = d[4] or "unknown"
+            cat_tag = f" [{category}]" if category else ""
+            lines.append(f"{i}. **[{decided_at}]{cat_tag}** {statement} (confidence: {confidence})")
+            if rationale:
+                lines.append(f"   _Rationale_: {rationale}")
+    else:
+        lines.append("_No active decisions._")
+    lines.append("")
+
+    # Todos
+    lines.append(f"## Active Todos ({len(todos)})")
+    if todos:
+        for t in todos:
+            lines.append(f"- [ ] {t}")
+    else:
+        lines.append("_No active todos._")
+    lines.append("")
+
+    # Open questions
+    lines.append(f"## Open Questions ({len(questions)})")
+    if questions:
+        for q in questions:
+            lines.append(f"- {q}")
+    else:
+        lines.append("_No open questions._")
+    lines.append("")
+
+    # Conflicts
+    lines.append(f"## Pending Conflicts ({len(conflicts)})")
+    if conflicts:
+        for c in conflicts:
+            proposed = c[0] or ""
+            desc = c[1] or ""
+            severity = c[2] or "unknown"
+            detected = c[3] or ""
+            lines.append(f"- **[{severity}]** {desc} (detected: {detected})")
+            if proposed:
+                lines.append(f"  Proposed change: {proposed}")
+    else:
+        lines.append("_No pending conflicts._")
+    lines.append("")
+
+    # File inventory — top files by quality, grouped by type
+    lines.append(f"## File Inventory ({file_count} files, {chunk_count} chunks)")
+    if file_rows:
+        # Group by file_type
+        type_counts: dict[str, int] = {}
+        for f in file_rows:
+            ft = f[1] or "unknown"
+            type_counts[ft] = type_counts.get(ft, 0) + 1
+
+        type_summary = ", ".join(f"{ft}: {n}" for ft, n in sorted(type_counts.items()))
+        lines.append(f"Types: {type_summary}")
+        lines.append("")
+
+        # Top 20 files by quality weight
+        lines.append("### Key Files (by quality weight)")
+        for f in file_rows[:20]:
+            fpath = f[0]
+            ftype = f[1] or "?"
+            weight = f[2] if f[2] is not None else 1.0
+            prov = f[3] or "human"
+            lines.append(f"- `{fpath}` ({ftype}, weight={weight:.1f}, {prov})")
+        if file_count > 20:
+            lines.append(f"- _... and {file_count - 20} more files_")
+    else:
+        lines.append("_No indexed files._")
+    lines.append("")
+
+    doc = "\n".join(lines)
+
+    stats = {
+        "files": file_count,
+        "chunks": chunk_count,
+        "decisions": len(decisions),
+        "todos": len(todos),
+        "questions": len(questions),
+        "conflicts": len(conflicts),
+    }
+
+    return doc, stats, project_path, project_privacy
 
 
 @app.post("/compile")
 async def api_compile(
     req: CompileRequest,
+    conn=Depends(get_conn),
     _auth=Depends(verify_auth),
-) -> dict[str, str]:
-    """Trigger Karpathy-style compilation for a project. Phase 4."""
-    return {"status": "not_implemented", "message": "Phase 4: compilation loop"}
+) -> dict[str, Any]:
+    """Compile a project's knowledge into a single context document.
+
+    Deterministic Karpathy-style synthesis: assembles project metadata, session
+    notes, decisions, todos, questions, conflicts, and file inventory into a
+    structured markdown document.
+
+    Set write=True (default) to persist the document to .r3lay/compiled.md for
+    cold-start loading. Set write=False to return the document without writing.
+    """
+    doc, stats, project_path, privacy = _compile_project(conn, req.project_id)
+
+    written_path = None
+    if req.write:
+        compiled_path = project_path / ".r3lay" / "compiled.md"
+        try:
+            compiled_path.parent.mkdir(parents=True, exist_ok=True)
+            compiled_path.write_text(doc, encoding="utf-8")
+            written_path = str(compiled_path)
+            logger.info("Compiled project %s -> %s", req.project_id, compiled_path)
+        except OSError as exc:
+            logger.error("Failed to write compiled.md for %s: %s", req.project_id, exc)
+
+    return {
+        "status": "compiled",
+        "project_id": req.project_id,
+        "document": doc,
+        "written_to": written_path,
+        "privacy": privacy,
+        **stats,
+    }
 
 
 # =============================================================================

@@ -1,13 +1,13 @@
 ---
 name: r3-plan
-description: Enter planning mode for an r3LAY project — loads prior session notes, todos, questions, decisions, and generates a session plan. Full session start.
-version: 1.0.0
+description: Enter planning mode for an r3LAY project -- loads prior session notes, todos, questions, decisions, and generates a session plan. Full session start.
+version: 2.0.0
 author: r3LAY
 license: MIT
 metadata:
   hermes:
     tags: [r3lay, project-management, planning, session]
-    related_skills: [r3-context, sn]
+    related_skills: [r3-context, sn, compile]
 ---
 
 # /r3-plan -- planning mode (full session start)
@@ -18,13 +18,13 @@ Trigger: user types /r3-plan or /r3-plan {project}
 
 1. Identify project (from arg, active context, or ask user)
 2. Check privacy level
-3. Load prior context:
-   - Read .r3lay/sn.md (prior session compression)
-   - Read .r3lay/todos.md (active items)
-   - Read .r3lay/open-questions.md
-   - Call GET /project/{id}/context (bridge) for decisions + conflicts
+3. Load prior context via MCP tools:
+   - Call `mcp_r3lay_get_project_context(project_id=...)` -- returns
+     session notes, decisions, todos, questions, conflicts in one call
+   - Alternatively, if .r3lay/compiled.md exists and is recent (< 24h),
+     read it directly for faster cold-start (skip the MCP call)
 4. Generate session plan using configured model:
-   - What we're picking up from last session
+   - What we're picking up from last session (from sn.md / compiled.md)
    - Active todos
    - Open questions
    - Any conflicts or overdue items needing attention
@@ -34,6 +34,12 @@ Trigger: user types /r3-plan or /r3-plan {project}
    - New todos mentioned -> append to todos.md
    - Decisions made -> log via POST /decision
    - Questions raised -> append to open-questions.md
+
+## Cold-start shortcut
+
+If the user hasn't touched a project in a while and needs full context
+fast, suggest running `/compile {project}` first -- it produces a
+comprehensive context document that makes the /r3-plan output richer.
 
 ## Output format
 
