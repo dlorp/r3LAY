@@ -85,9 +85,9 @@ def extract_image_text(path: Path) -> str | None:
     """Extract text from an image via OCR. Returns None if no OCR available."""
     # Try ocrmac (macOS Apple Vision, best quality on Apple Silicon)
     try:
-        import ocrmac
+        from ocrmac.ocrmac import text_from_image
 
-        results = ocrmac.OCR(str(path)).recognize()
+        results = text_from_image(str(path))
         text = "\n".join(r[0] for r in results if r[0].strip())
         return text if text.strip() else None
     except ImportError:
@@ -122,7 +122,7 @@ def can_extract(path: Path) -> bool:
         return False
     if suffix in IMAGE_EXTENSIONS:
         try:
-            import ocrmac  # noqa: F401
+            from ocrmac.ocrmac import text_from_image  # noqa: F401
 
             return True
         except ImportError:
