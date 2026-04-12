@@ -400,6 +400,50 @@ async def compile_project(
     return await _post("/compile", {"project_id": project_id, "write": write})
 
 
+@mcp.tool()
+async def watcher_health() -> dict[str, Any]:
+    """Check if the r3LAY file watcher is alive. READ-ONLY.
+
+    The watcher writes a heartbeat on every activity (index, ingest drop,
+    auto-init). This tool reads it and reports whether the watcher is
+    considered alive (heartbeat < 5 minutes old).
+
+    Call this at session start. If alive=false, warn the user that
+    auto-indexing and _ingest/ processing are likely down — suggest
+    running `r3lay-watch` or checking the tmux session.
+
+    Returns:
+        {alive, last_heartbeat, age_seconds, message?}
+    """
+    return await _get("/health/watcher")
+
+
+@mcp.tool()
+async def cross_references(project_id: str) -> list[dict[str, Any]]:
+    """Find cross-project references for a project. READ-ONLY.
+
+    Uses FTS5 to search the project's top active decisions against
+    ALL other projects' indexed content. Returns matches grouped by
+    project. Lightweight — pure SQL, no embedding calls, milliseconds.
+
+    Use this when:
+    - The user asks "is this related to anything else?"
+    - Starting a planning session and want broader context
+    - A decision or todo seems like it might overlap with another project
+
+    Do NOT call this on every session start — it's a targeted tool for
+    when cross-project awareness would add value.
+
+    Args:
+        project_id: The project to find cross-references for.
+
+    Returns:
+        List of {project_id, project_name, references: [{chunk_id,
+        file_path, snippet, matched_decision}]}
+    """
+    return await _get(f"/projects/cross-references?project_id={project_id}")
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Entry point
 # ─────────────────────────────────────────────────────────────────────────────

@@ -219,6 +219,54 @@ app = FastAPI(
 
 
 # =============================================================================
+# Health Endpoints
+# =============================================================================
+
+_HEARTBEAT_PATH = Path.home() / "r3LAY" / ".r3lay-global" / "watcher-heartbeat"
+
+
+@app.get("/health/watcher")
+async def api_watcher_health(
+    _auth=Depends(verify_auth),
+) -> dict[str, Any]:
+    """Check if the file watcher is alive.
+
+    Reads the heartbeat file written by the watcher on each activity
+    (index, ingest, auto-init). Returns the last heartbeat time and
+    whether the watcher is considered alive (heartbeat < 5 minutes old,
+    or no filesystem changes since last heartbeat).
+    """
+    from datetime import datetime, timezone
+
+    if not _HEARTBEAT_PATH.exists():
+        return {
+            "alive": False,
+            "last_heartbeat": None,
+            "age_seconds": None,
+            "message": "No heartbeat file — watcher may have never run",
+        }
+
+    try:
+        heartbeat_str = _HEARTBEAT_PATH.read_text().strip()
+        last_beat = datetime.fromisoformat(heartbeat_str)
+        now = datetime.now(timezone.utc)
+        age = (now - last_beat).total_seconds()
+
+        return {
+            "alive": age < 300,  # 5 minutes
+            "last_heartbeat": heartbeat_str,
+            "age_seconds": round(age),
+        }
+    except (OSError, ValueError) as e:
+        return {
+            "alive": False,
+            "last_heartbeat": None,
+            "age_seconds": None,
+            "message": f"Failed to read heartbeat: {e}",
+        }
+
+
+# =============================================================================
 # Core Endpoints
 # =============================================================================
 
@@ -524,6 +572,88 @@ async def api_projects_pending_review(
             continue
 
     return pending
+
+
+@app.get("/projects/cross-references")
+async def api_cross_references(
+    project_id: str,
+    conn=Depends(get_conn),
+    _auth=Depends(verify_auth),
+) -> list[dict[str, Any]]:
+    """Find cross-project references via FTS5.
+
+    Takes a project's top active decisions, runs them as FTS5 queries
+    across all chunks EXCLUDING that project, and returns matches
+    grouped by project. Lightweight — pure SQL, no embedding calls.
+    """
+    # Get the project's active decision statements (top 5)
+    decisions = conn.execute(
+        """SELECT statement FROM decisions
+           WHERE project_id = ? AND superseded_by IS NULL
+           ORDER BY decided_at DESC LIMIT 5""",
+        (project_id,),
+    ).fetchall()
+
+    if not decisions:
+        return []
+
+    # For each decision, search FTS5 across all projects except this one
+    seen_chunks: set[str] = set()
+    matches: dict[str, list[dict[str, str]]] = {}
+
+    for row in decisions:
+        statement = row[0]
+        # Extract key terms for FTS5 (strip punctuation, take first 10 words)
+        words = re.sub(r"[^\w\s]", "", statement).split()[:10]
+        if not words:
+            continue
+        fts_query = " OR ".join(words)
+
+        try:
+            results = conn.execute(
+                """SELECT c.chunk_id, c.project_id, c.content, f.path
+                   FROM fts_chunks fts
+                   JOIN chunks c ON c.rowid = fts.rowid
+                   LEFT JOIN files f ON f.id = c.file_id
+                   WHERE fts_chunks MATCH ?
+                     AND c.project_id != ?
+                   LIMIT 10""",
+                (fts_query, project_id),
+            ).fetchall()
+        except Exception:
+            continue
+
+        for r in results:
+            chunk_id = r[0]
+            if chunk_id in seen_chunks:
+                continue
+            seen_chunks.add(chunk_id)
+
+            other_project_id = r[1]
+            if other_project_id not in matches:
+                matches[other_project_id] = []
+            matches[other_project_id].append(
+                {
+                    "chunk_id": chunk_id,
+                    "file_path": r[3] or "",
+                    "snippet": (r[2] or "")[:200],
+                    "matched_decision": statement[:100],
+                }
+            )
+
+    # Resolve project names and build response
+    result = []
+    for pid, refs in matches.items():
+        proj_row = conn.execute("SELECT name FROM projects WHERE id = ?", (pid,)).fetchone()
+        result.append(
+            {
+                "project_id": pid,
+                "project_name": proj_row[0] if proj_row else pid,
+                "references": refs[:5],  # Cap at 5 per project
+            }
+        )
+
+    return result
 
 
 # =============================================================================
