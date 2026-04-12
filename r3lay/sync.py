@@ -176,6 +176,9 @@ class R3LayEventHandler(FileSystemEventHandler):
         self._last_event[path] = now
         return True
 
+    # Directories at watch_root level that are infrastructure, not projects.
+    _NON_PROJECT_DIRS = frozenset({".r3lay-global", ".git", "_meta"})
+
     def _find_project_root(self, file_path: Path) -> Path | None:
         """Walk up from file to find the containing project (has .r3lay/project.yaml)."""
         current = file_path.parent
@@ -189,6 +192,88 @@ class R3LayEventHandler(FileSystemEventHandler):
             current = current.parent
 
         return None
+
+    def _find_auto_init_candidate(self, file_path: Path) -> Path | None:
+        """Find the right directory to auto-init as a new project.
+
+        Heuristic: given a file at ~/r3LAY/domain/project/src/file.py, the
+        project root is ~/r3LAY/domain/project/ (2 levels deep). For a file
+        at ~/r3LAY/project/file.md, it's ~/r3LAY/project/ (1 level deep).
+        Files directly in the watch root are not project candidates.
+
+        Skips infrastructure dirs (.r3lay-global, _meta, .git).
+        """
+        try:
+            rel = file_path.relative_to(self._watch_root)
+        except ValueError:
+            return None
+
+        parts = rel.parts
+        if len(parts) < 2:
+            # File directly in watch root — not a project
+            return None
+
+        # Skip infrastructure directories
+        if parts[0] in self._NON_PROJECT_DIRS:
+            return None
+
+        # Prefer 2-level depth (domain/project), fall back to 1-level
+        if len(parts) >= 3:
+            candidate = self._watch_root / parts[0] / parts[1]
+        else:
+            candidate = self._watch_root / parts[0]
+
+        # Don't auto-init if candidate IS the watch root or doesn't exist
+        if candidate == self._watch_root or not candidate.is_dir():
+            return None
+
+        return candidate
+
+    def _auto_init_project(self, project_dir: Path, conn) -> Path | None:
+        """Create .r3lay/project.yaml and register in DB for a new project.
+
+        Called by the watcher when a file change is detected in a directory
+        that has no .r3lay/project.yaml. Creates minimal metadata and a DB
+        row so indexing can proceed immediately.
+
+        Returns the project root on success, None on failure.
+        """
+        from datetime import datetime, timezone
+
+        project_yaml = project_dir / ".r3lay" / "project.yaml"
+        if project_yaml.exists():
+            return project_dir
+
+        name = project_dir.name
+
+        try:
+            (project_dir / ".r3lay").mkdir(parents=True, exist_ok=True)
+            created = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            content = (
+                f"name: {name}\n"
+                f"type: other\n"
+                f"privacy: false\n"
+                f"status: active\n"
+                f"auto_init: true\n"
+                f"created: {created}\n"
+                f"notes: Auto-initialized by r3LAY. Review and customize.\n"
+            )
+            project_yaml.write_text(content, encoding="utf-8")
+        except OSError as e:
+            logger.error("Failed to auto-init project %s: %s", name, e)
+            return None
+
+        # Register in the DB so FK constraints pass during ingest
+        project_id = sha256_path(str(project_dir))[:16]
+        conn.execute(
+            """INSERT OR IGNORE INTO projects (id, name, path, type, privacy, status)
+               VALUES (?, ?, ?, 'other', 'false', 'active')""",
+            (project_id, name, str(project_dir)),
+        )
+        conn.commit()
+
+        logger.info("Auto-initialized project: %s -> %s", name, project_dir)
+        return project_dir
 
     def _is_ingest_drop(self, path: Path) -> bool:
         """Check if this file was dropped into an _ingest/ directory."""
@@ -274,9 +359,14 @@ class R3LayEventHandler(FileSystemEventHandler):
 
             project_root = self._find_project_root(file_path)
             if not project_root:
-                logger.debug("Skipped (no project root): %s", file_path.name)
-                conn.close()
-                return
+                # Auto-init: new project detected under the watch root
+                candidate = self._find_auto_init_candidate(file_path)
+                if candidate:
+                    project_root = self._auto_init_project(candidate, conn)
+                if not project_root:
+                    logger.debug("Skipped (no project root): %s", file_path.name)
+                    conn.close()
+                    return
 
             project_id = sha256_path(str(project_root))[:16]
             relative_path = str(file_path.relative_to(project_root))
@@ -314,9 +404,13 @@ class R3LayEventHandler(FileSystemEventHandler):
 
             project_root = self._find_project_root(file_path)
             if not project_root:
-                logger.warning("No project root for ingest drop: %s", file_path)
-                conn.close()
-                return
+                candidate = self._find_auto_init_candidate(file_path)
+                if candidate:
+                    project_root = self._auto_init_project(candidate, conn)
+                if not project_root:
+                    logger.warning("No project root for ingest drop: %s", file_path)
+                    conn.close()
+                    return
 
             project_id = sha256_path(str(project_root))[:16]
 
