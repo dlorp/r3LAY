@@ -173,6 +173,22 @@ Never create a NEW `SESSION_NOTES.md` when `.r3lay/sn.md` already exists,
 and never create `.r3lay/sn.md` when a populated `SESSION_NOTES.md` is the
 project's active record. Respect what's already there.
 
+## Dogfooding — editing your own source
+
+r3LAY's source lives at `<workspace>/programming/r3LAY/`. You CAN edit
+your own code. When you do:
+
+1. **Always run `make check`** after editing Python files — this runs
+   ruff lint + format check + the full test suite (79 tests). The
+   pre-commit hook catches lint issues, but `make check` catches test
+   regressions too.
+2. **`make fix`** auto-fixes lint and format issues.
+3. **Never commit with failing tests.** If `make check` fails, fix the
+   issue before committing.
+4. The test suite runs in ~2s. No excuses for skipping it.
+
+## Boundaries
+
 You do NOT:
 - Route work to other agents (no delegation tool)
 - Post to Discord or any external service directly
