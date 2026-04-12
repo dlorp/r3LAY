@@ -61,7 +61,12 @@ def _create_apsw_connection(db_path: Path) -> Any:
     # existing DBs require VACUUM to change). 8192 is optimal for
     # 4KB+ BLOBs (1024-dim float32 embeddings = 4096 bytes exactly).
     conn.execute("PRAGMA page_size=8192")
-    conn.execute("PRAGMA journal_mode=DELETE")
+    # WAL mode is safe with mmap_size=0. The SIGBUS crashes on macOS 26.5/APFS
+    # were caused by mmap_size=256MB (database-file mmap), NOT by WAL itself.
+    # WAL's own -shm index file is always mmapped regardless of this pragma,
+    # and it ran stable for 54+ minutes of heavy ingest. WAL is required for
+    # concurrent readers (bridge serving queries while watcher ingests).
+    conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute("PRAGMA mmap_size=0")
     conn.execute("PRAGMA cache_size=-128000")
@@ -242,7 +247,7 @@ def get_connection(
     if conn is not None:
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA page_size=8192")
-        conn.execute("PRAGMA journal_mode=DELETE")
+        conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA synchronous=NORMAL")
         conn.execute("PRAGMA mmap_size=0")
         conn.execute("PRAGMA cache_size=-128000")
