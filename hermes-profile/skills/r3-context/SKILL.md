@@ -19,14 +19,19 @@ Trigger: user types /r3-context or /r3-context {project}
 1. Call `mcp_r3lay_list_active_projects()` (one MCP call)
 2. Return one-line summary per project:
    "{name} ({type}) -- {open_todos} todos, {open_questions} questions
-    {conflict_flag}"
+    {conflict_flag}{stale_flag}"
    conflict_flag: " -- conflicts" if pending_conflicts > 0
+   stale_flag: " -- {N} stale decisions" if stale_decisions > 0 (90+ days old)
 3. Privacy filter: true/work projects show name + counts only (bridge handles)
 4. If a specific project is given: call
    `mcp_r3lay_get_project_context(project_id=...)` for richer detail
    (includes session notes, decisions, todos, questions, conflicts)
-5. Does NOT load plans.md or full file listings -- lightweight only
-6. For full context, suggest: "/compile {project}" or "/r3-plan {project}"
+5. Check for auto-initialized projects: if any project in the list has
+   `pending_conflicts` or if you notice it wasn't there last session,
+   mention it. Better yet, the /projects/pending-review endpoint
+   returns projects with `auto_init: true` that need human review.
+6. Does NOT load plans.md or full file listings -- lightweight only
+7. For full context, suggest: "/compile {project}" or "/r3-plan {project}"
 
 ## When to reach for the heavier tools
 

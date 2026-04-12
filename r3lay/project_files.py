@@ -356,6 +356,15 @@ def get_project_summary(conn: Any, project_id: str) -> dict[str, Any] | None:
     ).fetchone()
     conflict_count = conflict_row[0] if conflict_row else 0
 
+    # Count stale decisions (> 90 days old, still active)
+    stale_row = conn.execute(
+        """SELECT COUNT(*) FROM decisions
+           WHERE project_id = ? AND superseded_by IS NULL
+             AND decided_at < datetime('now', '-90 days')""",
+        (project_id,),
+    ).fetchone()
+    stale_count = stale_row[0] if stale_row else 0
+
     return {
         "id": row[0],
         "name": row[1],
@@ -366,4 +375,5 @@ def get_project_summary(conn: Any, project_id: str) -> dict[str, Any] | None:
         "open_todos": todo_counts["active"],
         "open_questions": question_count,
         "pending_conflicts": conflict_count,
+        "stale_decisions": stale_count,
     }

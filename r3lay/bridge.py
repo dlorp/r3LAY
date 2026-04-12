@@ -385,6 +385,7 @@ async def api_projects_active(
                         "open_todos": summary["open_todos"],
                         "open_questions": summary["open_questions"],
                         "pending_conflicts": summary["pending_conflicts"],
+                        "stale_decisions": summary["stale_decisions"],
                     }
                 )
             else:
@@ -481,6 +482,48 @@ async def api_project_health(
         "stale_decisions": stale[0] if stale else 0,
         "overdue_maintenance": overdue_count,
     }
+
+
+@app.get("/projects/pending-review")
+async def api_projects_pending_review(
+    conn=Depends(get_conn),
+    _auth=Depends(verify_auth),
+) -> list[dict[str, Any]]:
+    """List auto-initialized projects that need human review.
+
+    Returns projects whose .r3lay/project.yaml contains auto_init: true.
+    These were created by the watcher when new folders appeared — the user
+    should review and enrich the metadata (type, privacy, tags, name).
+    """
+    from ruamel.yaml import YAML
+
+    rows = conn.execute(
+        "SELECT id, name, path FROM projects WHERE status = 'active'",
+    ).fetchall()
+
+    pending = []
+    yaml = YAML()
+    for row in rows:
+        project_path = Path(row[2])
+        project_yaml = project_path / ".r3lay" / "project.yaml"
+        if not project_yaml.exists():
+            continue
+        try:
+            with open(project_yaml) as f:
+                data = yaml.load(f)
+            if data and data.get("auto_init") is True:
+                pending.append(
+                    {
+                        "id": row[0],
+                        "name": row[1],
+                        "path": row[2],
+                        "auto_init": True,
+                    }
+                )
+        except Exception:
+            continue
+
+    return pending
 
 
 # =============================================================================
@@ -1037,7 +1080,10 @@ async def api_compile(
     Set write=True (default) to persist the document to .r3lay/compiled.md for
     cold-start loading. Set write=False to return the document without writing.
     """
+    from datetime import datetime, timezone
+
     doc, stats, project_path, privacy = _compile_project(conn, req.project_id)
+    compiled_at = datetime.now(timezone.utc).isoformat()
 
     written_path = None
     if req.write:
@@ -1053,6 +1099,7 @@ async def api_compile(
     return {
         "status": "compiled",
         "project_id": req.project_id,
+        "compiled_at": compiled_at,
         "document": doc,
         "written_to": written_path,
         "privacy": privacy,

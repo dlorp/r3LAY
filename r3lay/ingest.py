@@ -41,6 +41,110 @@ def sha256_path(relative_path: str) -> str:
     return hashlib.sha256(relative_path.encode()).hexdigest()
 
 
+# =============================================================================
+# Optional extraction backends (PDF, images)
+# =============================================================================
+# These are optional dependencies. If not installed, the ingest pipeline
+# gracefully skips the file types that require them. The _ingest/ drop zone
+# handler in sync.py routes unsupported files to _ingest/_unsupported/.
+
+
+def extract_pdf_text(path: Path) -> str | None:
+    """Extract text from a PDF file. Returns None if no PDF library available."""
+    # Try marker-pdf first (higher quality, preserves structure)
+    try:
+        from marker.converters.pdf import PdfConverter
+        from marker.models import create_model_dict
+
+        models = create_model_dict()
+        converter = PdfConverter(artifact_dict=models)
+        rendered = converter(str(path))
+        return rendered.markdown
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.warning("marker-pdf failed for %s: %s", path.name, e)
+
+    # Fallback: pymupdf (fast, basic text extraction)
+    try:
+        import pymupdf
+
+        doc = pymupdf.open(str(path))
+        text = "\n\n".join(page.get_text() for page in doc)
+        doc.close()
+        return text if text.strip() else None
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.warning("pymupdf failed for %s: %s", path.name, e)
+
+    return None
+
+
+def extract_image_text(path: Path) -> str | None:
+    """Extract text from an image via OCR. Returns None if no OCR available."""
+    # Try ocrmac (macOS Apple Vision, best quality on Apple Silicon)
+    try:
+        import ocrmac
+
+        results = ocrmac.OCR(str(path)).recognize()
+        text = "\n".join(r[0] for r in results if r[0].strip())
+        return text if text.strip() else None
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.warning("ocrmac failed for %s: %s", path.name, e)
+
+    return None
+
+
+# Extensions that can be extracted with optional dependencies
+PDF_EXTENSIONS = {".pdf"}
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".webp"}
+
+
+def can_extract(path: Path) -> bool:
+    """Check if we have the libraries to extract text from this file type."""
+    suffix = path.suffix.lower()
+    if suffix in PDF_EXTENSIONS:
+        try:
+            import marker  # noqa: F401
+
+            return True
+        except ImportError:
+            pass
+        try:
+            import pymupdf  # noqa: F401
+
+            return True
+        except ImportError:
+            pass
+        return False
+    if suffix in IMAGE_EXTENSIONS:
+        try:
+            import ocrmac  # noqa: F401
+
+            return True
+        except ImportError:
+            return False
+    return False
+
+
+def extract_text(path: Path) -> str | None:
+    """Extract text from a file using available backends.
+
+    For text files, returns None (caller should use read_text directly).
+    For PDFs, tries marker-pdf -> pymupdf.
+    For images, tries ocrmac.
+    """
+    suffix = path.suffix.lower()
+    if suffix in PDF_EXTENSIONS:
+        return extract_pdf_text(path)
+    if suffix in IMAGE_EXTENSIONS:
+        return extract_image_text(path)
+    return None
+
+
 def detect_file_type(path: Path) -> str:
     """Detect file type from extension."""
     suffix = path.suffix.lower()
