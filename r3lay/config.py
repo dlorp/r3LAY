@@ -45,9 +45,16 @@ _config: dict[str, Any] | None = None
 
 
 def get_config() -> dict[str, Any]:
-    """Get the loaded configuration dict. Caches after first load."""
+    """Get the loaded configuration dict. Caches after first load.
+
+    When cache bypass is active (``R3LAY_NO_CACHE=1`` or the in-process
+    flag), the YAML file is re-read on every call. This matters when the
+    user edits config live and re-invokes without restarting the bridge.
+    """
+    from .cache import cache_bypassed
+
     global _config
-    if _config is None:
+    if _config is None or cache_bypassed():
         _config = _load_yaml_config()
     return _config
 
