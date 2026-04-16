@@ -119,11 +119,16 @@ class SearchRequest(BaseModel):
 class IngestRequest(BaseModel):
     path: str
     db_path: str | None = None
+    # When true, bypasses the content_hash-based skip so every file is
+    # re-chunked and re-embedded even if its content is unchanged. Use after
+    # an embedding-model or chunking-rules change.
+    fresh: bool = False
 
 
 class IngestFileRequest(BaseModel):
     file_path: str
     project_id: str
+    fresh: bool = False
 
 
 class ProjectUpdateRequest(BaseModel):
@@ -266,6 +271,90 @@ async def api_watcher_health(
         }
 
 
+@app.get("/pipeline/status")
+async def api_pipeline_status(
+    lookback_minutes: int = 60,
+    conn=Depends(get_conn),
+    _auth=Depends(verify_auth),
+) -> dict[str, Any]:
+    """Summarize pipeline runs within a lookback window.
+
+    Three flavors of signal:
+      - ``summary``: counts per (pipeline, state) pair — a health heartbeat.
+      - ``stuck``: work_completed runs with no matching recorded/failed entry.
+        This is the silent-half-failure class: real work happened but the
+        record of it is missing. Should always be empty in a healthy system.
+      - ``failures``: recent failed runs with error details.
+    """
+    from r3lay.pipeline import pipeline_summary, recent_failures, stuck_runs
+
+    return {
+        "lookback_minutes": lookback_minutes,
+        "summary": pipeline_summary(conn, lookback_minutes),
+        "stuck": stuck_runs(conn, lookback_minutes),
+        "failures": recent_failures(conn, lookback_minutes),
+    }
+
+
+@app.get("/doctor")
+async def api_doctor(
+    include_network: bool = True,
+    conn=Depends(get_conn),
+    _auth=Depends(verify_auth),
+) -> dict[str, Any]:
+    """Run all health checks and persist results to health_checks.
+
+    Set ``include_network=false`` to skip embedding-endpoint probes (useful
+    when offline or in CI). Returns overall status (``ok`` / ``warn`` /
+    ``fail``) and the per-check detail list sorted worst-first.
+    """
+    from r3lay.db import DEFAULT_DB_PATH
+    from r3lay.doctor import run_all
+
+    return await run_all(
+        conn,
+        db_path=DEFAULT_DB_PATH,
+        heartbeat_path=_HEARTBEAT_PATH,
+        include_network=include_network,
+    )
+
+
+@app.post("/verify-rebuild")
+async def api_verify_rebuild(
+    keep_backup: bool = False,
+    _auth=Depends(verify_auth),
+) -> dict[str, Any]:
+    """Regression gate: wipe DB, re-ingest from filesystem, diff.
+
+    Tests the v2 promise that "the filesystem is truth" — if any row in the
+    rebuildable tables (projects/files/chunks/vec_chunks/fts_chunks/edges)
+    was present before and missing after, the rebuild is a bug.
+
+    DB-only tables (decisions, maintenance_log, conflicts, sessions,
+    tracked_paths, pipeline_log, health_checks) are surfaced as
+    ``orphaned_db_only`` — EXPECTED gap between the promise and today's
+    reality. The count quantifies how much work remains to fully back the
+    promise.
+
+    On failure the original DB is restored from backup automatically. Set
+    ``keep_backup=true`` if you want the ``.verify-backup`` file kept for
+    manual inspection either way.
+
+    WARNING: this is a destructive operation. The request holds exclusive
+    access to the DB during rebuild. Do not run while the watcher is
+    actively ingesting — stop ``r3 watch`` first.
+    """
+    from r3lay.db import DEFAULT_DB_PATH, DEFAULT_R3LAY_ROOT
+    from r3lay.rebuild import verify_rebuild
+
+    result = await verify_rebuild(
+        db_path=DEFAULT_DB_PATH,
+        watch_root=DEFAULT_R3LAY_ROOT,
+        keep_backup=keep_backup,
+    )
+    return result.to_jsonable()
+
+
 # =============================================================================
 # Core Endpoints
 # =============================================================================
@@ -305,14 +394,22 @@ async def api_ingest(
     req: IngestRequest,
     _auth=Depends(verify_auth),
 ) -> dict[str, Any]:
-    """Ingest a project folder: file -> chunk -> embed -> store."""
+    """Ingest a project folder: file -> chunk -> embed -> store.
+
+    Set ``fresh=true`` to bypass content-hash caching and re-embed every
+    file, even those that haven't changed on disk. Use this when the
+    embedding model, chunker, or any transform has changed and the stored
+    vectors need to be recomputed.
+    """
+    from .cache import bypass_scope
     from .ingest import ingest_project
 
     # Same validation as /tracked — allowed roots + symlink guard
     project_path = _validate_tracked_path(req.path)
 
     db_path = Path(req.db_path) if req.db_path else None
-    return await ingest_project(project_path, db_path)
+    with bypass_scope(req.fresh):
+        return await ingest_project(project_path, db_path)
 
 
 @app.post("/ingest/file")
@@ -333,7 +430,10 @@ async def api_ingest_file(
         raise HTTPException(status_code=404, detail="Project not found")
 
     project_root = Path(row[0])
-    chunks = await ingest_file(conn, file_path, req.project_id, project_root)
+    from .cache import bypass_scope
+
+    with bypass_scope(req.fresh):
+        chunks = await ingest_file(conn, file_path, req.project_id, project_root)
     return {"file": str(file_path), "chunks": chunks}
 
 
@@ -667,18 +767,57 @@ async def api_log_decision(
     conn=Depends(get_conn),
     _auth=Depends(verify_auth),
 ) -> dict[str, Any]:
-    """Log a new decision/axiom with auto entity extraction."""
+    """Log a new decision/axiom with auto entity extraction.
+
+    Filesystem-first: appends to ``<project>/.r3lay/decisions.jsonl``
+    before the DB insert. A rebuild from filesystem replays this file,
+    so decisions persist across DB wipes. If the filesystem write fails
+    (permission, disk full), the DB insert is skipped and we raise — we
+    never want the DB to outlive its filesystem shadow.
+    """
+    from datetime import datetime, timezone
+
+    from .decisions import append_decision
+
     entities = req.entities
     if entities is None:
         entities = extract_entities(req.statement)
 
     entities_json = json.dumps(entities)
     decision_id = str(uuid4())
+    decided_at = datetime.now(timezone.utc).isoformat()
+
+    # Look up project path — needed for the filesystem write
+    row = conn.execute("SELECT path FROM projects WHERE id = ?", (req.project_id,)).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Project not found")
+    project_path = Path(row[0])
+
+    record = {
+        "id": decision_id,
+        "project_id": req.project_id,
+        "statement": req.statement,
+        "rationale": req.rationale,
+        "category": req.category,
+        "entities": entities,
+        "decided_at": decided_at,
+        "decided_by": "human",
+        "confidence": req.confidence,
+        "source": req.source,
+    }
+    # Filesystem first — if this throws, we don't touch the DB.
+    try:
+        append_decision(project_path, record)
+    except OSError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to persist decision to filesystem: {e}",
+        ) from e
 
     conn.execute(
         """INSERT INTO decisions (id, project_id, statement, rationale, category,
-                                  entities, decided_by, confidence, source)
-           VALUES (?, ?, ?, ?, ?, ?, 'human', ?, ?)""",
+                                  entities, decided_at, decided_by, confidence, source)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'human', ?, ?)""",
         (
             decision_id,
             req.project_id,
@@ -686,6 +825,7 @@ async def api_log_decision(
             req.rationale,
             req.category,
             entities_json,
+            decided_at,
             req.confidence,
             req.source,
         ),
@@ -1212,19 +1352,34 @@ async def api_compile(
     """
     from datetime import datetime, timezone
 
-    doc, stats, project_path, privacy = _compile_project(conn, req.project_id)
-    compiled_at = datetime.now(timezone.utc).isoformat()
+    from r3lay.pipeline import PipelineRun
 
     written_path = None
-    if req.write:
-        compiled_path = project_path / ".r3lay" / "compiled.md"
-        try:
-            compiled_path.parent.mkdir(parents=True, exist_ok=True)
-            compiled_path.write_text(doc, encoding="utf-8")
-            written_path = str(compiled_path)
-            logger.info("Compiled project %s -> %s", req.project_id, compiled_path)
-        except OSError as exc:
-            logger.error("Failed to write compiled.md for %s: %s", req.project_id, exc)
+    with PipelineRun(conn, "compile", target=req.project_id) as run:
+        doc, stats, project_path, privacy = _compile_project(conn, req.project_id)
+        compiled_at = datetime.now(timezone.utc).isoformat()
+        run.mark_work_completed(
+            {
+                "project_id": req.project_id,
+                "write_requested": req.write,
+                **stats,
+            }
+        )
+
+        if req.write:
+            # Bookkeeping phase. If this OSError fires, the work_completed row
+            # above is already on disk — `r3 status` sees compile succeeded but
+            # no recorded row, which flags the write-phase failure distinctly
+            # from a compile-phase failure.
+            compiled_path = project_path / ".r3lay" / "compiled.md"
+            try:
+                compiled_path.parent.mkdir(parents=True, exist_ok=True)
+                compiled_path.write_text(doc, encoding="utf-8")
+                written_path = str(compiled_path)
+                logger.info("Compiled project %s -> %s", req.project_id, compiled_path)
+            except OSError as exc:
+                logger.error("Failed to write compiled.md for %s: %s", req.project_id, exc)
+                raise
 
     return {
         "status": "compiled",
