@@ -351,13 +351,38 @@ class R3LayEventHandler(FileSystemEventHandler):
         timer. If the watcher is idle because nothing changed, the heartbeat
         stays at the last activity time. The bridge reads this to determine
         watcher aliveness.
+
+        Atomic write: Path.write_text() truncates the file BEFORE writing
+        content, so a SIGKILL or power loss between those steps can leave
+        a 0-byte heartbeat that readers misinterpret as a malformed
+        timestamp. We write to a sibling tempfile and os.replace() so the
+        heartbeat always either holds a complete prior timestamp or a
+        complete new one — never an empty intermediate state.
         """
+        import os
+        import tempfile
         from datetime import datetime, timezone
 
         try:
             heartbeat = self._watch_root / ".r3lay-global" / "watcher-heartbeat"
             heartbeat.parent.mkdir(parents=True, exist_ok=True)
-            heartbeat.write_text(datetime.now(timezone.utc).isoformat(), encoding="utf-8")
+            payload = datetime.now(timezone.utc).isoformat()
+            fd, tmp = tempfile.mkstemp(
+                dir=str(heartbeat.parent),
+                prefix=".watcher-heartbeat.",
+            )
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    f.write(payload)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(tmp, heartbeat)
+            except BaseException:
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
+                raise
         except OSError:
             pass  # Non-critical — don't let heartbeat failures break indexing
 
@@ -458,6 +483,19 @@ class R3LayEventHandler(FileSystemEventHandler):
             relative_path = str(file_path.relative_to(project_root))
             file_id = sha256_path(f"{project_id}:{relative_path}")
 
+            # Ensure projects row exists. The user may have added a nested
+            # `.r3lay/project.yaml` that was never `ingest_project`-ed, in
+            # which case ingest_file's INSERT into files would FK-fail. Upsert
+            # is idempotent and cheap (one row by primary key).
+            project_row = conn.execute(
+                "SELECT 1 FROM projects WHERE id = ?", (project_id,)
+            ).fetchone()
+            if project_row is None:
+                from .ingest import upsert_project
+
+                upsert_project(conn, project_root)
+                logger.info("Auto-registered project from project.yaml: %s", project_root)
+
             row = conn.execute("SELECT content_hash FROM files WHERE id = ?", (file_id,)).fetchone()
 
             if row and row[0] == new_hash:
@@ -465,9 +503,22 @@ class R3LayEventHandler(FileSystemEventHandler):
                 conn.close()
                 return
 
-            chunks = await ingest_file(conn, file_path, project_id, project_root)
-            logger.info("Indexed: %s (%d chunks)", relative_path, chunks)
-            self._touch_heartbeat()
+            # PipelineRun frames the ingest + heartbeat as one atomic unit so
+            # `r3 status` can distinguish "indexed but heartbeat/close failed"
+            # from "indexing itself threw".
+            from .pipeline import PipelineRun
+
+            with PipelineRun(conn, "watcher_ingest", target=relative_path) as run:
+                chunks = await ingest_file(conn, file_path, project_id, project_root)
+                run.mark_work_completed(
+                    {
+                        "project_id": project_id,
+                        "relative_path": relative_path,
+                        "chunks": chunks,
+                    }
+                )
+                logger.info("Indexed: %s (%d chunks)", relative_path, chunks)
+                self._touch_heartbeat()
 
             conn.close()
 
