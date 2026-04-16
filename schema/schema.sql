@@ -153,3 +153,33 @@ CREATE TABLE IF NOT EXISTS tracked_paths (
   notes               TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_tracked_paths_project ON tracked_paths(project_id);
+
+-- Pipeline log: three-state tracking (started -> work_completed -> recorded | failed).
+-- Motivation: a pipeline's "did the work" phase and "recorded that it did" phase can
+-- fail independently. A run that reaches work_completed without a matching recorded
+-- row in the same run_id is a known-bad state (real work done, bookkeeping lost).
+-- `r3 status` and `r3 doctor` surface these so silent half-failures are visible.
+CREATE TABLE IF NOT EXISTS pipeline_log (
+  id          TEXT PRIMARY KEY,
+  run_id      TEXT NOT NULL,
+  pipeline    TEXT NOT NULL,
+  target      TEXT,
+  state       TEXT NOT NULL CHECK (state IN ('started','work_completed','recorded','failed')),
+  at          TEXT DEFAULT (datetime('now')),
+  details     TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_pipeline_log_run ON pipeline_log(run_id);
+CREATE INDEX IF NOT EXISTS idx_pipeline_log_pipeline_at ON pipeline_log(pipeline, at);
+CREATE INDEX IF NOT EXISTS idx_pipeline_log_state_at ON pipeline_log(state, at);
+
+-- Health checks: last-known status per named check (doctor writes here).
+-- Motivation: model deprecations went silent for 5 days in adjacent systems;
+-- a probe that writes to this table (plus surfacing in `r3 status`) turns a
+-- silent failure into a visible one within one tick.
+CREATE TABLE IF NOT EXISTS health_checks (
+  name        TEXT PRIMARY KEY,
+  status      TEXT NOT NULL CHECK (status IN ('ok','warn','fail')),
+  message     TEXT,
+  details     TEXT,
+  checked_at  TEXT DEFAULT (datetime('now'))
+);

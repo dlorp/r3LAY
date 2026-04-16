@@ -328,15 +328,22 @@ def get_db(db_path: Path | None = None) -> Any:
     Schema initialization is cached per-process per-path: init_schema() runs
     exactly once per unique db_path for the lifetime of the process.
 
+    When the caller has requested cache bypass (``cache_bypassed()``), the
+    schema is re-applied every call. ``CREATE TABLE IF NOT EXISTS`` makes
+    this idempotent; the cost is a small startup hit, which is the point of
+    the flag.
+
     Args:
         db_path: Path to the database file. Defaults to ~/r3LAY/.r3lay-global/r3lay.db.
 
     Returns:
         Ready-to-use connection.
     """
+    from .cache import cache_bypassed
+
     conn = get_connection(db_path)
     key = (db_path or DEFAULT_DB_PATH).resolve()
-    if key not in _SCHEMA_INIT_PATHS:
+    if cache_bypassed() or key not in _SCHEMA_INIT_PATHS:
         init_schema(conn)
         _SCHEMA_INIT_PATHS.add(key)
     return conn
