@@ -19,6 +19,7 @@ import numpy as np
 
 from .config import get_embedding_dim, get_embedding_model, get_ollama_url
 from .db import get_db
+from .pipeline import PipelineRun
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,20 @@ logger = logging.getLogger(__name__)
 MARKDOWN_EXTENSIONS = {".md", ".markdown", ".mkd"}
 YAML_EXTENSIONS = {".yaml", ".yml"}
 CODE_EXTENSIONS = {".py", ".js", ".ts", ".rs", ".go", ".c", ".h", ".cpp", ".java", ".sh"}
-SKIP_DIRS = {".r3lay", ".git", "__pycache__", "node_modules", ".venv"}
+SKIP_DIRS = {
+    ".r3lay",
+    ".git",
+    "__pycache__",
+    "node_modules",
+    ".venv",
+    # Python tool caches — fire constantly during tests and emit binary blobs
+    # that aren't useful to index. Watcher was processing them before this
+    # was added, producing noise in pipeline_log.
+    ".pytest_cache",
+    ".ruff_cache",
+    ".mypy_cache",
+    ".tox",
+}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 MAX_FILES_PER_PROJECT = 100_000  # DoS guard — refuse to walk enormous trees
 
@@ -538,11 +552,20 @@ async def ingest_file(
 
     content_hash = sha256_hex(content)
 
-    # Check if file already indexed with same hash
-    existing = conn.execute("SELECT content_hash FROM files WHERE id = ?", (file_id,)).fetchone()
-    if existing and existing["content_hash"] == content_hash:
-        logger.debug("Skipping unchanged file: %s", relative_path)
-        return 0
+    # Check if file already indexed with same hash. Skipped under cache
+    # bypass — when the embedding model or chunking logic has changed, the
+    # content_hash alone is not sufficient to know the stored chunks are
+    # still correct. `r3 index --fresh` and `r3 rebuild --verify` both set
+    # this so we re-embed even untouched files.
+    from .cache import cache_bypassed
+
+    if not cache_bypassed():
+        existing = conn.execute(
+            "SELECT content_hash FROM files WHERE id = ?", (file_id,)
+        ).fetchone()
+        if existing and existing["content_hash"] == content_hash:
+            logger.debug("Skipping unchanged file: %s", relative_path)
+            return 0
 
     # Extract title from first heading or filename
     title = file_path.stem
@@ -622,42 +645,39 @@ async def ingest_file(
     return len(chunks)
 
 
-async def ingest_project(project_path: Path, db_path: Path | None = None) -> dict:
-    """Ingest all files in a project folder.
+def upsert_project(conn, project_path: Path) -> str:
+    """Ensure a projects row exists for this project path. Returns project_id.
 
-    Args:
-        project_path: Path to the project folder.
-        db_path: Optional database path override.
-
-    Returns:
-        Dict with stats: {'files': int, 'chunks': int, 'project_id': str}.
+    Reads metadata from ``.r3lay/project.yaml`` if present, falls back to
+    directory name / defaults. Idempotent: safe to call before each file
+    ingestion. Motivation: the watcher's ``_handle_change`` was producing
+    ``FOREIGN KEY constraint failed`` errors when a nested
+    ``.r3lay/project.yaml`` existed on disk but the project had never been
+    ``ingest_project``-ed — files insert referenced a missing projects row.
+    Calling this first guarantees the parent row is present.
     """
     from ruamel.yaml import YAML
 
-    conn = get_db(db_path)
     project_path = project_path.resolve()
-
-    # Read project.yaml for metadata
     project_yaml_path = project_path / ".r3lay" / "project.yaml"
     project_name = project_path.name
     project_type = "other"
     project_desc = ""
-
     project_privacy = "false"
 
     if project_yaml_path.exists():
         yaml = YAML()
-        with open(project_yaml_path) as f:
-            meta = yaml.load(f) or {}
-        project_name = meta.get("name", project_name)
-        project_type = meta.get("type", project_type)
-        project_desc = meta.get("description", project_desc)
-        project_privacy = str(meta.get("privacy", "false")).lower()
+        try:
+            with open(project_yaml_path) as f:
+                meta = yaml.load(f) or {}
+            project_name = meta.get("name", project_name)
+            project_type = meta.get("type", project_type)
+            project_desc = meta.get("description", project_desc)
+            project_privacy = str(meta.get("privacy", "false")).lower()
+        except Exception as e:
+            logger.warning("Failed to read %s: %s", project_yaml_path, e)
 
-    # Generate project ID from path
     project_id = sha256_path(str(project_path))[:16]
-
-    # Upsert project (including privacy from project.yaml)
     conn.execute(
         """INSERT INTO projects (id, name, path, type, description, privacy, status, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, 'active', datetime('now'))
@@ -671,17 +691,69 @@ async def ingest_project(project_path: Path, db_path: Path | None = None) -> dic
         (project_id, project_name, str(project_path), project_type, project_desc, project_privacy),
     )
     conn.commit()
+    return project_id
 
-    # Scan and ingest files
-    files = scan_project_files(project_path)
+
+async def ingest_project(project_path: Path, db_path: Path | None = None) -> dict:
+    """Ingest all files in a project folder.
+
+    Args:
+        project_path: Path to the project folder.
+        db_path: Optional database path override.
+
+    Returns:
+        Dict with stats: {'files': int, 'chunks': int, 'project_id': str}.
+    """
+    conn = get_db(db_path)
+    project_path = project_path.resolve()
+    project_id = upsert_project(conn, project_path)
+
+    # Re-read project.yaml for the logger below (upsert_project also reads it,
+    # but we don't want to thread the name back out of that helper for a log).
+    project_name = project_path.name
+    project_yaml_path = project_path / ".r3lay" / "project.yaml"
+    if project_yaml_path.exists():
+        from ruamel.yaml import YAML
+
+        try:
+            yaml = YAML()
+            with open(project_yaml_path) as f:
+                meta = yaml.load(f) or {}
+            project_name = meta.get("name", project_name)
+        except Exception:
+            pass
+
+    # Scan and ingest files — instrumented so a partial crash is visible to
+    # `r3 status`. mark_work_completed() fires after the last ingest_file()
+    # returns; anything after that is bookkeeping (close / logging).
     total_chunks = 0
     total_files = 0
 
-    for file_path in files:
-        chunks = await ingest_file(conn, file_path, project_id, project_path)
-        if chunks > 0:
-            total_files += 1
-            total_chunks += chunks
+    with PipelineRun(conn, "ingest_project", target=project_id) as run:
+        files = scan_project_files(project_path)
+        for file_path in files:
+            chunks = await ingest_file(conn, file_path, project_id, project_path)
+            if chunks > 0:
+                total_files += 1
+                total_chunks += chunks
+
+        # Replay .r3lay/decisions.jsonl into the decisions table. This is
+        # how a rebuild-from-filesystem recovers the decisions log — the
+        # table is no longer DB-only state.
+        from .decisions import upsert_decisions_into_db
+
+        decisions_restored = upsert_decisions_into_db(conn, project_path, project_id)
+
+        run.mark_work_completed(
+            {
+                "project_id": project_id,
+                "project_name": project_name,
+                "files_scanned": len(files),
+                "files_ingested": total_files,
+                "chunks": total_chunks,
+                "decisions_restored": decisions_restored,
+            }
+        )
 
     conn.close()
     logger.info(
