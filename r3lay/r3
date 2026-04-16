@@ -131,9 +131,143 @@ case "$1" in
     args="$(join_rest "$@")"
     hermes --profile "$PROFILE" chat "/research $args"
     ;;
-  # Project health
+  # Project health (chat-driven — summarizes a specific project)
   status|health)
     hermes --profile "$PROFILE" chat "/health"
+    ;;
+  # System-level doctor — runs all probes against DB + embedding + pipeline
+  # state. Pretty-prints worst-first so problems are visible at a glance.
+  doctor)
+    # Optional --offline skips the network-dependent model probes.
+    network="true"
+    [ "${2:-}" = "--offline" ] && network="false"
+    _require_key
+    # Capture both body and status so a dead bridge / new route missing
+    # produces a useful message instead of an empty-stdin JSON crash.
+    tmp=$(mktemp -t r3doctor)
+    trap 'rm -f "$tmp"' EXIT
+    code=$(curl -sS -o "$tmp" -w '%{http_code}' \
+        "${BRIDGE_URL}/doctor?include_network=${network}" \
+        -H "X-R3LAY-Key: ${R3LAY_API_KEY}" 2>&1) || true
+    if [ -z "$code" ] || [ "$code" = "000" ]; then
+        echo "[FAIL] bridge not reachable at ${BRIDGE_URL}" >&2
+        echo "       start it with: r3 up" >&2
+        exit 2
+    fi
+    if [ "$code" = "404" ]; then
+        echo "[FAIL] /doctor route missing — bridge is running old code" >&2
+        echo "       restart with: r3 up" >&2
+        exit 2
+    fi
+    if [ "$code" != "200" ]; then
+        echo "[FAIL] bridge returned HTTP $code" >&2
+        cat "$tmp" >&2
+        exit 2
+    fi
+    python3 -c '
+import json, sys
+data = json.load(sys.stdin)
+overall = data.get("overall_status", "unknown").upper()
+icon = {"OK": "[OK]", "WARN": "[WARN]", "FAIL": "[FAIL]"}.get(overall, "[??]")
+checked = data.get("checked_at", "")
+print(f"{icon} Overall: {overall}")
+print(f"    Checked at: {checked}")
+print()
+for c in data.get("checks", []):
+    s = c["status"].upper()
+    tag = {"OK": "  ok  ", "WARN": " warn ", "FAIL": " FAIL "}.get(s, "  ??  ")
+    name = c["name"]
+    msg = c["message"]
+    print(f"[{tag}] {name:24s} {msg}")
+' < "$tmp"
+    ;;
+  # Raw pipeline status JSON (stuck runs, failures, per-pipeline counts).
+  pipeline-status)
+    lookback="${2:-60}"
+    _bridge_get "/pipeline/status?lookback_minutes=${lookback}"
+    ;;
+  # Destructive regression gate: wipe DB, re-ingest from filesystem, diff.
+  # Only use when the watcher is stopped. Backup is restored on failure.
+  rebuild)
+    case "${2:-}" in
+      --verify)
+        keep="false"
+        [ "${3:-}" = "--keep-backup" ] && keep="true"
+        echo "WARNING: this wipes the DB and re-ingests. Confirm the watcher"
+        echo "         is not running (pgrep -f r3lay.sync should be empty)."
+        printf "Type 'verify' to proceed: "
+        read -r answer
+        if [ "$answer" != "verify" ]; then
+          echo "aborted"
+          exit 1
+        fi
+        _require_key
+        tmp=$(mktemp -t r3rebuild)
+        trap 'rm -f "$tmp"' EXIT
+        code=$(curl -sS -o "$tmp" -w '%{http_code}' -X POST \
+          "${BRIDGE_URL}/verify-rebuild?keep_backup=${keep}" \
+          -H "X-R3LAY-Key: ${R3LAY_API_KEY}" 2>&1) || true
+        if [ -z "$code" ] || [ "$code" = "000" ]; then
+          echo "[FAIL] bridge not reachable at ${BRIDGE_URL}" >&2
+          echo "       start it with: r3 up" >&2
+          exit 2
+        fi
+        if [ "$code" = "404" ]; then
+          echo "[FAIL] /verify-rebuild route missing — bridge is running old code" >&2
+          echo "       restart with: r3 up" >&2
+          exit 2
+        fi
+        if [ "$code" != "200" ]; then
+          echo "[FAIL] bridge returned HTTP $code" >&2
+          cat "$tmp" >&2
+          exit 2
+        fi
+        python3 -c '
+import json, sys
+r = json.load(sys.stdin)
+status = "PASS" if r.get("success") else "FAIL"
+projects = r.get("rebuilt_projects", 0)
+files = r.get("rebuilt_files", 0)
+chunks = r.get("rebuilt_chunks", 0)
+print(f"[{status}] rebuild verify")
+print(f"    projects={projects}  files={files}  chunks={chunks}")
+if r.get("restored_from_backup"):
+    print("    original DB restored from backup")
+err = r.get("error")
+if err:
+    print(f"    error: {err}")
+print()
+before = r.get("before_counts", {})
+after = r.get("after_counts", {})
+keys = sorted(set(before) | set(after))
+for t in keys:
+    b = before.get(t, 0)
+    a = after.get(t, 0)
+    if b or a:
+        delta = a - b
+        sign = "+" if delta > 0 else ""
+        print(f"    {t:18s}  before={b:<6d}  after={a:<6d}  ({sign}{delta})")
+missing = r.get("missing_rebuildable", {})
+if missing:
+    print()
+    print("  MISSING after rebuild:")
+    for t, ids in missing.items():
+        sample = ids[:3]
+        print(f"    {t}: {len(ids)} rows — sample: {sample}")
+orphaned = r.get("orphaned_db_only", {})
+if orphaned:
+    print()
+    print("  DB-only state (would be lost on true wipe):")
+    for t, n in orphaned.items():
+        print(f"    {t}: {n} rows")
+    print("  ^ filesystem-is-truth gap — these tables need persistence work")
+' < "$tmp"
+        ;;
+      *)
+        echo "Usage: r3 rebuild --verify [--keep-backup]" >&2
+        exit 2
+        ;;
+    esac
     ;;
   # Conflicts
   conflicts)
@@ -159,9 +293,17 @@ case "$1" in
     # Launch services in tmux splits
     bash "$REPO_DIR/launchd/r3lay-up.sh"
     ;;
-  # Index a project
+  # Index a project. `--fresh` bypasses the content-hash skip so every file
+  # is re-chunked and re-embedded; use after changing the embedding model
+  # or chunker. The env var is read inside ingest.py via cache.py.
   index)
-    "$PYTHON" -m r3lay.ingest "${2:-.}"
+    path="${2:-.}"
+    fresh="${3:-}"
+    if [ "$fresh" = "--fresh" ] || [ "$fresh" = "--no-cache" ]; then
+      R3LAY_NO_CACHE=1 "$PYTHON" -m r3lay.ingest "$path"
+    else
+      "$PYTHON" -m r3lay.ingest "$path"
+    fi
     ;;
   # Search
   search)
