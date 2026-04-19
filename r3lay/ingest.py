@@ -40,6 +40,10 @@ SKIP_DIRS = {
     ".ruff_cache",
     ".mypy_cache",
     ".tox",
+    "skins",
+    "sessions",
+    "memories",
+    "sandboxes",
 }
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 MAX_FILES_PER_PROJECT = 100_000  # DoS guard — refuse to walk enormous trees
