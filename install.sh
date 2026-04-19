@@ -75,10 +75,12 @@ if [ ! -f "$REPO_DIR/r3lay-config.yaml" ]; then
     echo "Created: $REPO_DIR/r3lay-config.yaml (from template — edit to customize)"
 fi
 
-# Install the r3LAY skin (always update — skin is code, not user config)
-mkdir -p "$HOME/.hermes/skins"
-cp "$SOURCE_DIR/skins/r3lay.yaml" "$HOME/.hermes/skins/r3lay.yaml"
-echo "Installed skin: ~/.hermes/skins/r3lay.yaml"
+# Install the r3LAY skin into the PROFILE's skins dir (always update — skin
+# is code, not user config). Each Hermes profile has its own HERMES_HOME, so
+# skins must live at ~/.hermes/profiles/r3lay/skins/, NOT ~/.hermes/skins/.
+mkdir -p "$PROFILE_DIR/skins"
+cp "$SOURCE_DIR/skins/r3lay.yaml" "$PROFILE_DIR/skins/r3lay.yaml"
+echo "Installed skin: $PROFILE_DIR/skins/r3lay.yaml"
 
 # ─────────────────────────────────────────────────────────
 # Shell-agnostic `r3` launcher via /usr/local/bin symlink
