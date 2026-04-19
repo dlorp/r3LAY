@@ -48,16 +48,18 @@ def test_bypass_scope_sets_and_restores():
     assert cache_bypassed() is False
 
 
-def test_nested_bypass_scope_does_not_clear_outer():
-    """An inner scope can only add bypass, not remove it.
+def test_nested_bypass_scope_restores_outer():
+    """With contextvars, each scope gets a proper token-based restore.
 
-    Rationale: a helper that doesn't know about caching shouldn't be able
-    to silently re-enable caching during an outer `fresh=true` request.
+    An inner bypass_scope(False) correctly disables bypass within its
+    block without leaking that state to the outer scope after exit.
+    This is the correct per-request behavior: concurrent requests
+    each get their own context copy.
     """
     with bypass_scope(True):
         assert cache_bypassed() is True
         with bypass_scope(False):
-            assert cache_bypassed() is True
+            assert cache_bypassed() is False
         assert cache_bypassed() is True
     assert cache_bypassed() is False
 

@@ -2,7 +2,7 @@
 -- This is the INDEX. The filesystem is truth. If the DB is lost, rebuild from files.
 
 PRAGMA journal_mode=WAL;
-PRAGMA mmap_size=268435456;
+PRAGMA mmap_size=0;  -- macOS APFS: mmap > 0 causes SIGBUS (cluster_pagein past EOF)
 PRAGMA page_size=8192;
 
 -- Projects registry

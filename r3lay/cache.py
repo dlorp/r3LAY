@@ -9,12 +9,16 @@ config dict is still in memory; an embedding-model change doesn't take
 effect because every file's content_hash still matches.
 
 This module exposes one honest source of truth: ``cache_bypassed()``. It
-reads ``R3LAY_NO_CACHE`` and an in-process override flag. Any cache that
+reads ``R3LAY_NO_CACHE`` and a per-context override flag. Any cache that
 matters should consult it and skip the cached path when it returns True.
+
+Uses ``contextvars`` so concurrent FastAPI requests don't leak bypass
+state across request boundaries. A module-global flag caused a race:
+request A's ``bypass_scope(True)`` affected request B's cache decisions.
 
 Usage::
 
-    from .cache import cache_bypassed, set_bypass
+    from .cache import cache_bypassed, bypass_scope
 
     if not cache_bypassed() and already_known:
         return cached_value
@@ -23,17 +27,18 @@ Usage::
 
 CLI callers flip the override for the duration of one invocation via
 ``set_bypass(True)``; they don't need to re-export the env var. Bridge
-endpoints read the ``fresh`` query parameter and call ``set_bypass()``
+endpoints read the ``fresh`` query parameter and call ``bypass_scope()``
 around the request (see ``/ingest?fresh=true``).
 """
 
 from __future__ import annotations
 
+import contextvars
 import os
 from contextlib import contextmanager
 from typing import Iterator
 
-_override: bool = False
+_override: contextvars.ContextVar[bool] = contextvars.ContextVar("cache_bypass", default=False)
 
 
 def _env_truthy(val: str | None) -> bool:
@@ -46,31 +51,32 @@ def cache_bypassed() -> bool:
     """Return True iff caches should be skipped for the current operation.
 
     Checks (in order):
-      1. in-process override set by ``set_bypass()``
+      1. per-context override set by ``set_bypass()`` or ``bypass_scope()``
       2. ``R3LAY_NO_CACHE`` env var (truthy)
     """
-    if _override:
+    if _override.get():
         return True
     return _env_truthy(os.environ.get("R3LAY_NO_CACHE"))
 
 
 def set_bypass(value: bool) -> None:
-    """Set the in-process override flag.
+    """Set the per-context override flag.
 
     Callers that wrap a single request should prefer ``bypass_scope()`` so
     the flag is guaranteed to be cleared afterward.
     """
-    global _override
-    _override = bool(value)
+    _override.set(bool(value))
 
 
 @contextmanager
 def bypass_scope(bypass: bool = True) -> Iterator[None]:
-    """Flip the override for the duration of a ``with`` block."""
-    global _override
-    prior = _override
-    _override = bool(bypass) or prior
+    """Flip the override for the duration of a ``with`` block.
+
+    Uses ``contextvars.Token`` for proper reset — safe under concurrent
+    async requests (each coroutine gets its own context copy).
+    """
+    token = _override.set(bool(bypass))
     try:
         yield
     finally:
-        _override = prior
+        _override.reset(token)

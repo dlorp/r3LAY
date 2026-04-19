@@ -342,10 +342,29 @@ async def api_verify_rebuild(
 
     WARNING: this is a destructive operation. The request holds exclusive
     access to the DB during rebuild. Do not run while the watcher is
-    actively ingesting — stop ``r3 watch`` first.
+    actively ingesting — stop ``r3 watch`` first. The endpoint refuses
+    to proceed if the watcher heartbeat is fresher than 5 minutes.
     """
+    from datetime import datetime, timezone
+
     from r3lay.db import DEFAULT_DB_PATH, DEFAULT_R3LAY_ROOT
     from r3lay.rebuild import verify_rebuild
+
+    if _HEARTBEAT_PATH.exists():
+        try:
+            text = _HEARTBEAT_PATH.read_text().strip()
+            last = datetime.fromisoformat(text)
+            age = (datetime.now(timezone.utc) - last).total_seconds()
+            if age < 300:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"Watcher appears active (heartbeat {int(age)}s ago). "
+                        "Stop it first: kill the r3 watch process."
+                    ),
+                )
+        except (OSError, ValueError):
+            pass
 
     result = await verify_rebuild(
         db_path=DEFAULT_DB_PATH,
@@ -2010,8 +2029,8 @@ def main() -> None:
         print_bridge_banner()
     uvicorn.run(
         "r3lay.bridge:app",
-        host="0.0.0.0",
-        port=8765,
+        host=os.environ.get("R3LAY_BIND_HOST", "127.0.0.1"),
+        port=int(os.environ.get("R3LAY_BIND_PORT", "8765")),
         log_config=LOG_CONFIG,
     )
 
