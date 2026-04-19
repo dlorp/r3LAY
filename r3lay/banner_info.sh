@@ -75,3 +75,12 @@ if curl -fsS -o /dev/null http://localhost:8765/ 2>/dev/null; then
 else
     echo "  [dim $D]bridge:[/]  [dim $D]down[/]"
 fi
+
+echo ""
+echo "[bold $A]Commands[/]"
+echo "  [dim $D]r3 up[/]          [$T]start bridge + watcher[/]"
+echo "  [dim $D]r3 <project>[/]   [$T]open a project session[/]"
+echo "  [dim $D]/r3-context[/]    [$T]list projects + status[/]"
+echo "  [dim $D]/doctor[/]        [$T]system health check[/]"
+echo "  [dim $D]/sn[/]            [$T]write session notes[/]"
+echo "  [dim $D]/help[/]          [$T]all commands[/]"
