@@ -38,8 +38,8 @@ spinner:
 
 branding:
   agent_name: r3LAY
-  welcome: "online. what are we working on?"
-  goodbye: "session closed."
+  welcome: "ready. name a project or ask a question."
+  goodbye: "session closed. notes saved."
   response_label: " r3LAY "
   prompt_symbol: "> "
   help_header: "[>] commands"
