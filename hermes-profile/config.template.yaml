@@ -15,10 +15,12 @@
 _config_version: 12                     # hermes_cli/config.py:572
 
 # ─────────────────────────────────────────────────────────
-# Visual skin (HDLS phosphor orange aesthetic)
+# Visual skin (r3LAY project-brain aesthetic)
 # ─────────────────────────────────────────────────────────
+# Source: hermes-profile/skins/r3lay.yaml
+# Installed to ~/.hermes/skins/r3lay.yaml by install.sh
 display:
-  skin: hdls
+  skin: r3lay
 
 # ─────────────────────────────────────────────────────────
 # Primary chat model
