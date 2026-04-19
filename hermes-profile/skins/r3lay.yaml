@@ -17,6 +17,12 @@ colors:
   response_border: "#8a5100"
   session_label: "#ffb347"
   session_border: "#5c3600"
+  status_bar_bg: "#3d2400"
+  voice_status_bg: "#5c3600"
+  completion_menu_bg: "#3d2400"
+  completion_menu_current_bg: "#8a5100"
+  completion_menu_meta_bg: "#5c3600"
+  completion_menu_meta_current_bg: "#cc7a00"
 
 spinner:
   waiting_faces: ["[.]", "[o]", "[O]", "[o]", "[.]"]
@@ -63,9 +69,9 @@ tool_emojis:
   skill_view: "="
 
 banner_hero: |
-  [#ff9500]          ________                [/]
-  [#ff9500]         /\       \               [/]
-  [#ff9500]        /  \       \              [/]
+  [#ff9500]       ________                   [/]
+  [#ff9500]       /\       \                 [/]
+  [#ff9500]       /  \       \               [/]
   [#ff9500]       /    \       \             [/]
   [#ff9500]      /      \_______\            [/]
   [#ff9500]      \      /       /            [/]
