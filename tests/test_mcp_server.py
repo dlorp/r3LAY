@@ -521,6 +521,9 @@ EXPECTED_TOOLS = {
     "compile_project",
     "watcher_health",
     "cross_references",
+    "doctor",
+    "pipeline_status",
+    "verify_rebuild",
 }
 
 

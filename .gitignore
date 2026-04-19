@@ -59,6 +59,8 @@ hermes-profile/skills/*
 !hermes-profile/skills/pr-workflow/
 !hermes-profile/skills/project-update/
 !hermes-profile/skills/r3-context/
+!hermes-profile/skills/r3-doctor/
+!hermes-profile/skills/r3-pipeline/
 !hermes-profile/skills/r3-plan/
 !hermes-profile/skills/sn/
 
