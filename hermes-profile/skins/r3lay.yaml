@@ -44,6 +44,8 @@ branding:
   prompt_symbol: "> "
   help_header: "[>] commands"
 
+banner_info_script: "~/.hermes/profiles/r3lay/banner_info.sh"
+
 tool_prefix: "|"
 
 tool_emojis:

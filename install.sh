@@ -82,6 +82,12 @@ mkdir -p "$PROFILE_DIR/skins"
 cp "$SOURCE_DIR/skins/r3lay.yaml" "$PROFILE_DIR/skins/r3lay.yaml"
 echo "Installed skin: $PROFILE_DIR/skins/r3lay.yaml"
 
+# Banner info script — symlinked so git pull auto-updates it.
+# The skin YAML references this at ~/.hermes/profiles/r3lay/banner_info.sh.
+ln -sfn "$REPO_DIR/r3lay/banner_info.sh" "$PROFILE_DIR/banner_info.sh"
+chmod +x "$REPO_DIR/r3lay/banner_info.sh"
+echo "Linked: $PROFILE_DIR/banner_info.sh -> r3lay/banner_info.sh"
+
 # ─────────────────────────────────────────────────────────
 # Shell-agnostic `r3` launcher via /usr/local/bin symlink
 # ─────────────────────────────────────────────────────────
