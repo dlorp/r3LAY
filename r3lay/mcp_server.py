@@ -445,6 +445,81 @@ async def cross_references(project_id: str) -> list[dict[str, Any]]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Observability tools — health checks, pipeline status, rebuild verification
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@mcp.tool()
+async def doctor(include_network: bool = True) -> dict[str, Any]:
+    """Run comprehensive health checks on r3LAY infrastructure. READ-ONLY.
+
+    Probes: db integrity, schema completeness, db mtime, watcher heartbeat,
+    embedding endpoint/model/dimensionality, pipeline stuck runs, pipeline
+    failure density. Each returns ok/warn/fail. Overall status is worst-case.
+
+    Set include_network=False to skip embedding-endpoint probes (useful
+    when Ollama is intentionally offline).
+
+    Use this at session start or when something seems wrong — it replaces
+    manual debugging with a one-call health summary.
+
+    Returns:
+        {overall_status: 'ok'|'warn'|'fail', checks: [{name, status,
+        message, details}], checked_at: ISO timestamp}
+    """
+    return await _get(f"/doctor?include_network={str(include_network).lower()}")
+
+
+@mcp.tool()
+async def pipeline_status(lookback_minutes: int = 60) -> dict[str, Any]:
+    """Summarize pipeline runs within a lookback window. READ-ONLY.
+
+    Three signals:
+    - summary: counts per (pipeline, state) — a health heartbeat
+    - stuck: runs that completed work but have no recorded/failed follow-up
+      (the silent-half-failure class — real work happened, bookkeeping lost)
+    - failures: recent failed runs with error details
+
+    'stuck' should always be empty in a healthy system. Non-empty stuck
+    means data was processed but the record was lost — surface this to the
+    user immediately.
+
+    Args:
+        lookback_minutes: How far back to look (default 60, max 10080).
+
+    Returns:
+        {lookback_minutes, summary, stuck, failures}
+    """
+    return await _get(f"/pipeline/status?lookback_minutes={lookback_minutes}")
+
+
+@mcp.tool()
+async def verify_rebuild(keep_backup: bool = False) -> dict[str, Any]:
+    """MUTATING: Regression gate — wipe DB, re-ingest from filesystem, diff.
+
+    Tests the v2 promise "the filesystem is truth." Rebuildable tables
+    (projects, files, chunks, decisions) must round-trip. DB-only tables
+    (maintenance_log, conflicts, sessions) are reported as orphaned —
+    quantifying the filesystem-is-truth coverage gap.
+
+    On failure the original DB is automatically restored from backup.
+    The endpoint refuses to run if the watcher heartbeat is < 5 minutes
+    old — stop the watcher first.
+
+    WARNING: This is destructive. Always confirm with the user before
+    calling. Ask them to stop the watcher first (r3 watch / tmux pane).
+
+    Args:
+        keep_backup: Keep the .verify-backup file for manual inspection.
+
+    Returns:
+        {success, rebuilt_projects, rebuilt_files, rebuilt_chunks,
+        missing_rebuildable, orphaned_db_only, error, restored_from_backup}
+    """
+    return await _post("/verify-rebuild", {"keep_backup": keep_backup})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Entry point
 # ─────────────────────────────────────────────────────────────────────────────
 

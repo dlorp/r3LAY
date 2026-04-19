@@ -136,17 +136,42 @@ content, the system grows automatically:
    been superseded. When /r3-context shows stale decisions > 0, mention it
    so the user can review and confirm or supersede them.
 
-## Watcher health check
+## System health — doctor + pipeline + watcher
 
-Call `mcp_r3lay_watcher_health()` at session start. The watcher writes a
-heartbeat on every activity (index, ingest, auto-init) — not on a timer.
-If `alive: false`, warn the user: "The file watcher hasn't checked in
-since {last_heartbeat} — auto-indexing and _ingest/ processing are likely
-down. Run `r3lay-watch` or check the tmux session."
+**At session start**, call `mcp_r3lay_doctor()` (replaces the old
+`mcp_r3lay_watcher_health()`-only check). Doctor runs 9 probes in one
+call: DB integrity, schema completeness, watcher heartbeat, embedding
+endpoint/model/dimensionality, pipeline stuck runs, pipeline failures.
 
-If `alive: true` but the user reports stale results, the watcher may be
-running but the specific files aren't being picked up (check skip filters,
-file size limits, binary extensions).
+- If `overall_status: fail`, surface the failing checks immediately.
+  Common causes: Ollama not running (embedding checks fail), watcher
+  crashed (heartbeat stale), or pipeline bookkeeping lost (stuck runs).
+- If `overall_status: warn`, mention it briefly and continue.
+- If `overall_status: ok`, don't mention it — the user doesn't need to
+  know health is fine.
+
+Use `--offline` (pass `include_network=False`) when you know Ollama is
+intentionally down — skips the 3 embedding probes.
+
+**When something seems wrong** (stale search results, missing decisions,
+watcher not picking up files), call `mcp_r3lay_pipeline_status()` to
+check for stuck runs (work_completed without recorded follow-up) or
+recent failures. Stuck runs mean real work happened but the record was
+lost — always surface these.
+
+**`mcp_r3lay_verify_rebuild`** is destructive — it wipes the DB and
+re-ingests from filesystem to test the "filesystem is truth" promise.
+NEVER call this without explicit user confirmation and a stopped watcher.
+The endpoint itself refuses if the watcher heartbeat is < 5 minutes old.
+
+## Decisions persistence
+
+Decisions are now filesystem-first. When the user logs a decision via
+`/decision`, it's appended to `<project>/.r3lay/decisions.jsonl` before
+the DB insert. On rebuild, the JSONL is replayed into the DB. This means
+decisions survive DB wipes — they're backed by the filesystem like
+everything else. The agent should know that `.r3lay/decisions.jsonl` is
+the authoritative record; the DB is derived.
 
 ## Cross-project references
 
@@ -285,6 +310,9 @@ tools are:
 | `mcp_r3lay_untrack_path` | **MUTATING** — removes metadata (content stays) | **Yes** |
 | `mcp_r3lay_reindex_path` | **MUTATING** — replaces vectors | **Yes** |
 | `mcp_r3lay_git_pull` | **MUTATING** — `git pull --ff-only` + re-index | **Yes** |
+| `mcp_r3lay_doctor` | 9-probe health check (DB, watcher, embedding, pipeline) | No |
+| `mcp_r3lay_pipeline_status` | Pipeline runs: stuck, failures, counts by state | No |
+| `mcp_r3lay_verify_rebuild` | **MUTATING** — wipe DB, re-ingest, diff (regression gate) | **Yes** |
 
 The tool schemas are typed and documented — you see each tool's full
 description in your tool list. No URLs, no ports, no auth headers, no curl,
