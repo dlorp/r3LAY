@@ -12,7 +12,7 @@
 # platform_toolsets, terminal.backend, approvals.mode, command_allowlist,
 # security.website_blocklist.
 
-_config_version: 12                     # hermes_cli/config.py:572
+_config_version: 16
 
 # ─────────────────────────────────────────────────────────
 # Visual skin (r3LAY project-brain aesthetic)
@@ -25,23 +25,16 @@ display:
 # ─────────────────────────────────────────────────────────
 # Primary chat model
 # ─────────────────────────────────────────────────────────
-# MiniMax M2.7 is tool-tuned for agentic workflows with explicit function
-# calling support. Much more reliable at following SKILL.md instructions
-# than general-purpose free models (which tend to hallucinate endpoints
-# and URLs). Released 2026-03-18, $0.30/1M input, $1.20/1M output, cache
-# reads at $0.06/1M make repeat-context sessions extremely cheap
-# (~$0.01-0.02/session at typical r3LAY usage).
+# Nous Portal — native provider via OAuth. Run `hermes login` to
+# authenticate. Routes through the Nous inference gateway with model
+# auto-selection. No separate API key needed.
 #
-# Free fallbacks retained for cost control and offline scenarios:
-#   - gemma 4 31B (free, higher tier with $10+ credits unlocks 1000 req/day)
-#   - nemotron 120B (free, deeper reasoning for edge cases)
-#   - local ollama qwen3:8b (no rate limits, no cost, works offline)
+# Alternative: set provider to openrouter or ollama if you prefer
+# direct API keys or local-only inference.
 model:
-  provider: openrouter
-  model: minimax/minimax-m2.7
+  provider: nous
 
 # Cascading fallback chain — auto-switches on 429/4xx/5xx.
-# Reset to primary at the start of every new turn.
 fallback_providers:
   - provider: openrouter
     model: google/gemma-4-31b-it:free
