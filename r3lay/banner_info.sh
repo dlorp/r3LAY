@@ -70,7 +70,7 @@ else
     echo "  [dim $D]watcher:[/] [dim $D]not running[/]"
 fi
 
-if curl -fsS -o /dev/null http://localhost:8765/ 2>/dev/null; then
+if curl -fsS -o /dev/null http://localhost:8765/health/watcher 2>/dev/null; then
     echo "  [dim $D]bridge:[/]  [$T]up[/]"
 else
     echo "  [dim $D]bridge:[/]  [dim $D]down[/]"
