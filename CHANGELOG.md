@@ -1,349 +1,226 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+All notable changes to r3LAY.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [2.0.0] -- 2026-04-08 (hardened through 2026-04-11)
 
-## [0.13.0] - 2026-03-30
+Complete ground-up rebuild. v1 (0.x) was a Textual TUI prototype. v2 is a
+fundamentally different architecture: Hermes agent profile, sqlite-vec + FTS5,
+structural conflict detection, privacy model, and session management.
 
-### Added
-- `/delete <name_or_id>` command for session deletion with UUID validation and TOCTOU-safe
-  unlink (no `.exists()` check before `.unlink()`, catches `FileNotFoundError` instead)
-- Session `tags: list[str]` field with `/tag` and `/untag` commands, 1-50 char validation,
-  tags shown in `/sessions` listing and `/session` info, serialized in session JSON
-- `force_pull()` vault method — `git fetch origin` + `git reset --hard origin/{branch}` for
-  diverged branches, with `DIVERGED:` prefix tag in `pull()` failure messages
-- Force Pull button in Vault panel (two-click confirmation, 5s auto-reset, starts disabled,
-  enabled when pull detects divergence)
-- `GlobalConfig` class for cross-project settings at `~/.r3lay/config.yaml` with
-  `recent_projects` list (MRU order, max 20, deduplicates via resolved paths)
-- `/project <path>` command to switch projects at runtime — auto-saves dirty session,
-  preserves loaded model/embedder across switch, blocks system directories
-- `/projects` command to list recent projects from GlobalConfig
-- Research template customization — override any of 6 prompt templates via
-  `.r3lay/prompts/{name}.txt` files, fall back to built-in defaults
-- `_safe_format()` static method on ResearchOrchestrator — regex-based `{name}` substitution
-  that prevents attribute traversal (`{query.__class__}`) in user-overridable templates
-- `/research-templates` command to list template override status
-- `vault_exclude_patterns` config field — glob patterns to exclude from vault indexing,
-  applied via `PurePath.match()` (not `fnmatch`, which doesn't treat `/` as special)
+This v2 entry accumulated work across multiple sessions (2026-04-08 to
+2026-04-11) on the `feat/v2-rebuild-pr` branch. Everything below is part
+of the single v2.0.0 PR that replaces the v1 codebase.
 
-### Changed
-- `Session.delete()` validates session_id against `_UUID_RE` (defense-in-depth, matches
-  `from_dict()` validation pattern from v0.12.0)
-- `/help` output reorganized with new Project and Research Templates sections
-- `/sessions` listing shows tags inline after title
-- `/session` info includes tags line
-- `GlobalConfig.load()` logs warning on corrupt YAML instead of silent fallback
+### Added — core pipeline + bridge (2026-04-08)
+- Three-stage retrieval pipeline: KNN + BM25 + graph -> RRF fusion -> cosine dedup -> MMR rerank
+- FastAPI bridge on :8765 with 15 endpoints for agent access
+- Structural conflict detection via spaCy NER + decisions table lookup
+- Three-level privacy model (false/work/true) enforced at bridge layer
+- Per-project session management: sn.md, todos.md, plans.md, open-questions.md
+- Hermes agent profile with SOUL.md and 8 skill definitions
+- `_ingest/` drop zone for automatic file processing
+- Semver version detection and atomic bump across all project files
+- CHANGELOG generation in keepachangelog format
+- PR workflow helpers: branch naming, 3-agent review dispatch, PR body formatting
+- Startup banners with brain/eye ASCII art (phosphor orange)
+- tmux-based service launcher (window IS the lifecycle)
+- `r3` CLI wrapper for Hermes skill dispatch
+- macOS LaunchAgent for boot-time service start
+- Pre-commit hook for secret detection
 
-### Fixed
-- `Session.delete()` TOCTOU eliminated — uses `unlink()` + `FileNotFoundError` catch instead
-  of `.exists()` + `.unlink()` sequence
-- Rich markup injection in `/delete`, `/tag`, `/untag` output — session titles escaped
-- `/tag` rejects empty and >50 char tags
+### Added — hardening + tracked paths (2026-04-10)
+- Tracked external paths: `tracked_paths` table + bridge endpoints
+  (`/tracked` POST/GET/DELETE, `/reindex`, `/git/check`, `/git/pull`)
+  as the escape hatch for referencing folders outside the workspace
+- Four new skills: track, untrack, reindex, git-status (deprecated and
+  pending MCP migration as of 2026-04-11 — see Deferred section)
+- `install.sh` bootstrap script with partial-bind profile install
+  (symlink SOUL.md + skills/ from repo, real config.yaml and .env as
+  user-local files, `__HOME__`/`__REPO_DIR__` placeholder substitution
+  via sed at install time)
+- Fail-closed bridge auth: auto-generated 32-byte secret at
+  `~/.r3lay/api-secret` (0600), constant-time compare via
+  `secrets.compare_digest()`
+- Path traversal defense: allowed_roots check + symlink guard in
+  `_validate_tracked_path()`, symlink skip in `scan_project_files`
+- Per-path `asyncio.Lock` + `asyncio.Semaphore(4)` bounds on concurrent
+  mutating ops; 409 on duplicate in-flight
+- Debounce cache with periodic cleanup (2000 entries, 60s TTL)
+- APSW wrapper proper transaction tracking (BEGIN/COMMIT on write ops)
+- Schema init cache: `init_schema()` runs once per path per process
+- Binary content sniff: NUL-byte detection + UTF-8 decode check, beyond
+  extension whitelist
+- Decoupled backend config: `r3lay-config.yaml` at repo root, separate
+  from Hermes profile config
+- `tests/conftest.py` + 30 new tests across config/ingest/bridge (36 total, all green)
+- `/usr/local/bin/r3` shell-agnostic launcher via install.sh prompt
+  (works in any shell, survives repo moves)
 
-## [0.12.0] - 2026-03-30
+### Added — workspace + Model A (2026-04-11)
+- Model A workspace convention: projects live in `~/r3LAY/<domain>/<project>/`
+  rather than being referenced via tracked_paths. The r3LAY source repo
+  lives at `~/r3LAY/programming/r3LAY/` alongside other active projects
+  (intentional dogfooding — agent can edit its own source).
+- Workspace-wide `~/r3LAY/_meta/{strategies,learnings,documentation}/`
+  layout for cross-domain notes. Not scoped to any single domain.
+- `.r3lay/project.yaml` extrapolation convention with `auto_init: true`
+  marker + `auto_init_sources` list (auto-creation deferred — see below)
+- `terminal` toolset in `platform_toolsets.cli` (was missing — required
+  for the shell-wrap skills to work via the terminal tool)
+- `docker_env` with `HOME`, `PATH`, `R3LAY_BRIDGE_URL` for the Hermes
+  sandbox; `docker_forward_env: [R3LAY_API_KEY]` so the r3 wrapper can
+  authenticate against the host bridge
+- llm-wiki skill pointed at `~/Documents/knowledge_vault` via
+  `skills.config.wiki.path`
+- `_meta/learnings/docker-sandbox-home-env.md` — stale container + HOME
+  env gotcha writeup
+- `_meta/learnings/mcp-vs-skill-md-tool-hallucination.md` — MCP migration
+  design + rationale
+- `_meta/learnings/hrr-deferral-and-existing-coverage.md` — why HRR isn't
+  being built for r3LAY
+- `_meta/documentation/auto-r3lay-project-init.md` — design sketch for
+  auto-creating `.r3lay/project.yaml` when new projects appear (deferred)
 
-### Added
-- Session auto-persistence — auto-save on exit, auto-restore on startup via `last_session.json`
-  pointer file with `auto_save_session` config toggle (default: `true`)
-- `_dirty` flag on `Session` with `has_unsaved_changes` property for change tracking
-- Axiom panel `backend_source` filter dropdown — dynamically populated from axiom metadata
-- `STATUS_BADGES` with Rich markup badges replacing single-char status icons
-  (`[bold on green] VALIDATED [/]` etc.) with backward-compatible `STATUS_ICONS` alias
-- Backend source tag display on each axiom item (`[dim][mlx][/]`)
-- Ollama live integration tests (`tests/integration/test_ollama_live.py`) with `@pytest.mark.ollama`
-  marker, auto-skip when Ollama unavailable, module-scoped fixtures
-- Auto-restore unit tests in `tests/test_app.py` (6 tests covering all early-return paths)
-- `rich.markup.escape()` on axiom statements and backend_source to prevent Rich markup injection
-
-### Changed
-- `/clear` command now removes `last_session.json` pointer to prevent stale auto-restore
-- `MainScreen.on_mount()` replays restored session messages to ResponsePane
-- `Session.from_dict()` validates session ID is a valid UUID (path traversal prevention)
-- `_auto_restore_session()` validates session_id against UUID regex before path construction
-- Pointer file write uses atomic temp-file-then-replace pattern (matches `Session.save()`)
-- Superseded filter in axiom panel uses `superseded_by` attribute (was incorrectly `supersedes`)
-- All test session IDs updated to valid UUID format across `test_session.py`, `test_session_panel.py`
-
-### Fixed
-- Path traversal via crafted `last_session.json` pointer — session ID now validated as UUID
-- Rich markup injection via LLM-generated axiom statements — escaped before display
-- Superseded axiom filter checking wrong attribute (`supersedes` vs `superseded_by`)
-
-## [0.11.0] - 2026-03-30
-
-### Added
-- `write_and_commit()` atomic vault method — stages only the target file (not `git add -A`),
-  holds asyncio lock across write+stage+commit, validates repo before writing
-- Cross-expedition axiom deduplication — `find_duplicates()` (0.80 semantic / 0.70 keyword threshold)
-  corroborates existing axioms instead of creating duplicates (+0.05 confidence per citation)
-- Auto-validation for high-confidence axioms from trusted backends (`AUTO_VALIDATE_CONFIDENCE=0.85`)
-- `backend_source` metadata stored on research-created axioms for provenance tracking
-- Two-click pull confirmation in Vault panel (matches revert pattern, 5s auto-reset)
-- `_yaml_escape()` now handles tab characters
-
-### Changed
-- Confirmation timers use Textual `set_timer()` instead of raw `asyncio.create_task()`
-  (vault_panel.py revert/pull, index_panel.py clear) — auto-cleanup on widget lifecycle
-- `write_file()` uses resolved path for write (closes TOCTOU gap between validation and I/O)
-- Path containment check uses `Path.is_relative_to()` instead of string prefix comparison
-- `validate_vault_path()` blocks direct children of forbidden system directories
-- Bare `except Exception` in index_panel clear handler narrowed to `except NoMatches`
-- `set_embedder()` unlink uses `missing_ok=True` with OSError guard
-
-### Fixed
-- `write_and_commit()` checks `is_git_repo()` before writing (prevents orphaned files on non-repo)
-- Staged file check scoped to target path via `git diff --cached --name-only` (prevents sweeping unrelated files)
-- `on_unmount()` added to both VaultPanel and IndexPanel for timer cleanup
-
-## [0.10.0] - 2026-03-30
-
-### Added
-- Research findings auto-commit to knowledge vault after expedition synthesis
-  - `_write_to_vault()` generates markdown with YAML frontmatter + extracted axioms
-  - Per-backend write permission enforcement via `can_write()` guard
-  - YAML frontmatter sanitization prevents injection from user query text
-  - `write_file()` helper with `Path.resolve()` containment check (blocks traversal + symlinks)
-- `backend_source` property on `InferenceBackend` for vault write permission checks
-- `asyncio.Lock` on all git-mutating vault operations (init, pull, commit, revert)
-- Embedding model change detection — `axiom_embedding_meta.json` tracks model name/dimension,
-  stale cache automatically discarded when embedder model changes
-- Two-click revert confirmation in Vault panel (5s auto-reset, pinned hash verification)
+### Added — MCP migration + compile/distill (2026-04-11)
+- `r3lay/mcp_server.py` — FastMCP stdio server exposing 11 native tools:
+  `track_path`, `untrack_path`, `list_tracked`, `reindex_path`, `git_check`,
+  `git_pull`, `search_chunks`, `get_project_context`, `list_active_projects`,
+  `init_project`, `compile_project`.
+  Runs as a host subprocess spawned by Hermes (not in the Docker sandbox),
+  hits `localhost:8765` directly — no `host.docker.internal` indirection.
+  Reads `~/.r3lay/api-secret` for auth (same precedence as the r3 CLI).
+- `compile_project` tool + `POST /compile` endpoint: Karpathy-style
+  deterministic project knowledge synthesis. Assembles metadata, session
+  notes, active decisions, todos, open questions, conflicts, and file
+  inventory into a single structured markdown document. Optionally persists
+  to `.r3lay/compiled.md` for cold-start context loading. No LLM call —
+  pure DB + file assembly.
+- `mcp>=1.0.0` added to `pyproject.toml` dependencies
+- `r3lay-mcp` entry point in `[project.scripts]`
+- `mcp_servers.r3lay` block in `hermes-profile/config.template.yaml`
+  with `__REPO_DIR__` templating — install.sh sed-substitutes the absolute
+  venv python path at install time, so Hermes can spawn the subprocess
+  without requiring PATH manipulation
+- `tests/test_mcp_server.py` — 20 tests covering every tool's request shape,
+  auth header, error paths (401/403/409/502), and FastMCP tool registration.
+  Uses `httpx.MockTransport` to stub the bridge without running it.
+- Tools are typed (path: str, auto_index: bool, etc.) and their docstrings
+  become the MCP descriptions the agent sees in its tool list — the schema
+  IS the contract, replacing SKILL.md advisory prose that the LLM was
+  pattern-matching against REST-API priors instead of following literally.
 
 ### Changed
-- `ResearchOrchestrator` accepts optional `vault` and `config` params (wired via `init_research()`)
-- `validate_vault_path()` now blocks direct children of system directories (not just exact matches)
-- `_run_git()` uses `errors="replace"` for non-UTF-8 git output
-- README keybindings table updated: Ctrl+7 = Vault, Ctrl+8 = Settings
+- Architecture: Hermes agent profile replaces Textual TUI runtime
+- Storage: sqlite-vec + FTS5 replaces FAISS in subprocess
+- Search: SearXNG removed, Hermes native web search used instead
+- Backend factory: string-based `create_backend("ollama", ...)` replaces ModelInfo enum
+- Primary chat model: `minimax/minimax-m2.7` (paid, tool-tuned for
+  agentic workflows, ~$0.01-0.02/session). Fallback chain:
+  `google/gemma-4-31b-it:free` -> `nvidia/nemotron-3-super-120b-a12b:free`
+  -> local `ollama qwen3:8b`. Free fallbacks preserved for cost floor
+  and offline scenarios.
+- Embedding model: `qllama/multilingual-e5-large-instruct` (1024 dim)
+  replaces `bge-m3` per knowledge-vault research on CoIR code retrieval
+  (instruction-tuned variant, strong on asymmetric code+prose retrieval)
+- Maintenance module adapted for unified SQLite database
+- Example project updated with privacy field in project.yaml
+- Docker volume mounts are **1:1** (host path == container path). Two
+  mounts: workspace + knowledge_vault. Enables agent to pass absolute
+  host paths to the bridge without translation.
+- `terminal.cwd` defaults to `__HOME__/r3LAY/programming` so `pwd` on
+  session start anchors the agent where active projects live
+- SOUL.md Scope section rewritten for Model A + CRITICAL absolute-path
+  rule + legacy `SESSION_NOTES.md` handling + pwd-discovery instruction.
+  Uses `<workspace>` / `alice` placeholders so the open-source ship
+  doesn't leak usernames.
+- `hermes-profile/config.template.yaml` paths use `__HOME__` /
+  `__REPO_DIR__` placeholders substituted by `install.sh` at install
+  time (Hermes YAML loader has no runtime env substitution)
+- Unified DB schema: `files.UNIQUE(project_id, path)` instead of
+  `UNIQUE(path)` + `idx_files_project` for defense-in-depth against
+  cross-project collisions
+- `file_id` namespacing: `sha256(f"{project_id}:{relative_path}")`
+  instead of unscoped hash (prevents silent overwrite of same-named
+  files across projects via ON CONFLICT DO UPDATE)
+- Git endpoint error responses are generic 502 — server-side logging
+  keeps stderr (credentials, remote URLs) out of response bodies
+- `.gitignore` uses allowlist pattern for `hermes-profile/skills/`:
+  ignore everything, whitelist r3LAY's own 11 skills + curated bundled
+  skills (github/*, research/llm-wiki, software-development/{plan,
+  requesting-code-review,systematic-debugging,test-driven-development,
+  writing-plans}, note-taking/obsidian). Future-proof against Hermes
+  dropping more bundled skills.
 
 ### Fixed
-- Path traversal in `write_file()` — upgraded from naive `..` split to `Path.resolve()` + prefix containment
-- YAML frontmatter injection via unsanitized expedition query text
-- Commit message newline injection — stripped before passing to git
-- Revert hash drift between first/second click — hash pinned at confirmation time
-
-## [0.9.0] - 2026-03-30
-
-### Added
-- Semantic conflict detection for axioms — replaces crude 30% keyword overlap with
-  embedding-based cosine similarity (0.55 threshold, all-MiniLM-L6-v2 compatible)
-  - `AxiomManager.find_conflicts()` now async with semantic path + keyword fallback
-  - `AxiomManager.search_semantic()` for ContradictionJudge Tier 2 evidence gathering
-  - `embed_axiom()` and `rebuild_embeddings()` for embedding lifecycle management
-  - Embedding persistence via `axiom_embeddings.npz` (survives app restarts)
-  - Automatic embedding rebuild during reindex when text embedder loads
-  - Shape validation and dimension consistency checks on cached embeddings
-
-### Changed
-- `AxiomManager.find_conflicts()` is now async (all callers updated)
-- `ContradictionDetector._check_finding_fallback()` renamed from `_check_finding_keyword_fallback` and made async
-- `ContradictionJudge.gather_axiom_evidence()` uses `search_semantic()` instead of substring `search()`
-- Embedder wired into axiom manager via `R3LayState` lifecycle (`init_axioms`, `init_embedder`, `unload_embedder`)
-
-### Fixed
-- Partial embedding coverage no longer silently skips unembedded axioms (returns `None` sentinel to force keyword fallback)
-- `rebuild_embeddings()` uses atomic staging dict to prevent partial state corruption
-- `np.load()` now uses context manager with `allow_pickle=False` for safety
-
-## [0.8.0] - 2026-03-30
-
-### Added
-- Knowledge vault integration — git-backed shared knowledge directory for cross-project RAG
-  - `r3lay/core/vault.py`: `KnowledgeVault` class with async git operations (pull, commit, log, revert)
-  - Configurable vault path and per-backend write permissions in `.r3lay/config.yaml`
-  - Vault panel (Ctrl+7): git log viewer, pull latest, revert selected commit
-  - Settings panel: vault path input + backend write access checkboxes
-  - Auto-pull and index vault contents during project reindex
-  - Path validation blocks system directories (`/etc`, `/var`, `/usr`, etc.)
-  - `validate_vault_path()` for safe vault directory selection
-
-### Changed
-- Settings panel shifted from Ctrl+7 to Ctrl+8
-- Pull failure during reindex now shows warning notification (was silent progress update)
-
-### Fixed
-- Stale index reference in `ResearchOrchestrator` — cached orchestrator now syncs
-  `index`, `backend`, and other mutable refs via `update_refs()` on each `/research` call
-  (was: empty `citation_ids` on all axioms when index loaded after first research)
-
-### Documentation
-- Moved aspirational project folder management content from README to `docs/DESIGN.md`
-- README "Project Folders" section grounded in current behavior
-- CLAUDE.md Reference Materials updated with `docs/DESIGN.md` pointer
-
-## [0.7.2] - 2026-03-29
-
-### Added
-- Auto-extract model metadata from `config.json` during scanning
-  - Context length (`max_position_embeddings`), architecture, hidden size, vocab size
-  - Shared `_find_config_json()` helper for HF cache and direct model dirs
-- `ModelConfig` Pydantic model for per-model YAML overrides (`n_ctx`, `max_tokens`, `temperature`)
-- `InferenceBackend.get_max_tokens()` / `get_temperature()` config accessors with type coercion
-- Auto-configured `n_ctx` in llama.cpp backend (priority: YAML > config.json > 32768 default)
-
-### Changed
-- `HybridIndex` now uses `VectorStoreBase` (FAISS or numpy fallback) for vector storage
-  and search instead of raw numpy arrays with brute-force cosine similarity
-- Vector search delegates to `VectorStoreBase.search()` for FAISS-accelerated retrieval
-- `generate_embeddings()` creates vector store via `create_vector_store()` factory
-- Legacy `.npy` vector files auto-migrate to vector store format on first load
-- `get_stats()` includes `vector_store_type` field (FAISSVectorStore or NumpyFallbackStore)
-- Chat generation uses per-model `max_tokens` and `temperature` from config
-
-### Fixed
-- RAG provenance tracking: axioms created during R3 expeditions now carry `citation_ids`
-  linking back to source Signals (was hardcoded to `[]` at 3 creation sites)
-- RAG search results now register DOCUMENT Signals with source path (was web-only)
-- RAG results now increment `sources_found` counter for convergence detection accuracy
-
-## [0.7.1] - 2026-03-28
-
-### Added
-- Cross-encoder reranking via subprocess isolation (`r3lay/core/reranker.py`, `reranker_worker.py`)
-  - Uses `cross-encoder/ms-marco-MiniLM-L-6-v2` for +15-25% retrieval accuracy
-  - Smart skip for short queries (<5 words)
-  - Threshold filtering (default >0.35)
-- FAISS vector backend (`r3lay/core/vector_store.py`)
-  - `FAISSVectorStore` with IndexFlatIP / IndexIVFFlat auto-selection
-  - `NumpyFallbackStore` for environments without faiss-cpu
-  - `create_vector_store()` factory with graceful degradation
-  - Migration helper: `from_numpy()` for converting existing .npy indexes
-- Adaptive retrieval strategy (`classify_query()` in `r3lay/core/index.py`)
-  - NO_RETRIEVAL: greetings and meta-questions skip search
-  - BM25_ONLY: short keyword queries
-  - HYBRID: standard queries use RRF fusion
-  - HYBRID_RERANK: complex queries get two-stage retrieval
-- Reranker model config in `ModelRoles` (`config.py`)
-- Tests for reranker, vector store, and adaptive retrieval
-- `enable_thinking` config toggle for reasoning models (env: R3LAY_ENABLE_THINKING)
-- `ContradictionBadge` clickable widget for inline contradiction display
-- `flagged_sentence` field on `ContradictionSignal` for precise inline display
-- Tiered contradiction detection architecture replacing regex-based approach
-  - Tier 0: Gate check (response length, data availability)
-  - Tier 1: User phrase regex detection (preserved from original)
-  - Tier 2: Axiom evidence gathering via `AxiomManager.search()`
-  - Tier 3: RAG evidence gathering via `HybridIndex.search_async()`
-  - Tier 4: LLM judgment with structured prompt, delimiter fencing, 30s timeout
-- `evidence` field on `ContradictionSignal` for provenance tracking
-- `backend` parameter on `ContradictionMonitor` for LLM judge access
-- `ContradictionJudge` shared engine for evidence gathering + LLM judgment
-  - Used by both `ContradictionMonitor` (chat) and `ContradictionDetector` (research)
-  - `JudgmentResult` neutral dataclass for cross-consumer translation
-- `ContradictionDetector` tiered detection with LLM judge + keyword fallback
-  - Async `check_finding()` and `generate_resolution_queries()` methods
-  - Delimiter fencing and system message on LLM query generation
-  - Defensive axiom ID parsing from evidence strings
-  - RAG-only contradictions gracefully skipped (no axiom to resolve against)
-- `KMP_DUPLICATE_LIB_OK=TRUE` environment variable to prevent FAISS/PyTorch libomp crash
-
-### Fixed
-- Vector search initialization ordering: embedder now auto-attaches to index
-  when loaded, enabling hybrid search without manual reindex
-- App auto-init now wires embedder to index after background load
-- Vision handler only attached per-request, preserving native GGUF chat template
-- `n_ctx` increased to 32768 (was 8192); `max_tokens` increased to 4096 (was 512)
-- LLaVA default system message nulled to prevent overriding r3LAY's prompt
-- Recursion depth guard + symlink boundary checks in `scan_llm_models_folder`
-- Thread-safe vision handler via `asyncio.Lock` (prevents concurrent text/vision race)
-- Hardened C-level fd redirect to prevent leaks on partial `os.dup()` failure
-- Guard `_mount_thinking` callback against detached widgets
-- Contradiction monitor false positives on greetings (MIN_LLM_RESPONSE_LENGTH=500)
-- Default `research_auto_trigger` from "auto" to "prompt" (prevents auto-research)
-- Badge click handler routed through MainScreen for proper DOM message bubbling
-- Contradiction detection now async (`analyze()`) with proper event loop integration
+- **CRITICAL: `terminal` tool was missing from `platform_toolsets.cli`**
+  — the shell-wrap skills for tracked paths couldn't fire because the
+  agent had no shell tool. Added `terminal` with a clarifying comment
+  that Docker backend is the security boundary so exposing it is safe.
+- Stale Docker containers keeping old env vars after config re-render
+  (now documented as a gotcha + `docker rm -f` workflow + reminder to
+  kill containers after `docker_env` / `docker_volumes` changes)
+- Watcher ERROR spam on Hermes bundled_manifest tmp files: added
+  `.tmp`/editor-lock/`.DS_Store`/`.bundled_manifest*` patterns to
+  `_should_skip()`, downgraded `FileNotFoundError` to DEBUG log
+- `check_same_thread=False` on `sqlite3.connect()` to support FastAPI
+  sync generator deps + async endpoint access patterns
+- `fish_user_paths` updated to the new repo location after project move
+- Embed batch length + dimension validation — raises on mismatch
+  instead of silently dropping chunks on partial Ollama responses
+- Config rollback: `/tracked` auto-index failure rolls back the
+  `tracked_paths` INSERT instead of leaving a half-tracked row
+- `shutil.move` for `_processed/` moves (cross-device safe) with
+  timestamp prefix; failed renames marked `.ingested` to prevent
+  infinite retry loops
+- `r3` CLI: proper shell quoting (`"$PROFILE"`), `join_rest()` helper
+  for multi-word queries, path resolution via readlink loop
 
 ### Removed
-- `LLM_CONTRADICTION_INDICATORS` regex list (replaced by LLM judge in Tier 4)
-- `check_llm_response()` regex-based LLM self-detection (replaced by evidence-based judgment)
-- `check_against_axioms()` keyword overlap detection (replaced by Tier 2 evidence + Tier 4 judgment)
+- 4 deprecated tracked-path SKILL.md files: `hermes-profile/skills/track/`,
+  `untrack/`, `reindex/`, `git-status/`. Replaced by the native MCP tool
+  surface — the tool docstrings carry the per-operation contract and
+  SOUL.md carries the monitor-vs-act policy. The `r3 track/untrack/reindex/
+  git-check/git-pull` shell wrapper subcommands stay in place for cron
+  jobs and manual CLI use (the MCP migration is for the AGENT path only,
+  not the human path).
+- Textual TUI (app.py, all ui/ widgets, styles)
+- SearXNG integration
+- OpenClaw backend
+- FAISS vector store
+- rank-bm25 standalone
+- Docker support for the r3LAY backend itself (Dockerfile, docker-compose.yaml) —
+  NOT to be confused with the Hermes profile's `terminal.backend: docker`
+  which sandboxes the agent
+- ChromaDB references
+- Signals/provenance system (replaced by decisions table)
+- Embedding subprocess workers (replaced by Ollama HTTP)
+- All v1 tests (replaced by test_db.py + 30 new tests across
+  config/ingest/bridge = 36 passing)
+- Personal HDLS agent configs `hdls/agent-configs/` (moved to knowledge
+  vault at `~/Documents/knowledge_vault/_meta/notebooks/hdls-agent-configs/`
+  with DEPRECATED banners — content used hallucinated pre-audit schema
+  keys)
+- `launchd/r3lay-up.fish` — stale launcher (superseded by `r3lay-up.sh`)
+- Hallucinated Hermes config keys (`profile:`, `role:`, `permissions:`,
+  `sandbox:`) from the profile template — replaced with real schema
+  (`platform_toolsets`, `terminal.backend: docker`, `command_allowlist`,
+  `security.website_blocklist`, `approvals.mode`, `browser.allow_private_urls`)
 
-### Changed
-- `HybridIndex` constructor accepts optional `reranker` parameter
-- `search_async()` uses adaptive strategy selection and optional reranking
-- `pyproject.toml`: vector deps updated (faiss-cpu replaces chromadb)
-
-## [0.7.0] - 2026-02-10
-
-### Added
-- Maintenance commands fully wired and functional (log, due, history, mileage)
-- Natural language input support for maintenance logging
-- Configurable intent routing (local/OpenClaw/auto)
-- LLM conversational feedback integration
-- GGUF model auto-discovery for local backends
-- OpenClaw HTTP API backend documented
-- vLLM backend support documented
-- Command documentation expanded from 7 to 21 commands
-
-### Changed
-- Enhanced maintenance tracking with natural language parsing
-- Improved backend configuration flexibility
-- Expanded documentation coverage
-
-## [0.6.1] - 2025-02-03
-
-### Docs
-- Updated CHANGELOG.md to document v0.6.0 changes
-
-## [0.6.0] - 2025-02-03
-
-### Added
-- Version badge to README
-- Test coverage for UI widgets (GarageHeader, ResponsePane, SessionPanel, Splash)
-
-### Security
-- Secure logging configuration to prevent sensitive data exposure
-
-## [0.5.0] - 2025-02-03
-
-### Added
-- History CLI command (`/history`) for viewing maintenance history
-- Comprehensive test suite for app module
-- Test coverage for core init, backends, intent parser, and settings panel
-- Test coverage for axioms and signals modules
-- GarageHeader widget integrated into main screen
-- Model swap via conversation interface
-- Log and Due tabs in Phase 2 layout
-
-### Changed
-- Code cleanup and quality improvements with ruff
-- Documentation accuracy improvements
-- README streamlined with improved structure
-
-### Fixed
-- Permission error handling in `detect_format`
-- Duplicate TestHistory class in test_cli.py
-- Em-dash and backronym text issues
-
-### Security
-- Secure logging configuration to prevent sensitive data exposure
-- Path validation to prevent path traversal in file attachments
-
-## [0.4.0] - 2025-01-30
-
-### Added
-- Phase 2 UI panels (Log, Due tabs)
-- OpenClaw backend integration
-- vLLM backend support
-- SearXNG module for web search
-- Session persistence UI
-- Axiom enhancements for knowledge validation
-
-### Changed
-- Migrated to Textual 0.47.0+
-- Improved intent parsing logic
-
-### Fixed
-- Various type checking import issues
-- Signal test stability improvements
-
-[0.13.0]: https://github.com/dlorp/r3LAY/compare/v0.12.0...v0.13.0
-[0.12.0]: https://github.com/dlorp/r3LAY/compare/v0.11.0...v0.12.0
-[0.7.2]: https://github.com/dlorp/r3LAY/compare/v0.7.1...v0.7.2
-[0.7.1]: https://github.com/dlorp/r3LAY/compare/v0.7.0...v0.7.1
-[0.7.0]: https://github.com/dlorp/r3LAY/compare/v0.6.1...v0.7.0
-[0.6.1]: https://github.com/dlorp/r3LAY/compare/v0.6.0...v0.6.1
-[0.6.0]: https://github.com/dlorp/r3LAY/compare/v0.5.0...v0.6.0
-[0.5.0]: https://github.com/dlorp/r3LAY/compare/v0.4.0...v0.5.0
-[0.4.0]: https://github.com/dlorp/r3LAY/releases/tag/v0.4.0
+### Deferred (post-v2.0.0 work)
+- **cr-sqlite CRDT sync** — schema has hooks (`CRSQL_AS_CRR` calls
+  stripped by `_prepare_schema_sql`), extension loading is stubbed
+  (`load_crsqlite=False`). Enables multi-device DB sync when activated.
+  Deferred until a second device (lorpBot, Pi) needs real-time sync
+  rather than git-based vault exchange.
+- **LLM distillation pass** — Hermes synthesizes compiled.md into a
+  narrative with cross-referencing and contradiction detection. Deferred
+  until compiled output grows too large for direct consumption. See
+  compilation/SKILL.md "Future" section.
+- **HRR primitives** — indefinitely deferred; existing retrieval stack
+  (dense + FTS5 + graph + RRF + MMR + decisions table) covers the
+  project-brain use case (see
+  `_meta/learnings/hrr-deferral-and-existing-coverage.md`)
+- **PF firewall Phase B on lorpBot** — staged via scp + interactive
+  `stage.sh`, activation deferred until myc3lium Pi is back online so
+  the `lan_dev` allowlist table can be populated with the Pi's current IP

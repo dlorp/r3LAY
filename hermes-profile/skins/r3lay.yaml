@@ -1,0 +1,95 @@
+name: r3lay
+description: "r3LAY project brain — phosphor orange, terse, knowledge-engine presence"
+
+colors:
+  banner_border: "#5c3600"
+  banner_title: "#ff9500"
+  banner_accent: "#cc7a00"
+  banner_dim: "#5c3600"
+  banner_text: "#ffe0b2"
+  ui_accent: "#ff9500"
+  ui_label: "#ffcc80"
+  ui_ok: "#66bb6a"
+  ui_error: "#ef5350"
+  ui_warn: "#ff9500"
+  prompt: "#ffe0b2"
+  input_rule: "#5c3600"
+  response_border: "#8a5100"
+  session_label: "#ffb347"
+  session_border: "#5c3600"
+  status_bar_bg: "#3d2400"
+  voice_status_bg: "#5c3600"
+  completion_menu_bg: "#3d2400"
+  completion_menu_current_bg: "#8a5100"
+  completion_menu_meta_bg: "#5c3600"
+  completion_menu_meta_current_bg: "#cc7a00"
+
+spinner:
+  waiting_faces: ["[.]", "[o]", "[O]", "[o]", "[.]"]
+  thinking_faces: ["[>]", "[>>]", "[>>>]", "[>>]", "[>]"]
+  thinking_verbs:
+    - "indexing"
+    - "cross-referencing"
+    - "searching vault"
+    - "tracing decisions"
+    - "scanning project"
+    - "checking conflicts"
+    - "compiling context"
+    - "reading history"
+    - "correlating"
+    - "recalling"
+  wings:
+    - ["[", "]"]
+    - ["(", ")"]
+
+branding:
+  agent_name: r3LAY
+  welcome: "ready. name a project or ask a question."
+  goodbye: "session closed. notes saved."
+  response_label: " r3LAY "
+  prompt_symbol: "> "
+  help_header: "[>] commands"
+
+banner_info_script: "~/.hermes/profiles/r3lay/banner_info.sh"
+
+tool_prefix: "|"
+
+tool_emojis:
+  terminal: "$"
+  web_search: "~"
+  browser_navigate: ">"
+  browser_snapshot: "#"
+  read_file: "<"
+  write_file: ">"
+  patch: "+"
+  search_files: "?"
+  fact_store: "*"
+  fact_feedback: "^"
+  skills_list: "="
+  skill_view: "="
+
+banner_hero: |
+  [#ff9500]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣿⣿⣿⣿⣿⣿⣿[/]
+  [#ff9500]⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣿⠀⠀⠀⠀⠀⠀⠀⣿[/]
+  [#ff9500]⠀⠀⠀⠀⠀⠀⠀⠀⣿⠀⠀⣿⠀⠀⠀⠀⠀⠀⠀⣿[/]
+  [#ff9500]⠀⠀⠀⠀⠀⠀⠀⣿⠀⠀⠀⠀⣿⠀⠀⠀⠀⠀⠀⠀⣿[/]
+  [#ff9500]⠀⠀⠀⠀⠀⠀⣿⠀⠀⠀⠀⠀⠀⣿⣿⣿⣿⣿⣿⣿⣿⣿[/]
+  [#ff9500]⠀⠀⠀⠀⠀⠀⣿⠀⠀⠀⠀⠀⠀⣿⠀⠀⠀⠀⠀⠀⠀⣿[/]
+  [#ff9500]⠀⠀⠀⠀⣿⣿⣿⣿⠀⠀⠀⠀⣿⠀⠀⠀⣿⣿⣿⣿⣿⣿⣿⣿[/]
+  [#ff9500]⠀⠀⠀⣿⣿⠀⠀⠀⣿⠀⠀⣿⠀⠀⠀⣿⣿⠀⠀⠀⠀⠀⠀⠀⣿[/]
+  [#ff9500]⠀⠀⣿⠀⠀⣿⠀⠀⠀⣿⣿⣿⣿⣿⣿⠀⠀⣿⠀⠀⠀⠀⠀⠀⠀⣿[/]
+  [#ff9500]⠀⣿⠀⠀⠀⠀⣿⠀⠀⠀⠀⠀⠀⠀⣿⠀⠀⠀⣿⠀⠀⠀⠀⠀⠀⠀⣿[/]
+  [#ff9500]⣿⠀⠀⠀⠀⠀⠀⣿⣿⣿⣿⣿⣿⣿⣿⣿⠀⠀⠀⣿⣿⣿⣿⣿⣿⣿⣿⣿[/]
+  [#ff9500]⣿⠀⠀⠀⠀⠀⠀⣿⠀⠀⠀⠀⠀⠀⠀⣿⠀⠀⠀⣿⠀⠀⠀⠀⠀⠀⠀⣿[/]
+  [#ff9500]⠀⣿⠀⠀⠀⠀⣿⠀⠀⠀⠀⠀⠀⠀⣿⠀⠀⠀⣿⠀⠀⠀⠀⠀⠀⠀⣿[/]
+  [#ff9500]⠀⠀⣿⠀⠀⣿⠀⠀⠀⠀⠀⠀⠀⣿⣿⠀⠀⣿⠀⠀⠀⠀⠀⠀⠀⣿[/]
+  [#ff9500]⠀⠀⠀⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠀⠀⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿[/]
+
+banner_logo: |
+  [bold #ff9500]         ___   __    ___   __  [/]
+  [bold #ffb347]   _ __ |__ \ / /   /   \ / /  [/]
+  [#ff9500]  | '__|  _)/ / /   / /| |/ /   [/]
+  [#cc7a00]  | |   |__ \/ /__ / ___ / /    [/]
+  [#8a5100]  |_|  (   / /___//_/  |_/     [/]
+  [#5c3600]        |_|                     [/]
+  [dim #5c3600]   your projects have memory   [/]

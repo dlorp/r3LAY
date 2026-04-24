@@ -13,28 +13,21 @@ This is an **example vehicle profile** for reference only.
 
 **Option 1: Copy as template**
 ```bash
-cp -r examples/vehicles/1997-subaru-impreza ~/.r3lay/vehicles/my-impreza
-vim ~/.r3lay/vehicles/my-impreza/profile.yaml  # customize
+cp -r examples/vehicles/1997-subaru-impreza ~/r3LAY/automotive/my-impreza
+# Edit the project.yaml to match your vehicle
 ```
 
-**Option 2: Create fresh**
+**Option 2: Use r3LAY ingest**
 ```bash
-r3lay vehicle add  # interactive setup
+r3lay-index ~/r3LAY/automotive/my-impreza
 ```
 
 ## Privacy Note
 
 This example does **NOT** contain:
 - VIN numbers
-- Personal maintenance logs  
+- Personal maintenance logs
 - Odometer readings
 - Location data
 
-Your actual vehicle data lives in `~/.r3lay/` (never committed to repo).
-
-## Contributing
-
-Improvements welcome! Submit PRs with:
-- More comprehensive axioms
-- Additional P1XXX codes
-- Maintenance interval corrections
+Your actual vehicle data lives in `~/r3LAY/` (never committed to repo).

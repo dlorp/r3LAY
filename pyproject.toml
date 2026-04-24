@@ -1,33 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "r3lay"
-version = "0.13.0"
-description = "r³LAY: Retrospective Recursive Research, Linked Archive Yield — A TUI research assistant bridging official documentation with real world community knowledge"
-readme = "README.md"
+version = "2.0.0"
+description = "r3LAY: local-first personal project brain"
 requires-python = ">=3.11"
 license = {text = "PolyForm-Noncommercial-1.0.0"}
-keywords = ["llm", "research", "tui", "rag", "knowledge-management", "local-llm", "mlx"]
-classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Environment :: Console",
-    "Intended Audience :: Developers",
-    "Intended Audience :: Science/Research",
-    "License :: Other/Proprietary License",
-    "Operating System :: MacOS",
-    "Operating System :: POSIX :: Linux",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
-]
+
 dependencies = [
-    "textual>=0.47.0",
     "httpx>=0.27.0",
     "ruamel.yaml>=0.18.0",
-    "rank-bm25>=0.2.2",
     "rich>=13.0.0",
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
-    "tiktoken>=0.5.0",
-    "terminaltexteffects>=0.11.0",
+    "fastapi>=0.110.0",
+    "uvicorn>=0.27.0",
+    "watchdog>=4.0.0",
+    "spacy>=3.7.0",
+    "numpy>=1.26.0",
+    "sqlite-vec>=0.1.6",
+    "mcp>=1.27.0,<2",
 ]
 
 [project.optional-dependencies]
@@ -35,26 +29,20 @@ dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
     "ruff>=0.3.0",
+    "mypy>=1.8.0",
 ]
-rerank = [
-    "sentence-transformers>=2.2.0",
-]
-# Vector search with FAISS (subprocess-isolated embedders avoid Textual fd conflicts)
-vector = [
-    "faiss-cpu>=1.7.0",
-    "sentence-transformers>=2.2.0",
-]
-# macOS clipboard image support (better browser image paste handling)
-clipboard = [
-    "pyobjc-framework-Cocoa>=10.0; sys_platform == 'darwin'",
-]
+mlx = ["mlx>=0.5.0", "mlx-lm>=0.5.0"]
+llamacpp = ["llama-cpp-python>=0.2.0"]
+nli = ["sentence-transformers>=3.0.0"]
+pdf = ["pymupdf>=1.25.0"]
+ocr = ["ocrmac>=1.0.0"]
+ingest = ["pymupdf>=1.25.0", "ocrmac>=1.0.0"]
 
 [project.scripts]
-r3lay = "r3lay.app:main"
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+r3lay-serve = "r3lay.bridge:main"
+r3lay-watch = "r3lay.sync:main"
+r3lay-index = "r3lay.ingest:main"
+r3lay-mcp = "r3lay.mcp_server:main"
 
 [tool.ruff]
 line-length = 100
@@ -64,12 +52,5 @@ target-version = "py311"
 select = ["E", "F", "I", "W"]
 
 [tool.pytest.ini_options]
-asyncio_mode = "strict"
-asyncio_default_fixture_loop_scope = "function"
+asyncio_mode = "auto"
 testpaths = ["tests"]
-markers = [
-    "ollama: tests that require a running Ollama instance",
-]
-filterwarnings = [
-    "ignore::DeprecationWarning",
-]

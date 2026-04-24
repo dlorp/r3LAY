@@ -1,0 +1,81 @@
+# r3LAY backend config — TEMPLATE
+# Copy to r3lay-config.yaml and fill in your values.
+# r3lay-config.yaml is gitignored.
+#
+# This file is read by r3lay/config.py and is used by the r3LAY Python
+# backend (ingest, search, bridge, escalation routing). It is SEPARATE
+# from the Hermes agent profile config at hermes-profile/config.yaml.
+
+# ─────────────────────────────────────────────────────────
+# Embedding model — used for vector search (ingest + query)
+# ─────────────────────────────────────────────────────────
+# Run: ollama pull qwen3-embedding:0.6b
+#
+# Qwen3-Embedding 0.6B: 61.83 MTEB Retrieval, 75.41 MTEB-Code — best sub-1B
+# model for mixed code + prose retrieval. Instruction-tuned for asymmetric
+# queries (short NL query → long document), 32K context window (can embed
+# entire files without truncation), Matryoshka (MRL) support for dimension
+# reduction if needed later. 639MB Q8_0, ~1.2GB RAM.
+#
+# Alternatives: snowflake-arctic-embed2:568m, mxbai-embed-large, nomic-embed-text
+embedding:
+  model: qwen3-embedding:0.6b
+  dim: 1024                    # MRL supports 32-1024; use 1024 for max quality
+  ollama_url: http://localhost:11434
+
+# ─────────────────────────────────────────────────────────
+# Backend inference models
+# ─────────────────────────────────────────────────────────
+# r3lay_model: routine backend tasks (file_update, project_search, etc.)
+# r3lay_escalation: deep work (deep_research, contradiction_resolution)
+# These are independent of the Hermes agent's chat model.
+
+r3lay_model:
+  provider: ollama
+  model: qwen3:8b              # local, fast, no rate limits
+
+r3lay_escalation:
+  provider: openrouter
+  model: nvidia/nemotron-3-super-120b-a12b:free
+
+# ─────────────────────────────────────────────────────────
+# Paths
+# ─────────────────────────────────────────────────────────
+paths:
+  projects: ~/r3LAY
+  db: ~/r3LAY/.r3lay-global/r3lay.db
+  bridge_url: http://localhost:8765
+  # Bridge auth is handled by ~/.r3lay/api-secret (auto-generated on first
+  # bridge start, mode 0600). Override via R3LAY_API_KEY env var. The secret
+  # file path is NOT configurable here — it's hardcoded in r3lay/bridge.py
+  # to avoid open-source users accidentally weakening the auth posture.
+
+# Allowed roots for /tracked endpoint.
+# The bridge will reject any POST /tracked or /ingest request whose resolved
+# path does not live under one of these roots. Protects against arbitrary
+# filesystem ingestion (e.g., ~/.ssh/).
+tracked_path_allowed_roots:
+  - ~/r3LAY
+  - ~/Documents/Programming
+
+# ─────────────────────────────────────────────────────────
+# Task routing
+# ─────────────────────────────────────────────────────────
+routing:
+  always_local:
+    - status_query
+  default:
+    - file_update
+    - project_search
+    - session_debrief
+    - conflict_check
+  escalation_allowed:
+    - deep_research
+    - compilation
+    - contradiction_resolution
+
+# ─────────────────────────────────────────────────────────
+# Privacy default for new projects (overridden per project.yaml)
+# ─────────────────────────────────────────────────────────
+privacy:
+  default: false

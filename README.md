@@ -1,373 +1,453 @@
-# r³LAY
+# r3LAY
 
-![Version](https://img.shields.io/badge/version-0.13.0-blue)
-![License](https://img.shields.io/badge/license-PolyForm%20NC%201.0.0-blue)
+[![Version](https://img.shields.io/badge/version-2.0.0-ff9500)](https://github.com/dlorp/r3LAY)
+[![License](https://img.shields.io/badge/license-PolyForm%20NC%201.0.0-ff9500)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-yellow.svg)](https://python.org)
-[![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux-lightgrey.svg)]()
+[![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/dlorp/r3LAY)
 
+> *Your projects have memory. You just haven't given it to them yet.*
 
+r3LAY is a local-first project brain. Point it at a folder -- vehicles, homelab,
+embedded systems, personal notes, anything -- and speak with it naturally. It tracks
+what you've decided, flags when you contradict yourself, maintains history, and
+compounds knowledge over time.
 
-> *The manual says one thing, but the forums know the truth.*
-
-A TUI research assistant for hobbyists who wrench on their own stuff. Whether you're maintaining a fleet of motorcycles, restoring vintage gear, or keeping your homelab alive r³LAY helps you track what you did, find what you need, and discover what the community actually knows.
-
-<p align="center">
-  <img src="docs/screenshot.png" alt="r³LAY TUI showing maintenance tracking and research interface" width="700">
-  <br>
-  <em>Track maintenance, chat with local LLMs, and research with full source attribution</em>
-</p>
-
-## 🚧 Project Status — Work in Progress
-
-r³LAY is under active development. Here's where things stand and where they're headed.
-
-### Current State
-
-The **automotive** category is the primary focus right now, built around my vehicle maintenance workflow. This serves as the proving ground for the core architecture before expanding to other domains.
-
-### Vision
-
-r³LAY is designed to let you **speak with your project itself** — a natural, conversational interface where the LLM has the *entire* history of your project: every maintenance log, every research session, every axiom you've established.
-
-The core ideas:
-
-- **Full project memory** — The LLM carries all history and context, so you never re-explain your setup
-- **Ingest everything** — Service manuals, small codebases, config files, and notes become searchable knowledge via RAG
-- **Dispute & validate** — Cross-reference community sources (forums, Reddit) against official documentation (vendor specs, service manuals) to surface contradictions and find the truth
-- **Category-specific behavior** — Each category (automotive, home, electronics) can have its own knowledge base, axiom schemas, and tuned behavior
-
-### Folder Structure
-
-```
-r3lay/
-├── automotive/       ← active development (motorcycles, vehicles)
-├── home/             ← planned (home maintenance, appliances)
-├── electronics/      ← planned (lab gear, repairs, builds)
-└── ...               ← your categories here
-```
-
-Each category folder contains its own knowledge base, maintenance logs, axioms, and configuration. The system adapts its behavior and domain knowledge based on which category you're working in.
-
-### Contributing Categories
-
-New categories are welcome! If you have a domain where you track projects, wrench on things, or maintain equipment — it probably fits. Open an issue to request a category or submit a PR with a new one.
+No cloud. No subscriptions. No telemetry. Your data stays on your machine.
 
 ---
 
-## Why r³LAY?
+## What it does
 
-**For the tinkerer who's tired of:**
-- Scattered notes across notebooks, PDFs, and browser bookmarks
-- Forum posts that contradict the official manual (and are usually right)
-- Forgetting when you last changed that oil/filter/belt
+You talk to your projects the same way you'd talk to a collaborator who's been
+paying attention the whole time.
 
-**r³LAY gives you:**
-- 🔧 **Maintenance Tracking** - Log services, track intervals, get overdue alerts 
-- 💬 **Natural Language Input** - "oil change at 98k" just works in a prompt
-- 🧠 **Flexible LLM Backends** - MLX, llama.cpp, Ollama, vLLM, or OpenClaw
-- 🔍 **Hybrid RAG Search** - BM25 + vector search with source attribution
-- 📚 **Deep Research (R³)** - Multi cycle expeditions with contradiction detection
+```
+$ r3 "just replaced the CV boots on the 944, both sides"
+Logged: CV boot replacement (both sides) -> automotive/944/maintenance/log.json
+Next service check: ball joints (last inspected 34k miles ago)
 
-No cloud. No subscriptions. Your data stays on your machine.
+$ r3 "set oil change interval to 3k miles"
+CONFLICT: Decision from 2026-03-10
+    "944 oil change interval: 5k miles (synthetic). Rationale: manufacturer spec
+     with full synthetic confirmed by Pelican Parts community consensus."
+Override? [y/N]
 
-## Quick Start
-
-```bash
-git clone https://github.com/dlorp/r3LAY.git
-cd r3lay
-pip install -e .
+$ r3 r3p 944
+944 Porsche -- picking up from 3 days ago
+   Completed: CV boots both sides
+   Open: source replacement ball joints (OEM vs aftermarket?)
+   Overdue: brake fluid flush (18 months)
+   Ready. What are we working on?
 ```
 
-### Platform Setup
+---
 
-**Apple Silicon (recommended):**
-```bash
-pip install mlx mlx-lm
+## How it works
+
+Three layers, cleanly separated:
+
+```
+Layer 1  Workspace    -- your folders, your files, git. Works without AI.
+Layer 2  Knowledge    -- SQLite with vector search, full-text, graph. Derived from files.
+Layer 3  Intelligence -- Hermes agent profile. Reads and writes through layers 1 + 2.
 ```
 
-**NVIDIA GPU:**
-```bash
-CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python
-```
+The database is always rebuildable from the filesystem. The filesystem is truth.
+Knowledge compounds through use -- every session, every decision, every conflict
+resolution makes the project brain sharper.
 
-**CPU only:** Works out of the box (slower, but gets the job done)
+### Self-iterative growth
 
-### Run
+r3LAY watches your entire `~/r3LAY/` directory tree. As you add content, it
+grows with you:
 
-```bash
-# Point at any project folder
-r3lay ~/Documents/my-project
+1. **Drop a new folder** anywhere under `~/r3LAY/` -- the watcher detects it,
+   auto-creates `.r3lay/project.yaml`, and starts indexing immediately. No
+   manual setup required.
+2. **Each session compounds** -- decisions accumulate in the DB, session notes
+   compress prior context, todos track open work. The `.r3lay/` folder IS the
+   project's growing memory.
+3. **New domains emerge organically** -- create `~/r3LAY/music/` and drop
+   projects inside. r3LAY auto-discovers and organizes. Categories aren't
+   pre-configured, they're discovered.
+4. **Compilation snapshots** -- `compiled.md` captures the full project state
+   for cold-start context loading. Each compile reflects the accumulated
+   knowledge at that point.
 
-# Or current directory
-r3lay
-```
+### Per-project structure
 
-Select a model from the Models panel (`Ctrl+1`) and start chatting.
-
-## Project Folders
-
-r3LAY works with any project directory. Point it at a folder and it indexes what's there -- PDFs, markdown, code, configs -- into a hybrid RAG index (BM25 + vector search). No required folder structure; organize however you want.
-
-```bash
-r3lay ~/projects/1997-subaru-impreza
-```
-
-r3LAY creates a `.r3lay/` directory inside the project for its own state:
+r3LAY creates one folder in each project:
 
 ```
 your-project/
-├── (your files -- manuals, notes, code, whatever)
-└── .r3lay/
-    ├── project.yaml        # Project metadata
-    ├── config.yaml         # Per-project settings
-    ├── axioms/             # Validated knowledge
-    ├── signals/            # Source provenance tracking
-    └── index/              # RAG index (auto-generated)
++-- (your files -- manuals, notes, code, configs, whatever)
++-- _ingest/                  <- drop zone for external files
++-- .r3lay/
+    +-- project.yaml          <- name, type hint, status, tags, privacy
+    +-- sn.md                 <- session notes (compressed context between sessions)
+    +-- compiled.md           <- compiled project knowledge (cold-start context)
+    +-- todos.md              <- active todo list
+    +-- plans.md              <- current session plan
+    +-- open-questions.md     <- unresolved questions across sessions
 ```
 
-**What happens when you index:**
-1. Files are chunked (AST-based for code, section-based for markdown, paragraph-based for text)
-2. Chunks get BM25 lexical indexing + optional vector embeddings (FAISS)
-3. Source type is auto-detected (document, code, curated) with trust weighting
-4. Everything becomes searchable via `/index <query>` or used as RAG context in chat
+No required folder structure for your actual content. Organize however you want.
+r3LAY indexes what's there.
 
-**Deep research** (`/research <query>`) runs multi-cycle expeditions that combine local RAG results with web search (SearXNG), extract validated axioms with source provenance, and detect contradictions between sources.
+### Domain-agnostic
 
-See [docs/DESIGN.md](docs/DESIGN.md) for the longer-term vision: knowledge vault integration, Synapse-Engine knowledge graph, cross-project learning, and the target folder structure across domains.
+r3LAY works for any domain. The `type` field in `project.yaml` is a hint, not
+a constraint -- it tells r3LAY how to behave, not what to allow.
 
-### Docker
-
-```bash
-docker compose --profile default up -d
-PROJECT_PATH=/path/to/project docker compose run r3lay
+```
+~/r3LAY/
++-- automotive/
+|   +-- 944/                  <- Porsche restoration
++-- homelab/
+|   +-- proxmox-cluster/      <- homelab infrastructure
++-- embedded/
+|   +-- mesh-sensor-network/  <- ESP32 projects
++-- programming/
+|   +-- r3LAY/                <- r3LAY's own source (intentional dogfooding)
+|   +-- <projects>/           <- active software projects
++-- music/
+|   +-- jazz-theory/          <- personal knowledge
++-- .r3lay-global/
+    +-- r3lay.db              <- unified search index (sqlite-vec + FTS5)
 ```
 
-## Backends
+Everything under `~/r3LAY/` is automatically watched and indexed. Drop a new
+folder anywhere in the tree and r3LAY picks it up -- auto-creates the project
+metadata and starts building the knowledge base.
 
-r3LAY supports multiple LLM inference backends. Choose based on your hardware and needs:
+---
 
-### 🍎 MLX (Apple Silicon - Recommended)
+## Privacy model
 
-**Best for:** M1/M2/M3/M4 Mac owners who want maximum performance
+Three levels, set per project in `project.yaml`:
 
-Native Apple Silicon inference with unified memory architecture.
+| Level | Inference | Vault | External | Use for |
+|-------|-----------|-------|----------|---------|
+| `false` (default) | Any | Yes | Yes | General projects |
+| `work` | Any | Summaries only | No | Client/employer files |
+| `true` | Local only | No | No | Personal/sensitive |
+
+`privacy: true` means nothing leaves your machine. Local models only.
+r3LAY will never surface private project content to any external interface.
+
+---
+
+## Session commands
+
+| Command | What it does |
+|---------|-------------|
+| `r3 r3c` | Lightweight context -- project list with counts, no LLM call |
+| `r3 r3p [project]` | Planning mode -- loads sn.md, todos, open questions, writes plans.md |
+| `r3 sn` | Session end -- compresses to sn.md, re-compiles, updates todos, triggers PR workflow if code changed |
+| `r3 compile [project]` | Compile project knowledge into a single context document |
+| `r3 research "[query]"` | Deep research -- vault first, then web, synthesized with citations |
+| `r3 conflicts` | Show unresolved conflicts across all projects |
+| `r3 "[anything]"` | Natural language update -- parsed, conflict-checked, written |
+
+---
+
+## Drop zone ingestion
+
+Drop files into a project's `_ingest/` directory for automatic processing:
+
+```
+~/r3LAY/automotive/944/_ingest/   <- drop files here
+```
+
+**What to drop:**
+- Service manuals (PDF) for a vehicle restoration
+- Screenshots of error codes or diagnostic output
+- Research papers or technical documents
+- Config files exported from another system
+- Meeting notes or brainstorm transcripts
+- Reference material from any source
+
+The watcher detects new files, ingests them into the project's index, and
+moves originals to `_ingest/_processed/` with a timestamp prefix:
+
+```
+_ingest/_processed/20260411T213000_service-manual.pdf
+```
+
+The `_processed/` folder is your audit trail -- you can see exactly what was
+ingested and when. Re-drop a file if it needs re-indexing, or clean up
+`_processed/` periodically to reclaim space.
+
+Symlinks in `_ingest/` are rejected to prevent data exfiltration.
+
+**Supported formats:**
+- **Text:** markdown, code, YAML, JSON, plain text (built-in)
+- **PDF:** via [PyMuPDF](https://pymupdf.readthedocs.io/) or
+  [Marker](https://github.com/VikParuchuri/marker) (`pip install pymupdf`)
+- **Images:** via Apple Vision OCR on macOS (`pip install ocrmac`)
+
+Install all extraction backends: `pip install -e ".[ingest]"`
+
+Files without the required library are moved to `_ingest/_unsupported/`
+with a log message telling you what to install.
+
+---
+
+## MCP tools
+
+r3LAY exposes its bridge as 11 typed [MCP](https://modelcontextprotocol.io) tools
+that Hermes discovers automatically. No URLs, no ports, no curl -- the schema IS
+the contract.
+
+| Tool | What it does | Confirm? |
+|------|-------------|----------|
+| `list_tracked` | List tracked external paths with staleness info | No |
+| `git_check` | Fetch upstream state for a tracked git repo | No |
+| `search_chunks` | Hybrid retrieval across the knowledge base | No |
+| `get_project_context` | Full project context (sn.md, decisions, todos, conflicts) | No |
+| `list_active_projects` | Lightweight project list with counts | No |
+| `compile_project` | Compile project knowledge into single context doc | No |
+| `init_project` | Extrapolate .r3lay/project.yaml from manifest files | No |
+| `track_path` | Register an external folder for indexing | **Yes** |
+| `untrack_path` | Stop tracking a folder (indexed content stays) | **Yes** |
+| `reindex_path` | Re-run the indexer on a tracked path | **Yes** |
+| `git_pull` | Fast-forward pull + re-index | **Yes** |
+
+Read-only and deterministic tools run freely -- the agent uses them to build
+situational awareness without asking. Mutating tools require user confirmation.
+
+---
+
+## Inference backends
+
+r3LAY is model-agnostic. The backend abstraction supports multiple inference
+engines so the project works across different hardware:
+
+| Backend | Best for | Setup |
+|---------|----------|-------|
+| **Ollama** | Zero config, any hardware | `brew install ollama` |
+| **MLX** | Apple Silicon, fastest on M-series | `pip install mlx mlx-lm` |
+| **llama.cpp** | Cross-platform, NVIDIA/CPU | `pip install llama-cpp-python` |
+| **vLLM** | NVIDIA, maximum throughput | `pip install vllm` |
+| **OpenRouter** | Remote models, escalation | API key in config |
+
+Embeddings run through Ollama (`qwen3-embedding:0.6b`). Chat inference
+is handled by Hermes using the model configured in the profile -- OpenRouter
+with automatic fallback to local Ollama.
+
+Routine tasks (updates, conflict checks, queries) can run on a local model.
+Deep research escalates to a remote model if configured. Privacy-flagged
+projects never leave local inference.
+
+---
+
+## Knowledge compilation
+
+r3LAY uses a Karpathy-inspired compilation loop to compound knowledge over time:
+
+```
+/sn (session end)
+  -> compress transcript -> sn.md            <- LLM synthesis (per-session)
+  -> compile_project -> compiled.md          <- deterministic assembly (cross-session)
+  -> cold-start context for next session     <- knowledge compounds
+```
+
+1. **Ingest** -- files are chunked, embedded, and stored in sqlite-vec
+2. **Accumulate** -- decisions, session notes, todos, and conflicts build up
+   naturally through use
+3. **Compile** -- `compile_project` assembles all project state into a single
+   structured document (`.r3lay/compiled.md`) for cold-start context loading
+4. **Distill** *(future)* -- LLM synthesis pass where the Hermes agent itself
+   acts as the compiler, cross-referencing decisions, surfacing contradictions,
+   and compressing accumulated knowledge into a coherent narrative
+
+The compile step is deterministic (no LLM, fast, cheap). The agent reads the
+compiled output on session start, getting full project context in one load.
+Each session adds to the knowledge base; each compile reflects the growth.
+
+---
+
+## Installation
+
+### Prerequisites
+
+- Python 3.11+
+- [Ollama](https://ollama.com) for embeddings and local inference
+- [Hermes Agent](https://github.com/NousResearch/hermes-agent) for the chat interface
+
+### Quick start
 
 ```bash
+git clone https://github.com/dlorp/r3LAY.git
+cd r3LAY
+
+# Bootstrap: creates venv, installs deps, sets up Hermes profile
+./install.sh
+```
+
+The install script:
+1. Creates a Python venv and installs dependencies
+2. Symlinks `SOUL.md` and `skills/` from the repo into `~/.hermes/profiles/r3lay/`
+3. Copies `config.template.yaml` to `~/.hermes/profiles/r3lay/config.yaml`
+   (user-local, not overwritten on re-run)
+4. Substitutes `__HOME__` and `__REPO_DIR__` placeholders with your actual paths
+5. Optionally installs the `r3` CLI shortcut to `/usr/local/bin/r3`
+
+### Pull the embedding model
+
+```bash
+ollama pull qwen3-embedding:0.6b
+```
+
+### Optional extras
+
+```bash
+# Apple Silicon -- fastest local inference
 pip install mlx mlx-lm
-```
 
-**Pros:**
-- Fastest on Apple Silicon (2-3x faster than llama.cpp)
-- Excellent memory efficiency via unified memory
-- Native vision model support
-
-**Cons:**
-- macOS 13.0+ only
-- Limited to Apple Silicon hardware
-
-### 🦙 llama.cpp (Universal)
-
-**Best for:** Cross platform flexibility, NVIDIA GPUs, CPU-only systems
-
-Highly optimized GGUF inference engine with broad hardware support.
-
-```bash
-# CPU only
-pip install llama-cpp-python
-
-# NVIDIA GPU (CUDA)
+# NVIDIA GPU
 CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python
-
-# Apple Metal (alternative to MLX)
-CMAKE_ARGS="-DGGML_METAL=on" pip install llama-cpp-python
 ```
 
-**Pros:**
-- Works everywhere (CPU, NVIDIA, AMD, Apple)
-- Mature quantization support (Q4, Q5, Q8)
-- Vision models via mmproj files
-
-**Cons:**
-- Slower than native backends (MLX on Mac, vLLM on NVIDIA)
-- More memory overhead than MLX
-
-### 🐋 Ollama (Easy Mode)
-
-**Best for:** Beginners who want zero configuration
-
-Standalone server that manages models and inference automatically.
+### Start services
 
 ```bash
-# Install Ollama from https://ollama.ai
-ollama pull llama3.2:1b
+# Start the bridge (project API on :8765)
+r3lay-serve
+
+# Start the file watcher (auto-indexes ~/r3LAY/)
+r3lay-watch
+
+# Or use the r3 CLI wrapper (starts both via tmux)
+r3
 ```
 
-**Pros:**
-- Dead simple setup
-- Automatic model management
-- Works out of the box
+---
 
-**Cons:**
-- Less control over parameters
-- Separate daemon to manage
-- Not as fast as native backends
+## Configuration
 
-### ⚡ vLLM (High Performance NVIDIA)
+### Backend config (`r3lay-config.yaml`)
 
-**Best for:** NVIDIA GPUs when you need maximum throughput
+Controls the r3LAY Python backend (ingest, search, bridge). Separate from Hermes.
 
-High performance inference server with PagedAttention and continuous batching.
+```yaml
+embedding:
+  model: qwen3-embedding:0.6b   # 639MB, 1024-dim, best sub-1B for code+prose
+  dim: 1024
+  ollama_url: http://localhost:11434
 
-```bash
-pip install vllm
+r3lay_model:
+  provider: ollama
+  model: qwen3:8b               # local, fast, no rate limits
 
-# Start vLLM server
-python -m vllm.entrypoints.openai.api_server \
-  --model meta-llama/Llama-3.2-1B-Instruct \
-  --host 0.0.0.0 \
-  --port 8000
+paths:
+  projects: ~/r3LAY
+  db: ~/r3LAY/.r3lay-global/r3lay.db
+  bridge_url: http://localhost:8765
+
+tracked_path_allowed_roots:     # bridge rejects paths outside these roots
+  - ~/r3LAY
+  - ~/Documents/Programming
 ```
 
-**Configuration:**
-```bash
-# In r3LAY config or env
-R3LAY_VLLM_ENDPOINT=http://localhost:8000
+### Project config (`project.yaml`)
+
+```yaml
+name: "1997 Porsche 944"
+type: automotive                # hint only: automotive | embedded | homelab | other
+privacy: false                  # false | work | true
+status: active                  # active | paused | archived
+tags: [porsche, restoration]
 ```
 
-**Pros:**
-- 2-10x faster than llama.cpp on NVIDIA GPUs
-- PagedAttention for efficient memory usage
-- OpenAI-compatible API
-- Vision model support (Qwen2-VL, LLaVA-NeXT, etc.)
+### Auth
 
-**Cons:**
-- NVIDIA GPUs only (CUDA 11.8+)
-- Models loaded at server startup (not dynamic)
-- Requires separate server process
+The bridge generates a 32-byte secret at `~/.r3lay/api-secret` (mode 0600) on
+first run. All clients (MCP server, CLI, external agents) use this secret via
+the `X-R3LAY-Key` header. Override with `R3LAY_API_KEY` env var.
 
-**Documentation:** [vLLM Serving Guide](https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html)
+---
 
-### 🦞 OpenClaw (Remote Claude)
+## Hermes integration
 
-**Best for:** Using Claude via OpenClaw agent without local GPU
+r3LAY ships as a [Hermes agent](https://github.com/NousResearch/hermes-agent)
+profile. The install script sets up the profile with partial-bind symlinks:
 
-Connect r3LAY to an OpenClaw agent for remote inference via Claude.
-
-**Configuration:**
-
-Select OpenClaw backend in the Models panel (`Tab+M`), then configure:
-- **Model name:** Provider/model (e.g., `anthropic/claude-sonnet-4-20250514`)
-- **Endpoint:** OpenClaw gateway URL (default: `http://localhost:18789`)
-- **API Key:** Optional Bearer token for authentication
-
-**Pros:**
-- No local GPU required
-- Access to Claude's reasoning capabilities
-- OpenClaw agent can use tools and memory
-
-**Cons:**
-- Requires OpenClaw gateway running
-- API costs (Anthropic charges apply)
-- Network latency
-
-**Documentation:** [OpenClaw Integration Guide](https://github.com/dlorp/r3LAY/wiki/openclaw-integration)
-
-## Commands
-
-r³LAY supports a rich set of slash commands for managing sessions, attachments, research, axioms, and maintenance tracking.
-
-### Chat & Session Management
-
-| Command | Description | Example |
-|---------|-------------|---------|
-| `/help` | Show all available commands | `/help` |
-| `/status` | Display system status (models, index, search) | `/status` |
-| `/clear` | Clear chat and conversation history | `/clear` |
-| `/session` | Show current session information | `/session` |
-| `/save [name]` | Save current session with optional name | `/save "EJ25 research"` |
-| `/load <name>` | Load a saved session by name or ID | `/load EJ25` |
-| `/sessions` | List all saved sessions | `/sessions` |
-
-### Attachments & Images
-
-| Command | Description | Example |
-|---------|-------------|---------|
-| `/attach <path>` | Attach image file(s) to next message (supports wildcards) | `/attach ~/screenshots/*.png` |
-| `/attachments` | List currently attached images | `/attachments` |
-| `/detach` | Clear all attachments | `/detach` |
-
-**Alternative methods:**
-- **Paste from clipboard** - Copy an image (screenshot, browser image) and paste directly into the input area
-- **Drag and drop** - Drag image files from Finder directly into the input pane
-- **File path paste** - Paste a file path and r³LAY will detect and attach image files
-
-### Search & Research
-
-| Command | Description | Example |
-|---------|-------------|---------|
-| `/index <query>` | Search local knowledge base (hybrid BM25 + vector) | `/index timing belt replacement` |
-| `/search <query>` | Web search via SearXNG | `/search EJ25 head gasket symptoms` |
-| `/research <query>` | Deep research expedition with R³ methodology | `/research causes of head gasket failure` |
-
-**Index search with source filters:**
-```bash
-/index manual: timing specs        # Search only service manuals
-/index doc: installation guide     # Search documents
-/index code: configuration         # Search code/config files
+```
+~/.hermes/profiles/r3lay/
++-- SOUL.md       -> symlink to repo/hermes-profile/SOUL.md
++-- skills/       -> symlink to repo/hermes-profile/skills/
++-- config.yaml   <- real file (user-local, not overwritten by git pull)
++-- .env          <- real file (API keys)
 ```
 
-**Research features:**
-- Multi cycle exploration with convergence detection
-- Parallel web and local RAG searches
-- Automatic axiom extraction with provenance tracking
-- Contradiction detection and resolution
-- Synthesis report generation
+Code-like artifacts (SOUL.md, skills) auto-update with `git pull`.
+User config and secrets are local and never overwritten.
 
-### Knowledge Management (Axioms)
+The MCP server runs as a stdio subprocess spawned by Hermes -- it hits
+`localhost:8765` directly, reads `~/.r3lay/api-secret` for auth, and
+exposes all 11 tools as typed MCP schema.
 
-| Command | Description | Example |
-|---------|-------------|---------|
-| `/axiom [category:] <statement>` | Create new axiom with optional category | `/axiom spec: EJ25 timing belt interval is 105k miles` |
-| `/axioms [category] [--disputed]` | List axioms, optionally filtered | `/axioms specifications` |
-| `/cite <axiom_id>` | Show provenance chain and source citations | `/cite ax_abc123` |
-| `/dispute <axiom_id> <reason>` | Mark axiom as disputed with reason | `/dispute ax_abc123 contradicts manual page 42` |
+**r3LAY never initiates outbound contact.** It responds to queries.
+Other agents poll it. No webhooks, no push, no callbacks.
 
-**Axiom categories:**
-- `specifications` (or `spec:`) - Technical specs, dimensions, capacities
-- `procedures` (or `proc:`) - Step-by-step maintenance procedures
-- `compatibility` (or `compat:`) - Part compatibility, cross-references
-- `diagnostics` (or `diag:`) - Troubleshooting, diagnostic codes
-- `history` (or `hist:`) - Known issues, recalls, common failures
-- `safety` (or `safe:`) - Safety warnings, torque specs
+---
 
-### Maintenance Tracking
+## Architecture
 
-| Command | Description | Example |
-|---------|-------------|---------|
-| `/log <service> <mileage>` | Log a maintenance entry | `/log oil_change 98500` |
-| `/due [mileage]` | Show upcoming/overdue services | `/due 100000` |
-| `/history [service] [--limit N]` | Show maintenance history | `/history oil_change --limit 5` |
-| `/mileage [value]` | Update or show current mileage | `/mileage 98750` |
+```
+r3LAY/
++-- r3lay/
+|   +-- bridge.py         <- FastAPI bridge on :8765 (15+ endpoints)
+|   +-- mcp_server.py     <- MCP stdio server (11 typed tools for Hermes)
+|   +-- ingest.py         <- file -> chunks -> qwen3-embedding -> sqlite-vec
+|   +-- search.py         <- three-stage retrieval: KNN -> RRF -> MMR
+|   +-- sync.py           <- file watcher + auto-init (FSEvents/inotify)
+|   +-- conflict.py       <- structural conflict detection (NER + decisions table)
+|   +-- db.py             <- SQLite, sqlite-vec + FTS5, WAL mode, pragma tuning
+|   +-- config.py         <- backend config loader (r3lay-config.yaml)
+|   +-- privacy.py        <- three-level privacy enforcement
+|   +-- session_notes.py  <- sn.md management
+|   +-- project_files.py  <- todos, plans, questions, project summary
+|   +-- maintenance.py    <- maintenance log (automotive projects)
+|   +-- backends/         <- model backend abstraction
+|       +-- ollama.py     <- Ollama (default)
+|       +-- mlx.py        <- Apple Silicon (MLX)
+|       +-- llamacpp.py   <- llama.cpp (cross-platform)
+|       +-- vllm.py       <- vLLM (NVIDIA)
++-- hermes-profile/       <- Hermes agent profile
+|   +-- SOUL.md           <- agent identity and behavioral rules
+|   +-- config.template.yaml
+|   +-- skills/           <- /r3-context, /r3-plan, /sn, /compile, and more
++-- schema/
+|   +-- schema.sql        <- unified SQLite schema (WAL mode, sqlite-vec)
++-- tests/                <- 79 tests (bridge, MCP, config, DB, ingest, sync)
++-- install.sh            <- bootstrap script (venv + Hermes profile install)
++-- r3lay-config.template.yaml
+```
 
-## Keybindings
+### Retrieval pipeline
 
-| Key | Action |
-|-----|--------|
-| `Tab` | Cycle panes |
-| `Ctrl+N` | New session |
-| `Ctrl+Q` | Quit |
-| `Ctrl+R` | Reindex |
-| `Ctrl+D` | Toggle dark mode |
-| `Ctrl+1` | Models panel |
-| `Ctrl+2` | Index panel |
-| `Ctrl+3` | Axioms panel |
-| `Ctrl+4` | Log panel |
-| `Ctrl+5` | Due panel |
-| `Ctrl+6` | Sessions panel |
-| `Ctrl+7` | Vault panel |
-| `Ctrl+8` | Settings panel |
-| `Ctrl+H` | History/Sessions panel |
-| `Ctrl+,` | Settings panel (alias) |
+```
+query
+  -> embed (qwen3-embedding)
+  -> KNN top-25 (sqlite-vec)      \
+  -> BM25 top-25 (FTS5)            }-> RRF fusion -> cosine dedup -> MMR rerank -> results
+  -> graph 2-hop expansion        /
+```
+
+### Conflict detection
+
+```
+proposed change
+  -> NER entity extraction (spaCy)
+  -> decisions table lookup (structural)
+  -> hard conflict -> surface + block
+  -> soft conflict -> surface + warn
+  -> no conflict -> write atomically
+```
+
+---
 
 ## Requirements
 
@@ -378,79 +458,53 @@ r³LAY supports a rich set of slash commands for managing sessions, attachments,
 | CPU-only | 16GB RAM | 32GB RAM |
 
 - Python 3.11+
-- macOS 13+ (for MLX) or CUDA 12.0+ (for NVIDIA)
+- macOS 13+ (MLX) or CUDA 12.0+ (NVIDIA) or Linux
+- Ollama for embeddings (`qwen3-embedding:0.6b`)
+- `gh` CLI for PR workflow (optional)
 
-## Configuration
-
-Environment variables (`R3LAY_` prefix):
-
-```bash
-R3LAY_OLLAMA_ENDPOINT=http://localhost:11434
-R3LAY_SEARXNG_ENDPOINT=http://localhost:8080
-R3LAY_GGUF_FOLDER=~/.r3lay/models
-```
-
-### GGUF Model Discovery
-
-r³LAY automatically discovers GGUF models from multiple locations:
-- `~/.r3lay/models/` (primary location)
-- `~/models/` (user models folder)
-- `~/.cache/gguf/` (cached models)
-- `./models/` (project-local models)
-
-Place `.gguf` files in any of these locations and they'll appear in the Models panel. Set `R3LAY_GGUF_FOLDER` to use a custom location instead.
-
-Project config lives in: `<project>/.r3lay/config.yaml`
-
-## Documentation
-
-**[Full Wiki →](https://github.com/dlorp/r3LAY/wiki)** 
-
-| Guide | Description |
-|-------|-------------|
-| [Architecture](https://github.com/dlorp/r3LAY/wiki/ARCHITECTURE) | System design and data flow |
-| [API Reference](https://github.com/dlorp/r3LAY/wiki/API) | REST endpoints |
-| [Docker Setup](https://github.com/dlorp/r3LAY/wiki/docker) | Container deployment |
-| [OpenClaw Integration](https://github.com/dlorp/r3LAY/wiki/openclaw-integration) | Using with OpenClaw |
-| [Troubleshooting](https://github.com/dlorp/r3LAY/wiki/troubleshooting) | Common issues |
+---
 
 ## Development
 
 ```bash
 pip install -e ".[dev]"
-pytest tests/ -v
-mypy r3lay/
-ruff check r3lay/
+pytest tests/ -v           # 79 tests
+ruff check r3lay/          # lint
+ruff format r3lay/         # format
 ```
-
-## License
-
-[PolyForm Noncommercial 1.0.0](LICENSE) - Free for personal and non-commercial use.
 
 ---
 
-<p align="center">
-  <strong>Built for people who read service manuals for fun.</strong>
-</p>
+## What changed in v2
 
-## User Configuration
+v1 (0.x) was a Textual TUI prototype -- a chat interface that pointed at a folder.
+v2 is a fundamentally different architecture:
 
-r3LAY stores your vehicle data in `~/.r3lay/` (or `~/.config/r3lay/`).
+- **Hermes agent profile** instead of a TUI runtime
+- **sqlite-vec + FTS5 + graph** instead of FAISS in a subprocess
+- **Qwen3-Embedding 0.6B** for vector indexing (1024-dim, instruction-tuned)
+- **11 MCP tools** replacing SKILL.md advisory prose
+- **Self-iterative growth** -- watcher auto-discovers and initializes new projects
+- **Conflict detection** with NER and decisions table
+- **Session management** -- sn.md, todos, plans, session compression
+- **Knowledge compilation** -- Karpathy-inspired compile loop, knowledge compounds through use
+- **Auto-project-init** -- extrapolates .r3lay/project.yaml from manifest files
+- **Privacy model** -- three levels, enforced at bridge layer
+- **Drop zone ingestion** -- per-project `_ingest/` with auto-processing
+- **Tracked external paths** -- index folders outside the workspace
+- **Domain-agnostic** -- not just automotive, anything
+- **SearXNG removed** -- Hermes native web search used instead
+- **SQLite WAL mode** with APFS-safe pragma tuning (mmap_size=0)
 
-**Quick start:**
-```bash
-r3lay init              # Create workspace
-r3lay vehicle add       # Add your vehicle
-```
+Cherry-picked from v1: maintenance log schema, model backend abstraction
+(MLX/llama.cpp/Ollama/vLLM), examples folder.
 
-See [docs/user-config.md](docs/user-config.md) for full guide.
+---
 
-### Philosophy
+## License
 
-**r3LAY ships as a tool, not a vehicle encyclopedia.**
+[PolyForm Noncommercial 1.0.0](LICENSE) -- free for personal and non-commercial use.
 
-- Core repo: Universal framework
-- User workspace: YOUR vehicle data
-- Sharing: Opt-in only
+---
 
-Your data stays yours. Share knowledge, not personal logs.
+*r3LAY -- Retrospective Recursive Research, Linked Archive Yield*

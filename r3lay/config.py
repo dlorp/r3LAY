@@ -1,377 +1,157 @@
-"""r3LAY Configuration.
+"""r3LAY configuration.
 
-Includes:
-- AppConfig: Main application settings with environment variable support
-- ModelRoles: Configured model assignments per role (text, vision, embedding)
+Single source of truth for all configurable values. Reads from
+environment variables and hermes-profile/config.yaml. No hardcoded
+model names — everything comes from user configuration.
 
-Environment Variables:
-    R3LAY_PROJECT_PATH: Project directory path
-    R3LAY_HF_CACHE_PATH: HuggingFace model cache directory
-    R3LAY_MLX_FOLDER: MLX models directory
-    R3LAY_GGUF_FOLDER: GGUF models directory
-    R3LAY_OLLAMA_ENDPOINT: Ollama API endpoint URL
-    R3LAY_SEARXNG_ENDPOINT: SearXNG API endpoint URL
+First-run: if no config exists, r3LAY prints setup instructions and exits.
 """
 
+from __future__ import annotations
+
+import logging
+import os
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+logger = logging.getLogger(__name__)
 
+# Config file search order — r3LAY backend config
+# (separate from Hermes agent profile at ~/.hermes/profiles/r3lay/config.yaml)
+_CONFIG_PATHS = [
+    Path(__file__).parent.parent / "r3lay-config.yaml",
+    Path(__file__).parent.parent / "r3lay-config.template.yaml",
+]
 
-class ModelConfig(BaseModel):
-    """Per-model inference settings.
 
-    Any field left as None uses the backend's built-in default.
-    Configured via .r3lay/config.yaml under model_configs.
-    """
+def _load_yaml_config() -> dict[str, Any]:
+    """Load config from the first available config file."""
+    from ruamel.yaml import YAML
 
-    n_ctx: int | None = None
-    max_tokens: int | None = None
-    temperature: float | None = None
-
-
-class ModelRoles(BaseModel):
-    """Configured model roles for the application.
-
-    Each role can have a model assigned. Models are identified by name
-    (as returned by ModelScanner).
-
-    Attributes:
-        text_model: Model for text generation (chat/completion)
-        vision_model: Model for vision-language tasks
-        text_embedder: Model for text embedding (RAG)
-        vision_embedder: Model for vision embedding (optional)
-    """
-
-    text_model: Optional[str] = None
-    vision_model: Optional[str] = None
-    text_embedder: Optional[str] = Field(
-        default="mlx-community/all-MiniLM-L6-v2-4bit",
-        description="Default embedding model for RAG",
-    )
-    vision_embedder: Optional[str] = None
-    reranker: Optional[str] = Field(
-        default=None,
-        description="Cross-encoder model for reranking",
-    )
-
-    def has_text_model(self) -> bool:
-        """Check if a text model is configured."""
-        return self.text_model is not None
-
-    def has_vision_model(self) -> bool:
-        """Check if a vision model is configured."""
-        return self.vision_model is not None
-
-    def has_embedder(self) -> bool:
-        """Check if any embedder is configured."""
-        return self.text_embedder is not None or self.vision_embedder is not None
-
-    def has_text_embedder(self) -> bool:
-        """Check if a text embedder is configured."""
-        return self.text_embedder is not None
-
-    def has_vision_embedder(self) -> bool:
-        """Check if a vision embedder is configured."""
-        return self.vision_embedder is not None
-
-    def has_reranker(self) -> bool:
-        """Check if a reranker model is configured."""
-        return self.reranker is not None
-
-
-class AppConfig(BaseSettings):
-    """Application configuration with environment variable support.
-
-    Configuration is loaded from environment variables with R3LAY_ prefix.
-    For example, R3LAY_OLLAMA_ENDPOINT sets ollama_endpoint.
-
-    Precedence (highest to lowest):
-        1. Environment variables (R3LAY_*)
-        2. Config file (.r3lay/config.yaml)
-        3. Default values
-    """
-
-    model_config = SettingsConfigDict(
-        env_prefix="R3LAY_",
-        arbitrary_types_allowed=True,
-        extra="ignore",
-        protected_namespaces=(),  # Allow model_roles field name
-    )
-
-    project_path: Path = Field(default_factory=Path.cwd)
-    theme: str = "default"
-
-    # Model discovery paths - None means auto-detect
-    hf_cache_path: Optional[Path] = None
-    mlx_folder: Optional[Path] = None
-    gguf_folder: Path = Field(default_factory=lambda: Path("~/.r3lay/models/").expanduser())
-    llm_models_folder: Optional[Path] = Field(
-        default_factory=lambda: Path("~/Documents/LLM").expanduser(),
-        description="Folder containing GGUF model subdirectories with optional mmproj files",
-    )
-    ollama_endpoint: str = "http://localhost:11434"
-
-    # SearXNG for web search (Phase 7)
-    searxng_endpoint: str = "http://localhost:8080"
-
-    # Model role assignments (Phase C)
-    model_roles: ModelRoles = Field(default_factory=ModelRoles)
-
-    # Per-model inference settings (n_ctx, max_tokens, temperature)
-    model_configs: dict[str, ModelConfig] = Field(default_factory=dict)
-
-    # Intent routing preference (Phase 102)
-    intent_routing: Literal["local", "openclaw", "auto"] = Field(
-        default="auto",
-        description="Intent routing preference: 'local', 'openclaw', or 'auto'",
-    )
-
-    # Knowledge vault
-    knowledge_vault_path: Optional[Path] = Field(
-        default=None,
-        description="Path to shared knowledge vault directory for cross-project RAG",
-    )
-    vault_write_backends: list[str] = Field(
-        default_factory=lambda: ["openclaw"],
-        description="Backend sources allowed to write to the knowledge vault",
-    )
-    vault_exclude_patterns: list[str] = Field(
-        default_factory=list,
-        description="Glob patterns to exclude from vault indexing (e.g. '*.pdf', 'archive/')",
-    )
-
-    # Session persistence
-    auto_save_session: bool = Field(
-        default=True,
-        description="Auto-save session on exit and auto-restore on startup",
-    )
-
-    # R³ auto-trigger mode for contradiction detection
-    research_auto_trigger: Literal["auto", "prompt", "manual"] = Field(
-        default="prompt",
-        description=(
-            "How to handle detected contradictions: "
-            "'auto' = immediately run R³, "
-            "'prompt' = ask user first, "
-            "'manual' = only via /research command"
-        ),
-    )
-
-    @field_validator("intent_routing")
-    @classmethod
-    def validate_intent_routing(cls, v: str) -> str:
-        """Validate intent_routing is one of the allowed values."""
-        if v not in ("local", "openclaw", "auto"):
-            raise ValueError(
-                f"Invalid intent_routing value: {v}. Must be 'local', 'openclaw', or 'auto'"
-            )
-        return v
-
-    @field_validator("research_auto_trigger")
-    @classmethod
-    def validate_research_auto_trigger(cls, v: str) -> str:
-        """Validate research_auto_trigger is one of the allowed values."""
-        if v not in ("auto", "prompt", "manual"):
-            raise ValueError(
-                f"Invalid research_auto_trigger value: {v}. Must be 'auto', 'prompt', or 'manual'"
-            )
-        return v
-
-    @field_validator("vault_write_backends")
-    @classmethod
-    def validate_vault_write_backends(cls, v: list[str]) -> list[str]:
-        """Warn on unrecognized backend names in vault_write_backends."""
-        known = {"openclaw", "mlx", "llama_cpp", "ollama", "vllm"}
-        unknown = set(v) - known
-        if unknown:
-            import logging as _logging
-
-            _logging.getLogger(__name__).warning("Unknown vault_write_backends: %s", unknown)
-        return v
-
-    @classmethod
-    def load(cls, path: Path) -> "AppConfig":
-        """Load configuration from .r3lay/config.yaml if it exists.
-
-        Args:
-            path: Project path to load configuration for
-
-        Returns:
-            AppConfig with loaded model roles (or defaults if no config exists)
-        """
-        from ruamel.yaml import YAML
-
-        config = cls(project_path=path)
-        config_file = path / ".r3lay" / "config.yaml"
-
-        if config_file.exists():
-            yaml = YAML()
-            with config_file.open() as f:
-                data = yaml.load(f)
-
-            if data and "model_roles" in data:
-                roles = data["model_roles"]
-                config.model_roles = ModelRoles(
-                    **{k: v for k, v in roles.items() if k in ModelRoles.model_fields}
-                )
-
-            # Load intent_routing preference if present
-            if data and "intent_routing" in data:
-                config.intent_routing = data["intent_routing"]
-
-            # Load per-model configs if present
-            if data and "model_configs" in data and isinstance(data["model_configs"], dict):
-                for name, cfg in data["model_configs"].items():
-                    if isinstance(cfg, dict):
-                        try:
-                            config.model_configs[name] = ModelConfig(**cfg)
-                        except Exception:
-                            import logging
-
-                            logging.getLogger(__name__).warning(
-                                "Invalid model_config for '%s', skipping", name
-                            )
-
-            # Load knowledge vault settings if present
-            if data and "knowledge_vault_path" in data:
-                vault = data["knowledge_vault_path"]
-                if vault:
-                    config.knowledge_vault_path = Path(vault).expanduser()
-
-            if data and "vault_write_backends" in data:
-                backends = data["vault_write_backends"]
-                if isinstance(backends, list):
-                    config.vault_write_backends = backends
-
-            if data and "vault_exclude_patterns" in data:
-                patterns = data["vault_exclude_patterns"]
-                if isinstance(patterns, list):
-                    config.vault_exclude_patterns = patterns
-
-            # Load session persistence setting if present
-            if data and "auto_save_session" in data:
-                config.auto_save_session = bool(data["auto_save_session"])
-
-            # Load research auto-trigger mode if present
-            if data and "research" in data and isinstance(data["research"], dict):
-                mode = data["research"].get("auto_trigger_mode")
-                if mode in ("auto", "prompt", "manual"):
-                    config.research_auto_trigger = mode
-            elif data and "research_auto_trigger" in data:
-                config.research_auto_trigger = data["research_auto_trigger"]
-
-        return config
-
-    def save(self) -> None:
-        """Save configuration to .r3lay/config.yaml in the project path."""
-        from ruamel.yaml import YAML
-
-        config_dir = self.project_path / ".r3lay"
-        config_dir.mkdir(parents=True, exist_ok=True)
-        config_file = config_dir / "config.yaml"
-
-        yaml = YAML()
-        yaml.default_flow_style = False
-
-        data: dict[str, Any] = {
-            "model_roles": self.model_roles.model_dump(exclude_none=False),
-            "intent_routing": self.intent_routing,
-            "auto_save_session": self.auto_save_session,
-            "research": {
-                "auto_trigger_mode": self.research_auto_trigger,
-            },
-        }
-
-        # Knowledge vault settings
-        if self.knowledge_vault_path is not None:
-            data["knowledge_vault_path"] = str(self.knowledge_vault_path)
-        data["vault_write_backends"] = self.vault_write_backends
-        if self.vault_exclude_patterns:
-            data["vault_exclude_patterns"] = self.vault_exclude_patterns
-
-        # Only save model_configs with non-empty settings
-        if self.model_configs:
-            configs = {
-                name: dumped
-                for name, cfg in self.model_configs.items()
-                if (dumped := cfg.model_dump(exclude_none=True))
-            }
-            if configs:
-                data["model_configs"] = configs
-
-        with config_file.open("w") as f:
-            yaml.dump(data, f)
-
-
-class GlobalConfig(BaseModel):
-    """Global r3LAY configuration stored at ~/.r3lay/config.yaml.
-
-    Stores cross-project settings like recent project paths.
-    Separate from per-project AppConfig.
-    """
-
-    recent_projects: list[str] = Field(default_factory=list)
-
-    @classmethod
-    def load(cls) -> "GlobalConfig":
-        """Load global config from ~/.r3lay/config.yaml."""
-        from ruamel.yaml import YAML
-
-        config_file = Path.home() / ".r3lay" / "config.yaml"
-        if not config_file.exists():
-            return cls()
-        try:
-            yaml = YAML()
-            with config_file.open() as f:
-                data = yaml.load(f)
-            if data and "recent_projects" in data:
-                return cls(recent_projects=data["recent_projects"])
-        except Exception:
-            import logging as _logging
-
-            _logging.getLogger(__name__).warning(
-                "Failed to load global config from %s, using defaults",
-                config_file,
-            )
-        return cls()
-
-    def save(self) -> None:
-        """Save global config to ~/.r3lay/config.yaml."""
-        from ruamel.yaml import YAML
-
-        config_dir = Path.home() / ".r3lay"
-        config_dir.mkdir(parents=True, exist_ok=True)
-        config_file = config_dir / "config.yaml"
-
-        # Preserve existing keys
-        yaml = YAML()
-        yaml.default_flow_style = False
-        data: dict[str, Any] = {}
-        if config_file.exists():
+    yaml = YAML()
+    for path in _CONFIG_PATHS:
+        if path.exists():
             try:
-                with config_file.open() as f:
-                    existing = yaml.load(f)
-                if existing:
-                    data = dict(existing)
-            except Exception:
-                pass
-
-        data["recent_projects"] = self.recent_projects
-
-        with config_file.open("w") as f:
-            yaml.dump(data, f)
-
-    def add_project(self, path: str) -> None:
-        """Add a project to the recent list (deduplicates, max 20, MRU order)."""
-        resolved = str(Path(path).resolve())
-        if resolved in self.recent_projects:
-            self.recent_projects.remove(resolved)
-        self.recent_projects.insert(0, resolved)
-        self.recent_projects = self.recent_projects[:20]
-        self.save()
+                with open(path) as f:
+                    data = yaml.load(f) or {}
+                logger.debug("Config loaded from %s", path)
+                return data
+            except Exception as e:
+                logger.warning("Failed to load config from %s: %s", path, e)
+    return {}
 
 
-__all__ = ["AppConfig", "GlobalConfig", "ModelConfig", "ModelRoles"]
+_config: dict[str, Any] | None = None
+
+
+def get_config() -> dict[str, Any]:
+    """Get the loaded configuration dict. Caches after first load.
+
+    When cache bypass is active (``R3LAY_NO_CACHE=1`` or the in-process
+    flag), the YAML file is re-read on every call. This matters when the
+    user edits config live and re-invokes without restarting the bridge.
+    """
+    from .cache import cache_bypassed
+
+    global _config
+    if _config is None or cache_bypassed():
+        _config = _load_yaml_config()
+    return _config
+
+
+# =============================================================================
+# Embedding config — used by ingest.py and search.py
+# =============================================================================
+
+
+def get_embedding_model() -> str:
+    """Get the configured embedding model name.
+
+    Reads from config.yaml: embedding.model
+    Falls back to env var: R3LAY_EMBEDDING_MODEL
+    No hardcoded default — fails with a clear message if not configured.
+    """
+    cfg = get_config()
+    model = cfg.get("embedding", {}).get("model")
+    if model:
+        return model
+
+    model = os.environ.get("R3LAY_EMBEDDING_MODEL")
+    if model:
+        return model
+
+    raise RuntimeError(
+        "No embedding model configured. Set one of:\n"
+        "  1. embedding.model in hermes-profile/config.yaml\n"
+        "  2. R3LAY_EMBEDDING_MODEL environment variable\n"
+        "Example: ollama pull bge-m3 && export R3LAY_EMBEDDING_MODEL=bge-m3"
+    )
+
+
+def get_embedding_dim() -> int:
+    """Get the embedding dimension for the configured model."""
+    cfg = get_config()
+    return cfg.get("embedding", {}).get("dim", 1024)
+
+
+def get_ollama_url() -> str:
+    """Get the Ollama API URL."""
+    cfg = get_config()
+    url = cfg.get("embedding", {}).get("ollama_url")
+    if url:
+        return url
+    return os.environ.get("OLLAMA_URL", "http://localhost:11434")
+
+
+# =============================================================================
+# Backend model config — used by ingest, search, escalation routing
+# =============================================================================
+
+
+def get_default_model() -> dict[str, str]:
+    """Get the default backend model config (provider + model name).
+
+    Reads r3lay_model from r3lay-config.yaml. No hardcoded defaults.
+    """
+    cfg = get_config()
+    model_cfg = cfg.get("r3lay_model", {})
+    if not model_cfg.get("provider") or not model_cfg.get("model"):
+        raise RuntimeError(
+            "No backend model configured. Edit r3lay-config.yaml:\n"
+            "  r3lay_model:\n"
+            "    provider: ollama\n"
+            "    model: your-model-name"
+        )
+    return {"provider": model_cfg["provider"], "model": model_cfg["model"]}
+
+
+def get_escalation_model() -> dict[str, str] | None:
+    """Get the escalation model config for deep work."""
+    cfg = get_config()
+    esc = cfg.get("r3lay_escalation", {})
+    if esc.get("provider") and esc.get("model"):
+        return {"provider": esc["provider"], "model": esc["model"]}
+    return None
+
+
+def get_tracked_path_allowed_roots() -> list[Path]:
+    """Get the list of allowed root paths for /tracked operations.
+
+    Returns expanded, resolved Path objects. The bridge will reject any
+    /tracked or /ingest request whose resolved path does not live under
+    one of these roots.
+
+    Defaults to [~/r3LAY, ~/Documents/Programming] if not configured.
+    """
+    cfg = get_config()
+    raw = cfg.get("tracked_path_allowed_roots") or [
+        "~/r3LAY",
+        "~/Documents/Programming",
+    ]
+    roots = []
+    for r in raw:
+        try:
+            roots.append(Path(str(r)).expanduser().resolve())
+        except (OSError, RuntimeError):
+            logger.warning("Failed to resolve allowed root: %s", r)
+    return roots
