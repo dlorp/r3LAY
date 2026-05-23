@@ -17,7 +17,7 @@ A TUI research assistant for hobbyists who wrench on their own stuff. Whether yo
   <em>Track maintenance, chat with local LLMs, and research with full source attribution</em>
 </p>
 
-## 🚧 Project Status — Work in Progress
+## Project Status — Work in Progress
 
 r³LAY is under active development. Here's where things stand and where they're headed.
 
@@ -62,11 +62,11 @@ New categories are welcome! If you have a domain where you track projects, wrenc
 - Forgetting when you last changed that oil/filter/belt
 
 **r³LAY gives you:**
-- 🔧 **Maintenance Tracking** - Log services, track intervals, get overdue alerts 
-- 💬 **Natural Language Input** - "oil change at 98k" just works in a prompt
-- 🧠 **Flexible LLM Backends** - MLX, llama.cpp, Ollama, vLLM, or OpenClaw
-- 🔍 **Hybrid RAG Search** - BM25 + vector search with source attribution
-- 📚 **Deep Research (R³)** - Multi cycle expeditions with contradiction detection
+- [+] **Maintenance Tracking** - Log services, track intervals, get overdue alerts 
+- [>] **Natural Language Input** - "oil change at 98k" just works in a prompt
+- [=] **Flexible LLM Backends** - MLX, llama.cpp, Ollama, vLLM, or OpenClaw
+- [?] **Hybrid RAG Search** - BM25 + vector search with source attribution
+- [#] **Deep Research (R³)** - Multi cycle expeditions with contradiction detection
 
 No cloud. No subscriptions. Your data stays on your machine.
 
@@ -146,7 +146,7 @@ PROJECT_PATH=/path/to/project docker compose run r3lay
 
 r3LAY supports multiple LLM inference backends. Choose based on your hardware and needs:
 
-### 🍎 MLX (Apple Silicon - Recommended)
+### MLX (Apple Silicon - Recommended)
 
 **Best for:** M1/M2/M3/M4 Mac owners who want maximum performance
 
@@ -165,7 +165,7 @@ pip install mlx mlx-lm
 - macOS 13.0+ only
 - Limited to Apple Silicon hardware
 
-### 🦙 llama.cpp (Universal)
+### llama.cpp (Universal)
 
 **Best for:** Cross platform flexibility, NVIDIA GPUs, CPU-only systems
 
@@ -191,7 +191,7 @@ CMAKE_ARGS="-DGGML_METAL=on" pip install llama-cpp-python
 - Slower than native backends (MLX on Mac, vLLM on NVIDIA)
 - More memory overhead than MLX
 
-### 🐋 Ollama (Easy Mode)
+### Ollama (Easy Mode)
 
 **Best for:** Beginners who want zero configuration
 
@@ -212,7 +212,7 @@ ollama pull llama3.2:1b
 - Separate daemon to manage
 - Not as fast as native backends
 
-### ⚡ vLLM (High Performance NVIDIA)
+### vLLM (High Performance NVIDIA)
 
 **Best for:** NVIDIA GPUs when you need maximum throughput
 
@@ -247,7 +247,7 @@ R3LAY_VLLM_ENDPOINT=http://localhost:8000
 
 **Documentation:** [vLLM Serving Guide](https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html)
 
-### 🦞 OpenClaw (Remote Claude)
+### OpenClaw (Remote Claude)
 
 **Best for:** Using Claude via OpenClaw agent without local GPU
 
