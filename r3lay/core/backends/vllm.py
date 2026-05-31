@@ -81,7 +81,7 @@ class VLLMBackend(InferenceBackend):
         if self._client is not None:
             return
 
-        client = httpx.AsyncClient(timeout=300.0)
+        client = httpx.AsyncClient(timeout=300.0, trust_env=False)
 
         try:
             # Verify vLLM is running and model is available
@@ -284,7 +284,7 @@ class VLLMBackend(InferenceBackend):
             True if vLLM responds, False otherwise
         """
         try:
-            async with httpx.AsyncClient(timeout=2.0) as client:
+            async with httpx.AsyncClient(timeout=2.0, trust_env=False) as client:
                 response = await client.get(f"{endpoint.rstrip('/')}/v1/models")
                 return response.status_code == 200
         except (httpx.HTTPError, httpx.TimeoutException, Exception):

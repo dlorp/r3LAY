@@ -106,7 +106,7 @@ class SearXNGClient:
             The async HTTP client instance
         """
         if self._client is None:
-            self._client = httpx.AsyncClient(timeout=self.timeout)
+            self._client = httpx.AsyncClient(timeout=self.timeout, trust_env=False)
         return self._client
 
     async def search(

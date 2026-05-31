@@ -91,7 +91,7 @@ class OpenClawBackend(InferenceBackend):
         if self._client is not None:
             return
 
-        client = httpx.AsyncClient(timeout=300.0)
+        client = httpx.AsyncClient(timeout=300.0, trust_env=False)
 
         try:
             # Verify OpenClaw is running by hitting the models endpoint
@@ -289,7 +289,7 @@ class OpenClawBackend(InferenceBackend):
             True if OpenClaw responds, False otherwise
         """
         try:
-            async with httpx.AsyncClient(timeout=2.0) as client:
+            async with httpx.AsyncClient(timeout=2.0, trust_env=False) as client:
                 response = await client.get(f"{endpoint.rstrip('/')}/v1/models")
                 # Accept 200 or 404 (some configs don't expose models list)
                 return response.status_code in (200, 404)
