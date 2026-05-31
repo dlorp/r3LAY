@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Optional
 @dataclass
 class DocumentMetadata:
     """Metadata for indexed automotive documents"""
+
     source: str
     category: str
     trust_level: float
@@ -36,6 +37,7 @@ class DocumentMetadata:
 @dataclass
 class DocumentChunk:
     """Chunked document for RAG indexing"""
+
     content: str
     metadata: DocumentMetadata
     chunk_id: int
@@ -52,7 +54,7 @@ class AutomotiveDocIndexer:
         self.indexed_docs: List[DocumentChunk] = []
 
         # Diagnostic code pattern (P0000-P3999)
-        self.code_pattern = re.compile(r'\b(P[0-3][0-9]{3})\b')
+        self.code_pattern = re.compile(r"\b(P[0-3][0-9]{3})\b")
 
     def index_directory(self, verbose: bool = False) -> Dict[str, Any]:
         """Index all markdown files in automotive docs directory"""
@@ -71,7 +73,7 @@ class AutomotiveDocIndexer:
             "total_words": 0,
             "diagnostic_codes_found": set(),
             "topics_extracted": set(),
-            "start_time": datetime.now().isoformat()
+            "start_time": datetime.now().isoformat(),
         }
 
         for md_file in md_files:
@@ -95,7 +97,7 @@ class AutomotiveDocIndexer:
     def _index_file(self, filepath: Path, verbose: bool = False) -> Dict[str, Any]:
         """Index a single markdown file"""
 
-        content = filepath.read_text(encoding='utf-8')
+        content = filepath.read_text(encoding="utf-8")
 
         # Extract diagnostic codes
         codes = self._extract_diagnostic_codes(content)
@@ -112,7 +114,7 @@ class AutomotiveDocIndexer:
             indexed_at=datetime.now().isoformat(),
             word_count=len(content.split()),
             diagnostic_codes=codes,
-            topics=topics
+            topics=topics,
         )
 
         # Chunk the document
@@ -123,14 +125,16 @@ class AutomotiveDocIndexer:
         if verbose:
             print(f"  - Words: {metadata.word_count}")
             print(f"  - Chunks: {len(chunks)}")
-            print(f"  - Codes: {len(codes)} ({', '.join(codes[:5])}{'...' if len(codes) > 5 else ''})")
+            print(
+                f"  - Codes: {len(codes)} ({', '.join(codes[:5])}{'...' if len(codes) > 5 else ''})"
+            )
             print(f"  - Topics: {len(topics)}")
 
         return {
             "chunks": len(chunks),
             "words": metadata.word_count,
             "codes": codes,
-            "topics": topics
+            "topics": topics,
         }
 
     def _extract_diagnostic_codes(self, content: str) -> List[str]:
@@ -140,14 +144,14 @@ class AutomotiveDocIndexer:
 
     def _extract_topics(self, content: str) -> List[str]:
         """Extract topics from markdown headings"""
-        heading_pattern = re.compile(r'^#{1,3}\s+(.+)$', re.MULTILINE)
+        heading_pattern = re.compile(r"^#{1,3}\s+(.+)$", re.MULTILINE)
         headings = heading_pattern.findall(content)
 
         # Normalize: lowercase, remove special chars
         topics = []
         for heading in headings:
-            topic = re.sub(r'[^\w\s-]', '', heading.lower())
-            topic = re.sub(r'\s+', '_', topic.strip())
+            topic = re.sub(r"[^\w\s-]", "", heading.lower())
+            topic = re.sub(r"\s+", "_", topic.strip())
             if topic and len(topic) > 2:  # Skip very short headings
                 topics.append(topic)
 
@@ -161,7 +165,7 @@ class AutomotiveDocIndexer:
             "diagnostic-flowcharts": "troubleshooting_guide",
             "ssm1-protocol": "tool_setup",
             "quick-reference": "reference_tables",
-            "README": "overview"
+            "README": "overview",
         }
 
         for key, doc_type in type_map.items():
@@ -174,7 +178,7 @@ class AutomotiveDocIndexer:
         """Split document into RAG-friendly chunks"""
 
         # Split by markdown sections (## headings)
-        section_pattern = re.compile(r'^##\s+(.+)$', re.MULTILINE)
+        section_pattern = re.compile(r"^##\s+(.+)$", re.MULTILINE)
         sections = section_pattern.split(content)
 
         chunks = []
@@ -204,7 +208,7 @@ class AutomotiveDocIndexer:
                             metadata=metadata,
                             chunk_id=chunk_id,
                             chunk_total=0,  # Set after all chunks created
-                            section_title=section_title
+                            section_title=section_title,
                         )
                         chunks.append(chunk)
                         chunk_id += 1
@@ -222,14 +226,14 @@ class AutomotiveDocIndexer:
         chunks = []
 
         for i in range(0, len(words), self.chunk_size):
-            chunk_words = words[i:i + self.chunk_size]
-            chunk_content = ' '.join(chunk_words)
+            chunk_words = words[i : i + self.chunk_size]
+            chunk_content = " ".join(chunk_words)
 
             chunk = DocumentChunk(
                 content=chunk_content,
                 metadata=metadata,
                 chunk_id=i // self.chunk_size,
-                chunk_total=0  # Set after loop
+                chunk_total=0,  # Set after loop
             )
             chunks.append(chunk)
 
@@ -243,16 +247,16 @@ class AutomotiveDocIndexer:
                 "version": "1.0",
                 "indexed_at": datetime.now().isoformat(),
                 "total_chunks": len(self.indexed_docs),
-                "chunks": [self._chunk_to_dict(chunk) for chunk in self.indexed_docs]
+                "chunks": [self._chunk_to_dict(chunk) for chunk in self.indexed_docs],
             }
 
-            with output_path.open('w', encoding='utf-8') as f:
+            with output_path.open("w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
 
         elif format == "jsonl":
-            with output_path.open('w', encoding='utf-8') as f:
+            with output_path.open("w", encoding="utf-8") as f:
                 for chunk in self.indexed_docs:
-                    f.write(json.dumps(self._chunk_to_dict(chunk), ensure_ascii=False) + '\n')
+                    f.write(json.dumps(self._chunk_to_dict(chunk), ensure_ascii=False) + "\n")
 
         else:
             raise ValueError(f"Unsupported format: {format}")
@@ -264,7 +268,7 @@ class AutomotiveDocIndexer:
             "metadata": asdict(chunk.metadata),
             "chunk_id": chunk.chunk_id,
             "chunk_total": chunk.chunk_total,
-            "section_title": chunk.section_title
+            "section_title": chunk.section_title,
         }
 
     def search_preview(self, query: str, top_k: int = 3) -> List[DocumentChunk]:
@@ -297,7 +301,9 @@ def main():
     parser = argparse.ArgumentParser(description="Index automotive docs for r3LAY")
     parser.add_argument("--dry-run", action="store_true", help="Preview without writing")
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
-    parser.add_argument("--output", "-o", type=Path, help="Output path (default: .index/automotive.json)")
+    parser.add_argument(
+        "--output", "-o", type=Path, help="Output path (default: .index/automotive.json)"
+    )
     parser.add_argument("--format", choices=["json", "jsonl"], default="json", help="Output format")
     parser.add_argument("--test-query", type=str, help="Test search preview with query")
 

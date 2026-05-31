@@ -1180,9 +1180,7 @@ class InputPane(Vertical):
             updated = session.updated_at.strftime("%Y-%m-%d %H:%M")
             short_id = session.id[:8]
             tag_str = f" [{', '.join(session.tags)}]" if session.tags else ""
-            lines.append(
-                f"- **{title}**{tag_str} ({msg_count} msgs) - `{short_id}` - {updated}"
-            )
+            lines.append(f"- **{title}**{tag_str} ({msg_count} msgs) - `{short_id}` - {updated}")
 
         lines.append("\n\nUse `/load <name or id>` to load a session.")
         response_pane.add_assistant("\n".join(lines))
@@ -1282,9 +1280,7 @@ class InputPane(Vertical):
             return
         session.tags.append(tag)
         session._dirty = True
-        response_pane.add_system(
-            f"Tagged session with: `{tag}`\n\nTags: {', '.join(session.tags)}"
-        )
+        response_pane.add_system(f"Tagged session with: `{tag}`\n\nTags: {', '.join(session.tags)}")
         self._refresh_session_panel()
 
     def _handle_untag_session(self, tag: str, response_pane) -> None:
@@ -1296,8 +1292,7 @@ class InputPane(Vertical):
         tag = tag.lower().strip()
         if tag not in session.tags:
             response_pane.add_system(
-                f"Tag not found: `{tag}`\n\n"
-                f"Current tags: {', '.join(session.tags) or 'none'}"
+                f"Tag not found: `{tag}`\n\nCurrent tags: {', '.join(session.tags) or 'none'}"
             )
             return
         session.tags.remove(tag)
@@ -1318,12 +1313,20 @@ class InputPane(Vertical):
             return
 
         # Block system directories
-        _system_roots = {"/", "/etc", "/var", "/usr", "/bin", "/sbin", "/tmp",
-                         "/System", "/Library", "/private"}
+        _system_roots = {
+            "/",
+            "/etc",
+            "/var",
+            "/usr",
+            "/bin",
+            "/sbin",
+            "/tmp",
+            "/System",
+            "/Library",
+            "/private",
+        }
         if str(new_path) in _system_roots or str(new_path.parent) in _system_roots:
-            response_pane.add_system(
-                f"Cannot use system directory as project: `{new_path}`"
-            )
+            response_pane.add_system(f"Cannot use system directory as project: `{new_path}`")
             return
 
         # Auto-save current session if dirty
@@ -1353,9 +1356,7 @@ class InputPane(Vertical):
         global_config.add_project(str(new_path))
 
         response_pane.clear()
-        response_pane.add_system(
-            f"Switched to project: **{new_path.name}**\n\nPath: `{new_path}`"
-        )
+        response_pane.add_system(f"Switched to project: **{new_path.name}**\n\nPath: `{new_path}`")
         self.notify(f"Project: {new_path.name}")
 
     def _handle_list_projects(self, response_pane) -> None:

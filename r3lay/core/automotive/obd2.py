@@ -192,9 +192,7 @@ class OBD2Database:
         Example:
             >>> subaru_codes = db.get_by_protocol("Subaru SSM2")
         """
-        return [
-            code for code in self.codes.values() if protocol.lower() in code.protocol.lower()
-        ]
+        return [code for code in self.codes.values() if protocol.lower() in code.protocol.lower()]
 
     def __len__(self) -> int:
         """Return number of codes in database."""

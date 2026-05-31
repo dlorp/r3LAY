@@ -11,10 +11,10 @@ Modules:
 Example:
     >>> from r3lay.core.automotive import OBD2Database
     >>> from pathlib import Path
-    >>> 
+    >>>
     >>> knowledge_path = Path.home() / ".r3lay" / "knowledge"
     >>> db = OBD2Database(knowledge_path)
-    >>> 
+    >>>
     >>> code = db.lookup("P0420")
     >>> print(f"{code.code}: {code.description}")
     >>> print(f"Severity: {code.severity.value}")

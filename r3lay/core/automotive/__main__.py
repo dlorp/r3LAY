@@ -107,9 +107,7 @@ def main():
     if len(db) == 0:
         console.print("[red]No OBD2 database found![/red]")
         console.print(f"[yellow]Expected location:[/yellow] {db.knowledge_path}")
-        console.print(
-            "\n[dim]Create the directory and add JSON database files.[/dim]"
-        )
+        console.print("\n[dim]Create the directory and add JSON database files.[/dim]")
         sys.exit(1)
 
     console.print(f"[dim]Loaded {len(db)} codes from {db.knowledge_path}[/dim]\n")
@@ -140,7 +138,9 @@ def main():
     # Show related codes if any
     related = db.get_related(code)
     if related:
-        console.print(f"\n[dim]Use --search to explore related codes: {', '.join([r.code for r in related])}[/dim]")
+        console.print(
+            f"\n[dim]Use --search to explore related codes: {', '.join([r.code for r in related])}[/dim]"
+        )
 
 
 if __name__ == "__main__":

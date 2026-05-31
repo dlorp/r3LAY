@@ -190,9 +190,7 @@ class KnowledgeVault:
                 return False, f"Fetch failed: {stderr}"
 
             # Reset to remote
-            code, stdout, stderr = await self._run_git(
-                "reset", "--hard", f"origin/{branch}"
-            )
+            code, stdout, stderr = await self._run_git("reset", "--hard", f"origin/{branch}")
             if code != 0:
                 return False, f"Reset failed: {stderr}"
 

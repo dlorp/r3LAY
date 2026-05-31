@@ -289,11 +289,14 @@ class IndexPanel(Vertical):
                 ]
 
                 # Apply user-configured exclusion patterns
-                exclude_patterns = getattr(
-                    getattr(self.state, "config", None),
-                    "vault_exclude_patterns",
-                    [],
-                ) or []
+                exclude_patterns = (
+                    getattr(
+                        getattr(self.state, "config", None),
+                        "vault_exclude_patterns",
+                        [],
+                    )
+                    or []
+                )
                 if exclude_patterns:
                     vault_result.chunks = [
                         c
@@ -310,9 +313,7 @@ class IndexPanel(Vertical):
                     ]
 
                 vault_chunk_count = len(vault_result.chunks)
-                self._update_progress(
-                    f"Vault: {vault_chunk_count} text chunks indexed"
-                )
+                self._update_progress(f"Vault: {vault_chunk_count} text chunks indexed")
                 self.refresh()
 
                 result.chunks.extend(vault_result.chunks)

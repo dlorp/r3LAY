@@ -89,7 +89,7 @@ class OllamaBackend(InferenceBackend):
             return
 
         # Create client with generous timeout for inference
-        client = httpx.AsyncClient(timeout=300.0)
+        client = httpx.AsyncClient(timeout=300.0, trust_env=False)
 
         try:
             # Verify model exists in Ollama
@@ -263,7 +263,7 @@ class OllamaBackend(InferenceBackend):
             True if Ollama responds, False otherwise
         """
         try:
-            async with httpx.AsyncClient(timeout=2.0) as client:
+            async with httpx.AsyncClient(timeout=2.0, trust_env=False) as client:
                 response = await client.get(f"{endpoint.rstrip('/')}/api/tags")
                 return response.status_code == 200
         except (httpx.HTTPError, httpx.TimeoutException, Exception):

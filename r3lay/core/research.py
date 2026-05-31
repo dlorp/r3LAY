@@ -1424,7 +1424,8 @@ class ResearchOrchestrator:
             )
             prompt = self._safe_format(
                 self._templates["query_gen_initial"],
-                query=query, context=context,
+                query=query,
+                context=context,
             )
         else:
             prompt = self._safe_format(

@@ -235,9 +235,7 @@ class TestAutoSaveRestore:
         app = self._make_app(tmp_path)
         sessions_dir = app.state.get_sessions_dir()
         fake_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
-        (sessions_dir / "last_session.json").write_text(
-            json.dumps({"session_id": fake_id})
-        )
+        (sessions_dir / "last_session.json").write_text(json.dumps({"session_id": fake_id}))
         original = app.state.session
         app._auto_restore_session()
         assert app.state.session is original
@@ -254,9 +252,7 @@ class TestAutoSaveRestore:
         session = Session(project_path=tmp_path, title="Restored")
         session.add_user_message("Hello from previous session")
         session.save(sessions_dir)
-        (sessions_dir / "last_session.json").write_text(
-            json.dumps({"session_id": session.id})
-        )
+        (sessions_dir / "last_session.json").write_text(json.dumps({"session_id": session.id}))
 
         app._auto_restore_session()
 
@@ -285,9 +281,7 @@ class TestAutoSaveRestore:
         app = self._make_app(tmp_path)
         sessions_dir = app.state.get_sessions_dir()
         fake_id = "aaaaaaaa-bbbb-cccc-dddd-ffffffffffff"
-        (sessions_dir / "last_session.json").write_text(
-            json.dumps({"session_id": fake_id})
-        )
+        (sessions_dir / "last_session.json").write_text(json.dumps({"session_id": fake_id}))
         (sessions_dir / f"{fake_id}.json").write_text("{corrupt json")
 
         app._auto_restore_session()  # Must not raise

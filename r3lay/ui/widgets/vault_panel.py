@@ -296,9 +296,7 @@ class VaultPanel(Vertical):
             self._force_pull_confirm = True
             if self._force_pull_reset_timer is not None:
                 self._force_pull_reset_timer.stop()
-            self._force_pull_reset_timer = self.set_timer(
-                5, self._reset_force_pull_confirm
-            )
+            self._force_pull_reset_timer = self.set_timer(5, self._reset_force_pull_confirm)
             return
 
         # Second click — actually force pull

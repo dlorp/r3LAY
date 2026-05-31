@@ -112,9 +112,7 @@ class AxiomItem(Static):
         truncated = statement[:60] + "..." if len(statement) > 60 else statement
         truncated = rich_escape(truncated)
         confidence_pct = int(confidence * 100)
-        source_tag = (
-            f" [dim]\\[{rich_escape(backend_source)}][/]" if backend_source else ""
-        )
+        source_tag = f" [dim]\\[{rich_escape(backend_source)}][/]" if backend_source else ""
         display = f"{badge} {truncated} [{confidence_pct}%]{source_tag}"
 
         super().__init__(display, classes=f"axiom-item {status.value}")
@@ -413,9 +411,7 @@ class AxiomPanel(Vertical):
         for ax in axioms:
             # Determine status
             status = self._get_axiom_status(ax)
-            backend_source = (
-                ax.metadata.get("backend_source") if hasattr(ax, "metadata") else None
-            )
+            backend_source = ax.metadata.get("backend_source") if hasattr(ax, "metadata") else None
 
             item = AxiomItem(
                 axiom_id=ax.id,

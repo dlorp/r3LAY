@@ -169,8 +169,6 @@ class AutomotiveConfig(BaseModel):
         return "\n".join(parts)
 
 
-
-
 class ElectronicsConfig(BaseModel):
     """Configuration for electronics research projects.
 

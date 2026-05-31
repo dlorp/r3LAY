@@ -159,10 +159,12 @@ class TestJudgeAxiomEvidence:
     @pytest.mark.asyncio
     async def test_gathers_axiom_statements(self):
         axiom_mgr = MagicMock()
-        axiom_mgr.search_semantic = AsyncMock(return_value=[
-            _FakeAxiom(id="ax_001", statement="Belt interval is 105k miles."),
-            _FakeAxiom(id="ax_002", statement="Use OEM tensioner."),
-        ])
+        axiom_mgr.search_semantic = AsyncMock(
+            return_value=[
+                _FakeAxiom(id="ax_001", statement="Belt interval is 105k miles."),
+                _FakeAxiom(id="ax_002", statement="Use OEM tensioner."),
+            ]
+        )
         judge = ContradictionJudge(axiom_manager=axiom_mgr)
 
         evidence = await judge.gather_axiom_evidence("timing belt")
@@ -418,9 +420,11 @@ class TestJudgePipeline:
     @pytest.mark.asyncio
     async def test_judge_returns_contradiction(self):
         axiom_mgr = MagicMock()
-        axiom_mgr.search_semantic = AsyncMock(return_value=[
-            _FakeAxiom(id="ax_001", statement="Belt interval is 105k miles."),
-        ])
+        axiom_mgr.search_semantic = AsyncMock(
+            return_value=[
+                _FakeAxiom(id="ax_001", statement="Belt interval is 105k miles."),
+            ]
+        )
 
         backend = MagicMock()
         backend.is_loaded = True
@@ -505,9 +509,11 @@ class TestAnalyze:
     async def test_full_pipeline_with_contradiction(self):
         """Full Tier 1-4 pipeline returns LLM judge signal."""
         axiom_mgr = MagicMock()
-        axiom_mgr.search_semantic = AsyncMock(return_value=[
-            _FakeAxiom(id="ax_001", statement="Belt interval is 105k miles."),
-        ])
+        axiom_mgr.search_semantic = AsyncMock(
+            return_value=[
+                _FakeAxiom(id="ax_001", statement="Belt interval is 105k miles."),
+            ]
+        )
 
         backend = MagicMock()
         backend.is_loaded = True

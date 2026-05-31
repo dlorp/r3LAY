@@ -260,9 +260,7 @@ class R3LayApp(App):
                 return
 
             # Validate UUID format to prevent path traversal
-            uuid_re = re.compile(
-                r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-            )
+            uuid_re = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
             if not uuid_re.match(session_id):
                 logger.warning("Invalid session_id in last_session.json, ignoring")
                 return
@@ -335,9 +333,7 @@ class R3LayApp(App):
                         self.state.session.save(sessions_dir)
                         pointer = sessions_dir / "last_session.json"
                         temp_pointer = pointer.with_suffix(".json.tmp")
-                        temp_pointer.write_text(
-                            _json.dumps({"session_id": self.state.session.id})
-                        )
+                        temp_pointer.write_text(_json.dumps({"session_id": self.state.session.id}))
                         temp_pointer.replace(pointer)
                         logger.info("Auto-saved session %s", self.state.session.id)
                     except Exception as e:

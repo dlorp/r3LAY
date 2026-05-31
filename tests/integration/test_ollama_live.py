@@ -143,9 +143,7 @@ class TestOllamaGeneration:
         """Test generate_stream yields text tokens."""
         messages = [{"role": "user", "content": "Say hello in exactly one word."}]
         tokens = []
-        async for token in backend.generate_stream(
-            messages, max_tokens=20, temperature=0.0
-        ):
+        async for token in backend.generate_stream(messages, max_tokens=20, temperature=0.0):
             tokens.append(token)
         assert len(tokens) > 0
         full_response = "".join(tokens)
@@ -155,9 +153,7 @@ class TestOllamaGeneration:
         """Test that max_tokens limits output length."""
         messages = [{"role": "user", "content": "Count from 1 to 100."}]
         tokens = []
-        async for token in backend.generate_stream(
-            messages, max_tokens=10, temperature=0.0
-        ):
+        async for token in backend.generate_stream(messages, max_tokens=10, temperature=0.0):
             tokens.append(token)
         full = "".join(tokens)
         assert len(full) > 0
@@ -171,9 +167,7 @@ class TestOllamaGeneration:
             {"role": "user", "content": "Hello"},
         ]
         tokens = []
-        async for token in backend.generate_stream(
-            messages, max_tokens=10, temperature=0.0
-        ):
+        async for token in backend.generate_stream(messages, max_tokens=10, temperature=0.0):
             tokens.append(token)
         assert len(tokens) > 0
 
@@ -185,9 +179,7 @@ class TestOllamaGeneration:
             {"role": "user", "content": "What word did I say?"},
         ]
         tokens = []
-        async for token in backend.generate_stream(
-            messages, max_tokens=20, temperature=0.0
-        ):
+        async for token in backend.generate_stream(messages, max_tokens=20, temperature=0.0):
             tokens.append(token)
         full = "".join(tokens).lower()
         assert len(full) > 0
