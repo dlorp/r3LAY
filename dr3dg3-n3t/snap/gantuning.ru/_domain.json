@@ -1,0 +1,31 @@
+{
+  "changelog": [
+    {
+      "action": "captured",
+      "date": "2026-06-02T08:15:30Z",
+      "path": "/blog/chip-tyuning-i-pereproshivka-ebu-vsyo-chto-nuzhno-znat-pered-proshivkoj-dvigatelya/",
+      "run_id": "27A35E64",
+      "slug": "blog-chip-tyuning-i-pereproshivka-ebu-vsyo-chto-nuzhno-znat-"
+    }
+  ],
+  "domain": "gantuning.ru",
+  "first_seen": "2026-06-02",
+  "last_check": "2026-06-02",
+  "pages": {
+    "/blog/chip-tyuning-i-pereproshivka-ebu-vsyo-chto-nuzhno-znat-pered-proshivkoj-dvigatelya/": {
+      "archived": "2026-06-02T08:15:30Z",
+      "content_hash": "347bc48d7952c22a",
+      "coverage": "PARTIAL (3.7MB/3.5MB)",
+      "hash": "4c99f8532dd89603",
+      "image_count": 42,
+      "link_count": 203,
+      "screenshot": "screenshots/blog-chip-tyuning-i-pereproshivka-ebu-vsyo-chto-nuzhno-znat-.png",
+      "size_mb": 3.7,
+      "slug": "blog-chip-tyuning-i-pereproshivka-ebu-vsyo-chto-nuzhno-znat-",
+      "word_count": 2587
+    }
+  },
+  "queued": [],
+  "status": "active",
+  "total_snapshots": 1
+}

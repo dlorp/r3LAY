@@ -1,0 +1,31 @@
+{
+  "changelog": [
+    {
+      "action": "captured",
+      "date": "2026-06-02T08:14:30Z",
+      "path": "/chipmusic-chiptrackers.php",
+      "run_id": "27A35E64",
+      "slug": "chipmusic-chiptrackers"
+    }
+  ],
+  "domain": "woolyss.com",
+  "first_seen": "2026-06-02",
+  "last_check": "2026-06-02",
+  "pages": {
+    "/chipmusic-chiptrackers.php": {
+      "archived": "2026-06-02T08:14:30Z",
+      "content_hash": "a37203f560c9826d",
+      "coverage": "FULL",
+      "hash": "5422bd24d307dd39",
+      "image_count": 156,
+      "link_count": 269,
+      "screenshot": "screenshots/chipmusic-chiptrackers.png",
+      "size_mb": 0.1,
+      "slug": "chipmusic-chiptrackers",
+      "word_count": 2279
+    }
+  },
+  "queued": [],
+  "status": "active",
+  "total_snapshots": 1
+}

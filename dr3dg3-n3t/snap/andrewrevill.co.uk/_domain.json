@@ -1,0 +1,31 @@
+{
+  "changelog": [
+    {
+      "action": "captured",
+      "date": "2026-06-02T08:15:07Z",
+      "path": "/MEMSFlasher.htm",
+      "run_id": "27A35E64",
+      "slug": "memsflasher"
+    }
+  ],
+  "domain": "andrewrevill.co.uk",
+  "first_seen": "2026-06-02",
+  "last_check": "2026-06-02",
+  "pages": {
+    "/MEMSFlasher.htm": {
+      "archived": "2026-06-02T08:15:07Z",
+      "content_hash": "6d973e5ad7cd28e0",
+      "coverage": "FULL",
+      "hash": "0291bb4dcf584443",
+      "image_count": 17,
+      "link_count": 5,
+      "screenshot": "screenshots/memsflasher.png",
+      "size_mb": 0.1,
+      "slug": "memsflasher",
+      "word_count": 8217
+    }
+  },
+  "queued": [],
+  "status": "active",
+  "total_snapshots": 1
+}

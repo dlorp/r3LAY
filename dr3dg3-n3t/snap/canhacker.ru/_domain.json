@@ -1,0 +1,31 @@
+{
+  "changelog": [
+    {
+      "action": "captured",
+      "date": "2026-06-02T08:15:45Z",
+      "path": "/cannewbie/",
+      "run_id": "27A35E64",
+      "slug": "cannewbie"
+    }
+  ],
+  "domain": "canhacker.ru",
+  "first_seen": "2026-06-02",
+  "last_check": "2026-06-02",
+  "pages": {
+    "/cannewbie/": {
+      "archived": "2026-06-02T08:15:45Z",
+      "content_hash": "81b27ffa35a6f347",
+      "coverage": "FULL",
+      "hash": "b6c33e228b399ce6",
+      "image_count": 11,
+      "link_count": 117,
+      "screenshot": "screenshots/cannewbie.png",
+      "size_mb": 2.7,
+      "slug": "cannewbie",
+      "word_count": 1212
+    }
+  },
+  "queued": [],
+  "status": "active",
+  "total_snapshots": 1
+}

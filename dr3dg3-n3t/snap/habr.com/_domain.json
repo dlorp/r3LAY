@@ -1,0 +1,128 @@
+{
+  "changelog": [
+    {
+      "action": "captured",
+      "date": "2026-06-01T05:27:51Z",
+      "path": "/ru/articles/1030872/",
+      "run_id": "batch0001",
+      "slug": "ru-articles-1030872"
+    },
+    {
+      "action": "updated",
+      "date": "2026-06-01T05:28:36Z",
+      "path": "/ru/articles/1030872/",
+      "run_id": "b5snap02",
+      "slug": "ru-articles-1030872"
+    },
+    {
+      "action": "updated",
+      "date": "2026-06-01T14:14:37Z",
+      "path": "/ru/articles/1030872/",
+      "run_id": "8D467716",
+      "slug": "ru-articles-1030872"
+    },
+    {
+      "action": "captured",
+      "date": "2026-06-01T14:17:03Z",
+      "path": "/ru/articles/240101/",
+      "run_id": "8D467716",
+      "slug": "ru-articles-240101"
+    },
+    {
+      "action": "captured",
+      "date": "2026-06-01T14:17:23Z",
+      "path": "/ru/companies/ruvds/articles/1029484/",
+      "run_id": "8D467716",
+      "slug": "ru-companies-ruvds-articles-1029484"
+    },
+    {
+      "action": "updated",
+      "date": "2026-06-02T00:48:55Z",
+      "path": "/ru/articles/1030872/",
+      "run_id": "batch61274",
+      "slug": "ru-articles-1030872"
+    },
+    {
+      "action": "captured",
+      "date": "2026-06-02T02:14:41Z",
+      "path": "/ru/companies/ruvds/articles/1036372/",
+      "run_id": "ED68E078",
+      "slug": "ru-companies-ruvds-articles-1036372"
+    },
+    {
+      "action": "captured",
+      "date": "2026-06-02T08:14:16Z",
+      "path": "/ru/companies/ruvds/articles/515822/",
+      "run_id": "27A35E64",
+      "slug": "ru-companies-ruvds-articles-515822"
+    }
+  ],
+  "domain": "habr.com",
+  "first_seen": "2026-06-01",
+  "last_check": "2026-06-02",
+  "pages": {
+    "/ru/articles/1030872/": {
+      "archived": "2026-06-02T00:48:55Z",
+      "content_hash": "276608682bc847b1",
+      "coverage": "PARTIAL (23.8MB/3.5MB)",
+      "hash": "7ac89205a26b50dc",
+      "image_count": 88,
+      "link_count": 212,
+      "screenshot": "screenshots/ru-articles-1030872.png",
+      "size_mb": 23.8,
+      "slug": "ru-articles-1030872",
+      "word_count": 6063
+    },
+    "/ru/articles/240101/": {
+      "archived": "2026-06-01T14:17:03Z",
+      "content_hash": "31ccb8b9afc85c7b",
+      "coverage": "PARTIAL (5.0MB/3.5MB)",
+      "hash": "0ce1c4a2f82ef7da",
+      "image_count": 51,
+      "link_count": 171,
+      "screenshot": "screenshots/ru-articles-240101.png",
+      "size_mb": 5.0,
+      "slug": "ru-articles-240101",
+      "word_count": 2402
+    },
+    "/ru/companies/ruvds/articles/1029484/": {
+      "archived": "2026-06-01T14:17:23Z",
+      "content_hash": "5c40f32b6dbbbcda",
+      "coverage": "PARTIAL (19.0MB/3.5MB)",
+      "hash": "d7522fb354ff4370",
+      "image_count": 60,
+      "link_count": 150,
+      "screenshot": "screenshots/ru-companies-ruvds-articles-1029484.png",
+      "size_mb": 19.0,
+      "slug": "ru-companies-ruvds-articles-1029484",
+      "word_count": 6105
+    },
+    "/ru/companies/ruvds/articles/1036372/": {
+      "archived": "2026-06-02T02:14:41Z",
+      "content_hash": "aaeaf3d98b6009b0",
+      "coverage": "PARTIAL (19.3MB/3.5MB)",
+      "hash": "b14f0408b20fb0bd",
+      "image_count": 43,
+      "link_count": 160,
+      "screenshot": "screenshots/ru-companies-ruvds-articles-1036372.png",
+      "size_mb": 19.3,
+      "slug": "ru-companies-ruvds-articles-1036372",
+      "word_count": 4310
+    },
+    "/ru/companies/ruvds/articles/515822/": {
+      "archived": "2026-06-02T08:14:16Z",
+      "content_hash": "fd2238f6170725ca",
+      "coverage": "PARTIAL (17.9MB/3.5MB)",
+      "hash": "9fa0329d4f0f8923",
+      "image_count": 28,
+      "link_count": 152,
+      "screenshot": "screenshots/ru-companies-ruvds-articles-515822.png",
+      "size_mb": 17.9,
+      "slug": "ru-companies-ruvds-articles-515822",
+      "word_count": 1588
+    }
+  },
+  "queued": [],
+  "status": "active",
+  "total_snapshots": 5
+}

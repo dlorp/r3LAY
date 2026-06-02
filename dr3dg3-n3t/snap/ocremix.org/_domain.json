@@ -1,0 +1,31 @@
+{
+  "changelog": [
+    {
+      "action": "captured",
+      "date": "2026-06-02T08:14:37Z",
+      "path": "/info/SPC_Format_Specification",
+      "run_id": "27A35E64",
+      "slug": "info-spc_format_specification"
+    }
+  ],
+  "domain": "ocremix.org",
+  "first_seen": "2026-06-02",
+  "last_check": "2026-06-02",
+  "pages": {
+    "/info/SPC_Format_Specification": {
+      "archived": "2026-06-02T08:14:37Z",
+      "content_hash": "5a60026b4c7aad3d",
+      "coverage": "FULL",
+      "hash": "5188ac44ddc7b9bf",
+      "image_count": 29,
+      "link_count": 175,
+      "screenshot": "screenshots/info-spc_format_specification.png",
+      "size_mb": 0.3,
+      "slug": "info-spc_format_specification",
+      "word_count": 1180
+    }
+  },
+  "queued": [],
+  "status": "active",
+  "total_snapshots": 1
+}
